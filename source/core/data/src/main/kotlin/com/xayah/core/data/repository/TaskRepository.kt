@@ -26,6 +26,8 @@ class TaskRepository @Inject constructor(
     fun queryProcessingInfoFlow(taskId: Long) = taskDao.queryProcessingInfoFlow(taskId)
     fun queryPackageFlow(taskId: Long) = taskDao.queryPackageFlow(taskId)
     fun queryMediaFlow(taskId: Long) = taskDao.queryMediaFlow(taskId)
+    suspend fun deleteTask(id: Long) = taskDao.deleteTask(id)
+    suspend fun deleteAllTasks() = taskDao.deleteAllTasks()
 
     suspend fun getRawBytes(taskType: TaskType, requestedPackages: List<PackageEntity>? = null): Double = run {
         var total = 0.0

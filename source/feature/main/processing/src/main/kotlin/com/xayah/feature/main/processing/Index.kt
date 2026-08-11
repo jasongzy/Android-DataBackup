@@ -3,7 +3,6 @@ package com.xayah.feature.main.processing
 import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
@@ -24,7 +23,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,7 +58,6 @@ import com.xayah.core.ui.component.paddingTop
 import com.xayah.core.ui.component.paddingVertical
 import com.xayah.core.ui.material3.SnackbarDuration
 import com.xayah.core.ui.material3.SnackbarType
-import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.ui.theme.ThemedColorSchemeKeyTokens
 import com.xayah.core.ui.theme.value
 import com.xayah.core.ui.token.AnimationTokens
@@ -68,7 +65,6 @@ import com.xayah.core.ui.token.SizeTokens
 import com.xayah.core.ui.util.LocalNavController
 import com.xayah.core.ui.viewmodel.IndexUiEffect
 import com.xayah.core.util.command.BaseUtil
-import com.xayah.core.util.navigateSingle
 import com.xayah.core.util.withMainContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -150,6 +146,7 @@ fun PageProcessing(
                     if (dialogState.confirm(title = context.getString(R.string.prompt), text = context.getString(R.string.processing_exit_confirmation))) {
                         BaseUtil.kill(context, "tar", "root")
                         viewModel.emitIntent(ProcessingUiIntent.DestroyService)
+                        viewModel.emitIntent(ProcessingUiIntent.ClearTask)
                         withMainContext {
                             navController.popBackStack()
                         }
@@ -158,6 +155,7 @@ fun PageProcessing(
             } else {
                 viewModel.launchOnIO {
                     viewModel.emitIntent(ProcessingUiIntent.DestroyService)
+                    viewModel.emitIntent(ProcessingUiIntent.ClearTask)
                     withMainContext {
                         navController.popBackStack()
                     }
@@ -182,27 +180,15 @@ fun PageProcessing(
                     .paddingHorizontal(SizeTokens.Level24)
                     .paddingVertical(SizeTokens.Level8),
             ) {
-                AnimatedVisibility(uiState.state == OperationState.DONE) {
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            task?.apply {
-                                navController.popBackStack()
-                                navController.navigateSingle(MainRoutes.TaskDetails.getRoute(id))
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = ThemedColorSchemeKeyTokens.SecondaryContainer.value, contentColor = ThemedColorSchemeKeyTokens.OnSecondaryContainer.value)
-                    ) {
-                        Text(text = stringResource(R.string.visit_details))
-                    }
-                }
-
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = (uiState.state == OperationState.IDLE && !autoStart) || uiState.state == OperationState.DONE,
                     onClick = {
                         if (uiState.state == OperationState.IDLE) viewModel.emitIntentOnIO(ProcessingUiIntent.Process)
-                        else navController.popBackStack()
+                        else {
+                            viewModel.emitIntentOnIO(ProcessingUiIntent.ClearTask)
+                            navController.popBackStack()
+                        }
                     },
                 ) {
                     AnimatedTextContainer(targetState = if (uiState.state == OperationState.DONE) stringResource(id = R.string.finish) else stringResource(id = R.string._continue)) { text ->

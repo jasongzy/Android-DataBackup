@@ -39,6 +39,7 @@ open class ProcessingUiIntent : UiIntent {
     data object Initialize : ProcessingUiIntent()
     data object DestroyService : ProcessingUiIntent()
     data object TurnOffScreen : ProcessingUiIntent()
+    data object ClearTask : ProcessingUiIntent()
 }
 
 @ExperimentalCoroutinesApi
@@ -106,6 +107,11 @@ abstract class AbstractProcessingViewModel(
                     mRootService.setScreenOffTimeout(Int.MAX_VALUE)
                     mRootService.setDisplayPowerMode(SurfaceControlHidden.POWER_MODE_OFF)
                 }
+            }
+
+            is ProcessingUiIntent.ClearTask -> {
+                val id = _taskId.value
+                if (id >= 0) mTaskRepo.deleteTask(id)
             }
 
             else -> {

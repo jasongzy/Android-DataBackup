@@ -140,7 +140,6 @@ dependencies {
     implementation(project(":feature:main:processing"))
     implementation(project(":feature:main:list"))
     implementation(project(":feature:main:details"))
-    implementation(project(":feature:main:history"))
     implementation(project(":feature:main:directory"))
 
     // Splash Screen

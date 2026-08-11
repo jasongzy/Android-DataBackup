@@ -133,6 +133,7 @@ internal abstract class AbstractProcessingService : Service() {
     suspend fun initialize(): Long {
         mMutex.withLock {
             if (mIsInitialized.not()) {
+                mTaskDao.deleteAllTasks()
                 mTaskDao.upsert(mTaskEntity).apply {
                     // Initialize task id.
                     mTaskEntity.id = this
