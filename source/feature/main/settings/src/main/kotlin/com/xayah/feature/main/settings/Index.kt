@@ -147,6 +147,12 @@ fun PageSettings() {
                     checkedText = stringResource(id = R.string.auto_screen_off_desc),
                 )
                 Clickable(
+                    title = stringResource(id = R.string.clear_cache),
+                    value = stringResource(id = R.string.clear_cache_desc),
+                ) {
+                    viewModel.emitIntentOnIO(IndexUiIntent.ClearCache)
+                }
+                Clickable(
                     title = stringResource(id = R.string.configurations),
                     value = stringResource(id = R.string.configurations_desc),
                 ) {
