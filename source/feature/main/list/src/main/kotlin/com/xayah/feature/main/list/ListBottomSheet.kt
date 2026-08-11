@@ -325,7 +325,17 @@ internal fun AppsFilterSheet(
                         setFilters(filters.copy(showSystemApps = filters.showSystemApps.not()))
                     }
                 }
-                if (opType == OpType.BACKUP) {
+            }
+            CompactOptions {
+                CompactOption(stringResource(R.string.installed), filters.installedApps) {
+                    setFilters(filters.copy(installedApps = filters.installedApps.not()))
+                }
+                CompactOption(stringResource(R.string.not_installed), filters.notInstalledApps) {
+                    setFilters(filters.copy(notInstalledApps = filters.notInstalledApps.not()))
+                }
+            }
+            if (opType == OpType.BACKUP) {
+                CompactOptions {
                     CompactOption(stringResource(R.string.apps_which_have_backups), filters.hasBackups) {
                         setFilters(filters.copy(hasBackups = filters.hasBackups.not()))
                     }
@@ -333,11 +343,24 @@ internal fun AppsFilterSheet(
                         setFilters(filters.copy(hasNoBackups = filters.hasNoBackups.not()))
                     }
                 }
-                CompactOption(stringResource(R.string.installed), filters.installedApps) {
-                    setFilters(filters.copy(installedApps = filters.installedApps.not()))
+                CompactOptions {
+                    CompactOption(stringResource(R.string.has_apk_backup), filters.hasApkBackup) {
+                        setFilters(filters.copy(hasApkBackup = filters.hasApkBackup.not()))
+                    }
+                    CompactOption(stringResource(R.string.has_no_apk_backup), filters.hasNoApkBackup) {
+                        setFilters(filters.copy(hasNoApkBackup = filters.hasNoApkBackup.not()))
+                    }
+                    CompactOption(stringResource(R.string.has_outdated_apk_backup), filters.hasOutdatedApkBackup) {
+                        setFilters(filters.copy(hasOutdatedApkBackup = filters.hasOutdatedApkBackup.not()))
+                    }
                 }
-                CompactOption(stringResource(R.string.not_installed), filters.notInstalledApps) {
-                    setFilters(filters.copy(notInstalledApps = filters.notInstalledApps.not()))
+                CompactOptions {
+                    CompactOption(stringResource(R.string.has_data_backup), filters.hasDataBackup) {
+                        setFilters(filters.copy(hasDataBackup = filters.hasDataBackup.not()))
+                    }
+                    CompactOption(stringResource(R.string.has_no_data_backup), filters.hasNoDataBackup) {
+                        setFilters(filters.copy(hasNoDataBackup = filters.hasNoDataBackup.not()))
+                    }
                 }
             }
 

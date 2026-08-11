@@ -124,12 +124,12 @@ class ListActionsViewModel @Inject constructor(
         }
     }
 
-    fun selectAll() {
+    fun selectAll(visibleAppIds: Collection<Long>) {
         viewModelScope.launchOnDefault {
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    listDataRepo.selectApps(state.appList.map { it.id })
+                    listDataRepo.selectApps(visibleAppIds)
                 }
 
                 is Success.Files -> {
@@ -143,12 +143,12 @@ class ListActionsViewModel @Inject constructor(
         }
     }
 
-    fun unselectAll() {
+    fun unselectAll(visibleAppIds: Collection<Long>) {
         viewModelScope.launchOnDefault {
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    listDataRepo.unselectApps(state.appList.map { it.id })
+                    listDataRepo.unselectApps(visibleAppIds)
                 }
 
                 is Success.Files -> {
@@ -162,12 +162,12 @@ class ListActionsViewModel @Inject constructor(
         }
     }
 
-    fun reverseAll() {
+    fun reverseAll(visibleAppIds: Collection<Long>) {
         viewModelScope.launchOnDefault {
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    listDataRepo.reverseAppSelection(state.appList.map { it.id })
+                    listDataRepo.reverseAppSelection(visibleAppIds)
                 }
 
                 is Success.Files -> {

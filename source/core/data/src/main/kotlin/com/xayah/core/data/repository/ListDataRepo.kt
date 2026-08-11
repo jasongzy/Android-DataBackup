@@ -92,6 +92,11 @@ class ListDataRepo @Inject constructor(
                         hasNoBackups = true,
                         installedApps = true,
                         notInstalledApps = true,
+                        hasApkBackup = false,
+                        hasNoApkBackup = false,
+                        hasDataBackup = false,
+                        hasNoDataBackup = false,
+                        hasOutdatedApkBackup = false,
                     )
                 )
                 userIndex = MutableStateFlow(0)
@@ -207,6 +212,10 @@ class ListDataRepo @Inject constructor(
         selectedAppIds.emit((selectedAppIds.value - candidates) + (candidates - selectedAppIds.value))
     }
 
+    suspend fun retainAppSelection(ids: Collection<Long>) {
+        selectedAppIds.emit(selectedAppIds.value.intersect(ids.toSet()))
+    }
+
     fun clearAppSelection() {
         selectedAppIds.value = emptySet()
         selectionMode.value = false
@@ -288,6 +297,11 @@ data class Filters(
     val hasNoBackups: Boolean,
     val installedApps: Boolean,
     val notInstalledApps: Boolean,
+    val hasApkBackup: Boolean,
+    val hasNoApkBackup: Boolean,
+    val hasDataBackup: Boolean,
+    val hasNoDataBackup: Boolean,
+    val hasOutdatedApkBackup: Boolean,
 )
 
 sealed class ListData(

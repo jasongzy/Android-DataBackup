@@ -455,6 +455,11 @@
     <string name="visit_details">Visit details</string>
     <string name="apps_which_have_backups">Apps which have backups</string>
     <string name="apps_which_have_no_backups">Apps which have no backups</string>
+    <string name="has_apk_backup">APK backup exists</string>
+    <string name="has_no_apk_backup">No APK backup</string>
+    <string name="has_data_backup">Data backup exists</string>
+    <string name="has_no_data_backup">No data backup</string>
+    <string name="has_outdated_apk_backup">APK backup is older than installed version</string>
     <string name="no_labels_here">No labels here.</string>
     <string name="backup_configs">Backup configs</string>
     <string name="backup_configs_desc">Export configurations to backup directory</string>

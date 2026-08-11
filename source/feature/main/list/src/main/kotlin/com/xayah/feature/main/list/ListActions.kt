@@ -50,16 +50,23 @@ import com.xayah.libpickyou.ui.model.PickerType
 @Composable
 internal fun ListActions(
     viewModel: ListActionsViewModel = hiltViewModel(),
+    itemsViewModel: ListItemsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val itemsUiState by itemsViewModel.uiState.collectAsStateWithLifecycle()
+    val visibleAppIds = (itemsUiState as? ListItemsUiState.Success.Apps)
+        ?.appList
+        ?.mapNotNull { it.app.id.takeIf { id -> it.app.isInstalled && id != 0L } }
+        .orEmpty()
 
-    ListActions(uiState, viewModel)
+    ListActions(uiState, viewModel, visibleAppIds)
 }
 
 @Composable
 internal fun ListActions(
     uiState: ListActionsUiState,
     viewModel: ListActionsViewModel,
+    visibleAppIds: List<Long>,
 ) {
     if (uiState is ListActionsUiState.Success) {
         val context = LocalContext.current
@@ -75,7 +82,7 @@ internal fun ListActions(
         FilterAction(viewModel::showFilterSheet)
 
         if (uiState.selectionMode) {
-            ListAction(viewModel)
+            ListAction(viewModel, visibleAppIds)
         }
 
         var moreExpanded by remember { mutableStateOf(false) }
@@ -157,7 +164,7 @@ private fun FilterAction(onFilter: () -> Unit) {
 }
 
 @Composable
-private fun ListAction(viewModel: ListActionsViewModel) {
+private fun ListAction(viewModel: ListActionsViewModel, visibleAppIds: List<Long>) {
     var checkListExpanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
         IconButton(icon = Icons.Rounded.Checklist, tooltip = stringResource(R.string.selection_options)) {
@@ -169,15 +176,15 @@ private fun ListAction(viewModel: ListActionsViewModel) {
         ) {
             SelectAllItem {
                 checkListExpanded = false
-                viewModel.selectAll()
+                viewModel.selectAll(visibleAppIds)
             }
             UnselectAllItem {
                 checkListExpanded = false
-                viewModel.unselectAll()
+                viewModel.unselectAll(visibleAppIds)
             }
             ReverseItem {
                 checkListExpanded = false
-                viewModel.reverseAll()
+                viewModel.reverseAll(visibleAppIds)
             }
         }
     }

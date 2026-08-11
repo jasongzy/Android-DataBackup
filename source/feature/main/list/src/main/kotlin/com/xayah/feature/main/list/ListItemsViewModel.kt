@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.CoroutineDispatcher
 import java.text.Collator
@@ -73,6 +74,9 @@ class ListItemsViewModel @Inject constructor(
                     app = app,
                     revisionCount = overview?.revisionCount ?: 0,
                     latestRevisionAt = overview?.latestRevisionAt ?: app.lastBackupTime.takeIf { it > 0 },
+                    hasApkBackup = overview?.hasApkBackup == true,
+                    hasDataBackup = overview?.hasDataBackup == true,
+                    latestApkVersionCode = overview?.latestApkVersionCode,
                     labels = labelsByApp[app.packageName to app.userId].orEmpty(),
                 )
             }
@@ -102,6 +106,7 @@ class ListItemsViewModel @Inject constructor(
                             userId = overview.app.userId,
                             label = overview.app.label,
                             versionName = overview.app.versionName,
+                            versionCode = overview.app.versionCode,
                             preserveId = 0,
                             isSystemApp = overview.app.isSystem,
                             isInstalled = false,
@@ -114,14 +119,32 @@ class ListItemsViewModel @Inject constructor(
                         ),
                         revisionCount = overview.revisionCount,
                         latestRevisionAt = overview.latestRevisionAt,
+                        hasApkBackup = overview.hasApkBackup,
+                        hasDataBackup = overview.hasDataBackup,
+                        latestApkVersionCode = overview.latestApkVersionCode,
                         labels = labelsByApp[overview.app.packageName to overview.app.userId].orEmpty(),
                     )
                 }
                 .toList()
 
+            val filteredItems = (installedItems + archivedItems).asSequence()
+                .filter { opType != OpType.BACKUP || !listData.filters.hasApkBackup || it.hasApkBackup }
+                .filter { opType != OpType.BACKUP || !listData.filters.hasNoApkBackup || !it.hasApkBackup }
+                .filter { opType != OpType.BACKUP || !listData.filters.hasDataBackup || it.hasDataBackup }
+                .filter { opType != OpType.BACKUP || !listData.filters.hasNoDataBackup || !it.hasDataBackup }
+                .filter { item ->
+                    opType != OpType.BACKUP || !listData.filters.hasOutdatedApkBackup || (
+                        item.app.isInstalled &&
+                            item.hasApkBackup &&
+                            item.latestApkVersionCode != null &&
+                            item.app.versionCode > item.latestApkVersionCode
+                        )
+                }
+                .toList()
+
             Success.Apps(
                 opType = opType,
-                appList = (installedItems + archivedItems).sorted(listData),
+                appList = filteredItems.sorted(listData),
             )
         }
 
@@ -129,6 +152,12 @@ class ListItemsViewModel @Inject constructor(
             Success.Files(
                 opType = opType,
                 fileList = it,
+            )
+        }
+    }.onEach { state ->
+        if (state is Success.Apps) {
+            listDataRepo.retainAppSelection(
+                state.appList.asSequence().map(AppListItem::app).filter(App::isInstalled).map(App::id).toSet()
             )
         }
     }.flowOn(defaultDispatcher).stateIn(
@@ -230,5 +259,8 @@ data class AppListItem(
     val app: App,
     val revisionCount: Int,
     val latestRevisionAt: Long?,
+    val hasApkBackup: Boolean,
+    val hasDataBackup: Boolean,
+    val latestApkVersionCode: Long?,
     val labels: List<ColoredLabel>,
 )
