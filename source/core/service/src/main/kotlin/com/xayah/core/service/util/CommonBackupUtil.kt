@@ -13,7 +13,6 @@ import com.xayah.core.model.BlacklistFileItem
 import com.xayah.core.model.CompressionType
 import com.xayah.core.model.Configurations
 import com.xayah.core.model.ConfigurationsBlacklist
-import com.xayah.core.model.FileItem
 import com.xayah.core.model.OpType
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.ConfigsConfigurationsName
@@ -113,36 +112,39 @@ class CommonBackupUtil @Inject constructor(
 
     fun getConfigsDst(dstDir: String) = "${dstDir}/$ConfigsConfigurationsName"
 
-    suspend fun backupConfigs(dstDir: String): ShellResult = run {
+    suspend fun backupConfigs(
+        dstDir: String,
+        includeBlacklist: Boolean = true,
+        includeCloud: Boolean = true,
+        includeLabels: Boolean = true,
+    ): ShellResult = run {
         log { "Backing up configs..." }
 
         val config = Configurations(
             blacklist = ConfigurationsBlacklist(apps = listOf(), files = listOf()),
             cloud = listOf(),
-            file = listOf(),
             labels = listOf(),
+            labelColors = emptyMap(),
             labelAppRefs = listOf(),
             labelFileRefs = listOf(),
         )
 
 
-        val blockedApps = mutableListOf<BlacklistAppItem>()
-        appRepo.queryPackages(opType = OpType.BACKUP, blocked = true).forEach {
-            blockedApps.add(BlacklistAppItem(it.packageName, it.userId))
+        if (includeBlacklist) {
+            config.blacklist.apps = appRepo.queryPackages(opType = OpType.BACKUP, blocked = true).map {
+                BlacklistAppItem(it.packageName, it.userId)
+            }
+            config.blacklist.files = fileRepo.query(opType = OpType.BACKUP, blocked = true).map {
+                BlacklistFileItem(it.name, it.path)
+            }
         }
-        val blockedFiles = mutableListOf<BlacklistFileItem>()
-        fileRepo.query(opType = OpType.BACKUP, blocked = true).forEach {
-            blockedFiles.add(BlacklistFileItem(it.name, it.path))
+        if (includeCloud) config.cloud = cloudRepo.query()
+        if (includeLabels) {
+            config.labels = labelsRepo.getLabels()
+            config.labelColors = labelsRepo.getLabelColors()
+            config.labelAppRefs = labelsRepo.getAppRefs()
+            config.labelFileRefs = labelsRepo.getFileRefs()
         }
-        mutableListOf<BlacklistFileItem>()
-        val files = fileRepo.query(opType = OpType.BACKUP, blocked = false)
-        config.blacklist.apps = blockedApps
-        config.blacklist.files = blockedFiles
-        config.cloud = cloudRepo.query()
-        config.file = files.map { FileItem(it.name, it.path) }
-        config.labels = labelsRepo.getLabels()
-        config.labelAppRefs = labelsRepo.getAppRefs()
-        config.labelFileRefs = labelsRepo.getFileRefs()
         val dst = getConfigsDst(dstDir)
         var isSuccess: Boolean
         val out = mutableListOf<String>()

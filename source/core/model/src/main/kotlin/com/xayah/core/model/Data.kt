@@ -18,11 +18,6 @@ data class BlacklistFileItem(
     var path: String,
 )
 
-data class FileItem(
-    var name: String,
-    var path: String,
-)
-
 data class ConfigurationsBlacklist(
     var apps: List<BlacklistAppItem>,
     var files: List<BlacklistFileItem>,
@@ -31,8 +26,8 @@ data class ConfigurationsBlacklist(
 data class Configurations(
     val blacklist: ConfigurationsBlacklist,
     var cloud: List<CloudEntity>,
-    var file: List<FileItem>,
     var labels: List<LabelEntity>,
+    var labelColors: Map<String, Long>,
     var labelAppRefs: List<LabelAppCrossRefEntity>,
     var labelFileRefs: List<LabelFileCrossRefEntity>,
 )

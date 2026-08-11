@@ -2,11 +2,10 @@ package com.xayah.feature.main.processing.packages.backup
 
 import android.content.Context
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.xayah.core.data.repository.BackupRequestStore
 import com.xayah.core.data.repository.CloudRepository
-import com.xayah.core.data.repository.PackageRepository
 import com.xayah.core.data.repository.TaskRepository
 import com.xayah.core.datastore.saveCloudActivatedAccountName
-import com.xayah.core.model.OpType
 import com.xayah.core.model.StorageMode
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.util.formatSize
@@ -43,15 +42,15 @@ class BackupViewModelImpl @Inject constructor(
     @ApplicationContext private val mContext: Context,
     mRootService: RemoteRootService,
     mTaskRepo: TaskRepository,
-    private val mPkgRepo: PackageRepository,
     private val mCloudRepo: CloudRepository,
+    private val backupRequestStore: BackupRequestStore,
     mLocalService: ProcessingServiceProxyLocalImpl,
     mCloudService: ProcessingServiceProxyCloudImpl,
 ) : AbstractPackagesProcessingViewModel(mContext, mRootService, mTaskRepo, mLocalService, mCloudService) {
     override suspend fun onOtherEvent(state: IndexUiState, intent: ProcessingUiIntent) {
         when (intent) {
             is UpdateApps -> {
-                val packages = mPkgRepo.queryActivated(OpType.BACKUP)
+                val packages = backupRequestStore.packages.value
                 var bytes = 0.0
                 packages.forEach {
                     bytes += it.storageStatsBytes

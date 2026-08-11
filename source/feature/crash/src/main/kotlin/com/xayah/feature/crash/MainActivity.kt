@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Warning
@@ -81,7 +82,9 @@ class MainActivity : AppCompatActivity() {
                             TopBarTitle(text = stringResource(id = R.string.app_crashed))
 
                             // Content
-                            LabelSmallText(text = uiState.text, fontFamily = JetbrainsMonoFamily)
+                            SelectionContainer {
+                                LabelSmallText(text = uiState.text, fontFamily = JetbrainsMonoFamily)
+                            }
 
                             InnerBottomSpacer(innerPadding = innerPadding)
                         }

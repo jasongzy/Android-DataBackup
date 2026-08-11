@@ -272,9 +272,16 @@ data class PackageEntity(
 fun PackageEntity.asExternalModel() = App(
     id = id,
     packageName = packageName,
+    userId = userId,
     label = packageInfo.label,
+    versionName = packageInfo.versionName,
     preserveId = preserveId,
     isSystemApp = isSystemApp,
+    isInstalled = indexInfo.opType == OpType.BACKUP,
+    firstInstallTime = packageInfo.firstInstallTime,
+    lastUpdateTime = packageInfo.lastUpdateTime,
+    lastBackupTime = extraInfo.lastBackupTime,
+    dataSizeBytes = displayStatsBytes.toLong(),
     selectionFlag = selectionFlag,
     selected = extraInfo.activated
 )

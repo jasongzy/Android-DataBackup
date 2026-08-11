@@ -111,7 +111,7 @@ fun Clickable(
             if (leadingContent != null) leadingContent()
             Column(modifier = Modifier.weight(1f)) {
                 AnimatedTextContainer(targetState = title) { text ->
-                    TitleLargeText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled), fontWeight = FontWeight.Normal)
+                    TitleMediumText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled), fontWeight = FontWeight.Normal)
                 }
                 if (value != null) AnimatedTextContainer(targetState = value) { text ->
                     TitleSmallText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.Outline.value.withState(enabled), fontWeight = FontWeight.Normal)
@@ -163,7 +163,7 @@ fun Clickable(
             }
             Column(modifier = Modifier.weight(1f)) {
                 AnimatedTextContainer(targetState = title) { text ->
-                    TitleLargeText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled), fontWeight = FontWeight.Normal)
+                    TitleMediumText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled), fontWeight = FontWeight.Normal)
                 }
                 if (value != null) AnimatedTextContainer(targetState = value) { text ->
                     TitleSmallText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.Outline.value.withState(enabled), fontWeight = FontWeight.Normal)
@@ -194,7 +194,7 @@ fun Clickable(
             leadingIcon?.invoke(this)
             Column(modifier = Modifier.weight(1f)) {
                 AnimatedTextContainer(targetState = title) { text ->
-                    TitleLargeText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled), fontWeight = FontWeight.Normal)
+                    TitleMediumText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled), fontWeight = FontWeight.Normal)
                 }
                 if (value != null) AnimatedTextContainer(targetState = value) { text ->
                     TitleSmallText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.Outline.value.withState(enabled), fontWeight = FontWeight.Normal)
@@ -334,7 +334,7 @@ fun Slideable(
             if (leadingContent != null) leadingContent()
             Column(modifier = Modifier.weight(1f)) {
                 AnimatedTextContainer(targetState = title) { text ->
-                    TitleLargeText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled), fontWeight = FontWeight.Normal)
+                    TitleMediumText(enabled = enabled, text = text, color = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled), fontWeight = FontWeight.Normal)
                 }
                 Slider(
                     value = value,

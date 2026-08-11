@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,6 +43,7 @@ import com.xayah.core.ui.component.Divider
 import com.xayah.core.ui.component.InnerBottomSpacer
 import com.xayah.core.ui.component.InnerTopSpacer
 import com.xayah.core.ui.component.SecondaryLargeTopBar
+import com.xayah.core.ui.component.TooltipIconButton
 import com.xayah.core.ui.component.paddingBottom
 import com.xayah.core.ui.component.paddingEnd
 import com.xayah.core.ui.component.paddingStart
@@ -165,6 +165,7 @@ fun SetupTextField(
     value: String,
     leadingIcon: ImageVector,
     trailingIcon: ImageVector? = null,
+    trailingIconTooltip: String? = null,
     onTrailingIconClick: (() -> Unit)? = null,
     prefix: String? = null,
     label: String,
@@ -204,7 +205,11 @@ fun SetupTextField(
         },
         trailingIcon = if (trailingIcon == null) null else {
             {
-                IconButton(modifier = Modifier.paddingEnd(TextFieldTokens.TrailingIconPaddingEnd), onClick = { onTrailingIconClick?.invoke() }) {
+                TooltipIconButton(
+                    modifier = Modifier.paddingEnd(TextFieldTokens.TrailingIconPaddingEnd),
+                    tooltip = trailingIconTooltip ?: label,
+                    onClick = { onTrailingIconClick?.invoke() },
+                ) {
                     Icon(imageVector = trailingIcon, contentDescription = null)
                 }
             }

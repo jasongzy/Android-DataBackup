@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Query
 import androidx.room.Upsert
+import androidx.room.Transaction
 import com.xayah.core.model.database.LabelAppCrossRefEntity
 import com.xayah.core.model.database.LabelEntity
 import com.xayah.core.model.database.LabelFileCrossRefEntity
@@ -56,9 +57,33 @@ interface LabelDao {
     @Query("DELETE FROM LabelEntity WHERE label = :label")
     suspend fun delete(label: String)
 
+    @Query("DELETE FROM LabelAppCrossRefEntity WHERE label = :label")
+    suspend fun deleteAppRefs(label: String)
+
+    @Query("DELETE FROM LabelFileCrossRefEntity WHERE label = :label")
+    suspend fun deleteFileRefs(label: String)
+
+    @Transaction
+    suspend fun deleteCompletely(label: String) {
+        deleteAppRefs(label)
+        deleteFileRefs(label)
+        delete(label)
+    }
+
     @Delete(entity = LabelAppCrossRefEntity::class)
     suspend fun deleteAppRef(item: LabelAppCrossRefEntity)
 
+    @Delete(entity = LabelAppCrossRefEntity::class)
+    suspend fun deleteAppRefs(items: List<LabelAppCrossRefEntity>)
+
     @Delete(entity = LabelFileCrossRefEntity::class)
     suspend fun deleteFileRef(item: LabelFileCrossRefEntity)
+
+    @Query(
+        "DELETE FROM LabelAppCrossRefEntity WHERE NOT EXISTS (" +
+            "SELECT 1 FROM PackageEntity WHERE " +
+            "PackageEntity.indexInfo_packageName = LabelAppCrossRefEntity.packageName AND " +
+            "PackageEntity.indexInfo_userId = LabelAppCrossRefEntity.userId)"
+    )
+    suspend fun deleteOrphanedAppRefs()
 }

@@ -1,5 +1,7 @@
 package com.xayah.core.service.packages.backup
 
+import com.xayah.core.data.repository.AppBackupRepository
+import com.xayah.core.data.repository.BackupRequestStore
 import com.xayah.core.data.repository.CloudRepository
 import com.xayah.core.data.repository.PackageRepository
 import com.xayah.core.data.repository.TaskRepository
@@ -166,6 +168,12 @@ internal class BackupServiceCloudImpl @Inject constructor() : AbstractBackupServ
 
     @Inject
     override lateinit var mPackagesBackupUtil: PackagesBackupUtil
+
+    @Inject
+    override lateinit var mAppBackupRepository: AppBackupRepository
+
+    @Inject
+    override lateinit var mBackupRequestStore: BackupRequestStore
 
     override val mRootDir by lazy { mPathUtil.getCloudTmpDir() }
     override val mAppsDir by lazy { mPathUtil.getCloudTmpAppsDir() }

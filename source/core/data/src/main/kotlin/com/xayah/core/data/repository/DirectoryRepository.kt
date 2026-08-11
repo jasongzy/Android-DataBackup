@@ -19,6 +19,8 @@ import com.xayah.core.util.command.PreparationUtil
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 class DirectoryRepository @Inject constructor(
@@ -27,6 +29,7 @@ class DirectoryRepository @Inject constructor(
     private val packageDao: PackageDao,
     private val rootService: RemoteRootService,
 ) {
+    private val updateMutex = Mutex()
     fun queryActiveDirectoriesFlow(storageType: StorageType) = directoryDao.queryActiveDirectoriesFlow(storageType).distinctUntilChanged()
 
     private suspend fun resetDir() = selectDir(
@@ -73,8 +76,9 @@ class DirectoryRepository @Inject constructor(
         }
     }
 
-    suspend fun update() {
+    suspend fun update() = updateMutex.withLock {
         withIOContext {
+            directoryDao.deleteDuplicates()
             // Inactivate all directories
             directoryDao.updateActive(active = false)
 
@@ -122,6 +126,7 @@ class DirectoryRepository @Inject constructor(
                 }
             }
             directoryDao.upsert(externalDirs)
+            directoryDao.deleteDuplicates()
 
             // Activate backup/restore directories except external directories
             directoryDao.updateActive(excludeType = StorageType.EXTERNAL, active = true)

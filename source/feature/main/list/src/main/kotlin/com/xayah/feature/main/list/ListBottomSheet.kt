@@ -1,7 +1,11 @@
 package com.xayah.feature.main.list
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -12,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -32,19 +37,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.data.repository.Filters
+import com.xayah.core.data.repository.LabelFilterMode
 import com.xayah.core.datastore.saveLoadSystemApps
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.OpType
 import com.xayah.core.model.SortType
 import com.xayah.core.model.database.CloudEntity
-import com.xayah.core.model.database.LabelEntity
+import com.xayah.core.model.ColoredLabel
 import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.database.PackageDataStates.Companion.setSelected
 import com.xayah.core.ui.component.BottomButton
-import com.xayah.core.ui.component.CheckBox
 import com.xayah.core.ui.component.DataChips
 import com.xayah.core.ui.component.ModalBottomSheet
-import com.xayah.core.ui.component.RadioButtons
 import com.xayah.core.ui.component.Title
 import com.xayah.core.ui.component.TitleSort
 import com.xayah.core.ui.component.paddingHorizontal
@@ -95,8 +99,9 @@ internal fun ListBottomSheet(
                 sortIndex = uiState.sortIndex,
                 sortType = uiState.sortType,
                 labelEntities = uiState.labelEntities,
-                labels = uiState.labels,
-                onClickLabel = viewModel::addOrRemoveLabel,
+                labelFilters = uiState.labelFilters,
+                onClickLabel = viewModel::cycleLabelFilter,
+                onDeleteLabel = viewModel::deleteLabel,
                 setFilters = viewModel::setFilters,
                 onSortByType = viewModel::setSortByType,
                 onSortByIndex = viewModel::setSortByIndex,
@@ -127,8 +132,8 @@ internal fun ListBottomSheet(
                 sortIndex = uiState.sortIndex,
                 sortType = uiState.sortType,
                 labelEntities = uiState.labelEntities,
-                labels = uiState.labels,
-                onClickLabel = viewModel::addOrRemoveLabel,
+                labelFilters = uiState.labelFilters,
+                onClickLabel = viewModel::cycleLabelFilter,
                 onSortByType = viewModel::setSortByType,
                 onSortByIndex = viewModel::setSortByIndex,
                 onDismissRequest = onDismissRequest,
@@ -199,9 +204,14 @@ private fun SourceChips(clouds: List<CloudEntity>, onChanged: (cloud: String, ba
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
-private fun LabelsFlow(labelEntities: List<LabelEntity>, labels: Set<String>, onClick: (String) -> Unit) {
+private fun LabelsFlow(
+    labelEntities: List<ColoredLabel>,
+    labelFilters: Map<String, LabelFilterMode>,
+    onClick: (String) -> Unit,
+    onLongClick: ((String) -> Unit)? = null,
+) {
     FlowRow(
         modifier = Modifier
             .fillMaxWidth()
@@ -210,25 +220,69 @@ private fun LabelsFlow(labelEntities: List<LabelEntity>, labels: Set<String>, on
         verticalArrangement = Arrangement.spacedBy(-SizeTokens.Level8)
     ) {
         labelEntities.forEach { item ->
-            val selected by remember(item.label, labels) { mutableStateOf(item.label in labels) }
-            FilterChip(
-                onClick = {
-                    onClick(item.label)
-                },
-                label = { Text(item.label) },
-                selected = selected,
-                leadingIcon = if (selected) {
-                    {
-                        Icon(
-                            imageVector = Icons.Filled.Done,
-                            contentDescription = null,
-                            modifier = Modifier.size(FilterChipDefaults.IconSize)
+            val mode = labelFilters[item.label]
+            val interactionSource = remember { MutableInteractionSource() }
+            Box {
+                FilterChip(
+                    onClick = {},
+                    label = {
+                        Text(
+                            when (mode) {
+                                LabelFilterMode.INCLUDE -> "+ ${item.label}"
+                                LabelFilterMode.EXCLUDE -> "− ${item.label}"
+                                null -> item.label
+                            }
                         )
-                    }
-                } else {
-                    null
-                },
-            )
+                    },
+                    selected = mode != null,
+                    leadingIcon = if (mode != null) {
+                        {
+                            Icon(
+                                imageVector = Icons.Filled.Done,
+                                contentDescription = null,
+                                modifier = Modifier.size(FilterChipDefaults.IconSize)
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    interactionSource = interactionSource,
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .combinedClickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = { onClick(item.label) },
+                            onLongClick = { onLongClick?.invoke(item.label) },
+                        )
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CompactOptions(content: @Composable () -> Unit) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().paddingHorizontal(SizeTokens.Level24),
+        horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8),
+        verticalArrangement = Arrangement.spacedBy(-SizeTokens.Level8),
+    ) { content() }
+}
+
+@Composable
+private fun CompactOption(text: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(selected = selected, onClick = onClick, label = { Text(text) })
+}
+
+@Composable
+private fun SortOptions(selected: Int, items: List<String>, onSelect: (Int) -> Unit) {
+    CompactOptions {
+        items.forEachIndexed { index, item ->
+            CompactOption(text = item, selected = selected == index, onClick = { onSelect(index) })
         }
     }
 }
@@ -243,9 +297,10 @@ internal fun AppsFilterSheet(
     filters: Filters,
     sortIndex: Int,
     sortType: SortType,
-    labelEntities: List<LabelEntity>,
-    labels: Set<String>,
+    labelEntities: List<ColoredLabel>,
+    labelFilters: Map<String, LabelFilterMode>,
     onClickLabel: (String) -> Unit,
+    onDeleteLabel: (String) -> Unit,
     setFilters: (Filters) -> Unit,
     onSortByType: () -> Unit,
     onSortByIndex: (Int) -> Unit,
@@ -253,6 +308,7 @@ internal fun AppsFilterSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var deleteCandidate by remember { mutableStateOf<String?>(null) }
     if (isShow) {
         ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState) {
             Title(text = stringResource(id = R.string.filters))
@@ -261,35 +317,61 @@ internal fun AppsFilterSheet(
                     setFilters(filters.copy(cloud = cloud, backupDir = backupDir))
                 }
             }
-            CheckBox(checked = filters.showSystemApps, text = stringResource(id = R.string.load_system_apps), onValueChange = {
-                scope.launch {
-                    if (filters.showSystemApps.not()) {
-                        WorkManagerInitializer.fastInitializeAndUpdateApps(context)
+            CompactOptions {
+                CompactOption(stringResource(R.string.load_system_apps), filters.showSystemApps) {
+                    scope.launch {
+                        if (filters.showSystemApps.not()) WorkManagerInitializer.fastInitializeAndUpdateApps(context)
+                        context.saveLoadSystemApps(filters.showSystemApps.not())
+                        setFilters(filters.copy(showSystemApps = filters.showSystemApps.not()))
                     }
-                    context.saveLoadSystemApps(filters.showSystemApps.not())
-                    setFilters(filters.copy(showSystemApps = filters.showSystemApps.not()))
                 }
-            })
-            when (opType) {
-                OpType.BACKUP -> {
-                    CheckBox(checked = filters.hasBackups, text = stringResource(R.string.apps_which_have_backups), onValueChange = { setFilters(filters.copy(hasBackups = filters.hasBackups.not())) })
-                    CheckBox(checked = filters.hasNoBackups, text = stringResource(R.string.apps_which_have_no_backups), onValueChange = { setFilters(filters.copy(hasNoBackups = filters.hasNoBackups.not())) })
+                if (opType == OpType.BACKUP) {
+                    CompactOption(stringResource(R.string.apps_which_have_backups), filters.hasBackups) {
+                        setFilters(filters.copy(hasBackups = filters.hasBackups.not()))
+                    }
+                    CompactOption(stringResource(R.string.apps_which_have_no_backups), filters.hasNoBackups) {
+                        setFilters(filters.copy(hasNoBackups = filters.hasNoBackups.not()))
+                    }
                 }
-
-                OpType.RESTORE -> {
-                    CheckBox(checked = filters.installedApps, text = stringResource(R.string.installed), onValueChange = { setFilters(filters.copy(installedApps = filters.installedApps.not())) })
-                    CheckBox(checked = filters.notInstalledApps, text = stringResource(R.string.not_installed), onValueChange = { setFilters(filters.copy(notInstalledApps = filters.notInstalledApps.not())) })
+                CompactOption(stringResource(R.string.installed), filters.installedApps) {
+                    setFilters(filters.copy(installedApps = filters.installedApps.not()))
+                }
+                CompactOption(stringResource(R.string.not_installed), filters.notInstalledApps) {
+                    setFilters(filters.copy(notInstalledApps = filters.notInstalledApps.not()))
                 }
             }
 
             if (labelEntities.isNotEmpty()) {
                 Title(text = stringResource(id = R.string.labels))
-                LabelsFlow(labelEntities = labelEntities, labels = labels, onClick = onClickLabel)
+                LabelsFlow(
+                    labelEntities = labelEntities,
+                    labelFilters = labelFilters,
+                    onClick = onClickLabel,
+                    onLongClick = { deleteCandidate = it },
+                )
             }
 
             TitleSort(text = stringResource(id = R.string.sort), sortType = sortType, onSort = onSortByType)
-            RadioButtons(selected = sortIndex, items = stringArrayResource(id = R.array.backup_sort_type_items_apps).toList(), onSelect = onSortByIndex)
+            SortOptions(selected = sortIndex, items = stringArrayResource(R.array.backup_sort_type_items_apps).toList(), onSelect = onSortByIndex)
         }
+    }
+    deleteCandidate?.let { label ->
+        AlertDialog(
+            onDismissRequest = { deleteCandidate = null },
+            title = { Text(stringResource(R.string.delete_label)) },
+            text = { Text(stringResource(R.string.confirm_delete_label, label)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    onDeleteLabel(label)
+                    deleteCandidate = null
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { deleteCandidate = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }
 
@@ -300,8 +382,8 @@ internal fun FilesFilterSheet(
     sheetState: SheetState,
     sortIndex: Int,
     sortType: SortType,
-    labelEntities: List<LabelEntity>,
-    labels: Set<String>,
+    labelEntities: List<ColoredLabel>,
+    labelFilters: Map<String, LabelFilterMode>,
     onClickLabel: (String) -> Unit,
     onSortByType: () -> Unit,
     onSortByIndex: (Int) -> Unit,
@@ -311,11 +393,11 @@ internal fun FilesFilterSheet(
         ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState) {
             if (labelEntities.isNotEmpty()) {
                 Title(text = stringResource(id = R.string.labels))
-                LabelsFlow(labelEntities = labelEntities, labels = labels, onClick = onClickLabel)
+                LabelsFlow(labelEntities = labelEntities, labelFilters = labelFilters, onClick = onClickLabel)
             }
 
             TitleSort(text = stringResource(id = R.string.sort), sortType = sortType, onSort = onSortByType)
-            RadioButtons(
+            SortOptions(
                 selected = sortIndex,
                 items = stringArrayResource(id = R.array.backup_sort_type_items_files).toList(),
                 onSelect = onSortByIndex

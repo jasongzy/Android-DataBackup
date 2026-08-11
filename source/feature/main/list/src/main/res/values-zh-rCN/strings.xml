@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apps">应用</string>
+    <string name="backup_summary">%1$d 个备份 · 最近 %2$s</string>
+    <string name="no_backups">暂无备份</string>
+    <string name="back_up_selected">备份</string>
+</resources>

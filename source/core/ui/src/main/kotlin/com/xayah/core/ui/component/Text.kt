@@ -117,6 +117,8 @@ fun TitleMediumText(
     color: Color = Color.Unspecified,
     textAlign: TextAlign? = null,
     fontWeight: FontWeight? = null,
+    overflow: TextOverflow = TextOverflow.Ellipsis,
+    maxLines: Int = Int.MAX_VALUE,
     enabled: Boolean = true,
 ) {
     Text(
@@ -126,6 +128,8 @@ fun TitleMediumText(
         color = color.withState(enabled),
         textAlign = textAlign,
         fontWeight = fontWeight,
+        overflow = overflow,
+        maxLines = maxLines,
     )
 }
 

@@ -7,6 +7,7 @@ import com.xayah.core.datastore.ConstantUtil
 import com.xayah.core.model.OpType
 import com.xayah.core.model.ProcessingType
 import com.xayah.core.model.TaskType
+import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.localBackupSaveDir
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -26,11 +27,11 @@ class TaskRepository @Inject constructor(
     fun queryPackageFlow(taskId: Long) = taskDao.queryPackageFlow(taskId)
     fun queryMediaFlow(taskId: Long) = taskDao.queryMediaFlow(taskId)
 
-    suspend fun getRawBytes(taskType: TaskType): Double = run {
+    suspend fun getRawBytes(taskType: TaskType, requestedPackages: List<PackageEntity>? = null): Double = run {
         var total = 0.0
         when (taskType) {
             TaskType.PACKAGE -> {
-                val packages = packageDao.queryActivated(OpType.BACKUP)
+                val packages = requestedPackages ?: packageDao.queryActivated(OpType.BACKUP)
                 packages.forEach {
                     if (it.apkSelected) total += it.dataStats.apkBytes
                     if (it.userSelected) total += it.dataStats.userBytes

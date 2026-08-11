@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apps">Apps</string>
+    <string name="backup_summary">%1$d backups · latest %2$s</string>
+    <string name="no_backups">No backups</string>
+    <string name="back_up_selected">Back up</string>
+</resources>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="back">返回</string>
+    <string name="app_data">应用数据</string>
+    <string name="backup_revisions">备份记录</string>
+    <string name="no_backup_revisions">暂无备份记录</string>
+    <string name="revision_details">%1$s · %2$s</string>
+    <string name="back_up">备份</string>
+    <string name="backup_scope">备份内容</string>
+    <string name="restore_scope">恢复内容</string>
+    <string name="revision_info">备份详情</string>
+    <string name="created_at">创建于 %1$s</string>
+    <string name="delete_revision">删除备份</string>
+    <string name="confirm_delete_revision">永久删除此备份？</string>
+    <string name="delete">删除</string>
+    <string name="cancel">取消</string>
+    <string name="more_options">更多选项</string>
+    <string name="blacklist">黑名单</string>
+    <string name="add_to_blacklist">加入黑名单</string>
+    <string name="remove_from_blacklist">移出黑名单</string>
+    <string name="confirm_add_to_blacklist">要将此应用加入黑名单吗？</string>
+    <string name="confirm_remove_from_blacklist">要将此应用移出黑名单吗？</string>
+    <string name="confirm">确定</string>
+    <string name="clear_cache">清除缓存</string>
+    <string name="open_settings">打开设置</string>
+    <string name="backup_deleted">备份已删除</string>
+</resources>

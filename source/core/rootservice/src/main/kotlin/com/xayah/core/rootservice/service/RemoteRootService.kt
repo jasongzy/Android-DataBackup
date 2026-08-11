@@ -313,6 +313,15 @@ class RemoteRootService(private val context: Context) {
     suspend fun forceStopPackageAsUser(packageName: String, userId: Int) =
         runCatching { getService().forceStopPackageAsUser(packageName, userId) }.onFailure(onFailure)
 
+    suspend fun uninstallPackageAsUser(packageName: String, userId: Int): Boolean =
+        runCatching { getService().uninstallPackageAsUser(packageName, userId) }.onFailure(onFailure).getOrDefault(false)
+
+    suspend fun clearPackageDataAsUser(packageName: String, userId: Int): Boolean =
+        runCatching { getService().clearPackageDataAsUser(packageName, userId) }.onFailure(onFailure).getOrDefault(false)
+
+    suspend fun clearPackageCacheAsUser(packageName: String, userId: Int): Boolean =
+        runCatching { getService().clearPackageCacheAsUser(packageName, userId) }.onFailure(onFailure).getOrDefault(false)
+
     suspend fun setApplicationEnabledSetting(packageName: String, newState: Int, flags: Int, userId: Int, callingPackage: String?) =
         runCatching { getService().setApplicationEnabledSetting(packageName, newState, flags, userId, callingPackage) }.onFailure(onFailure)
 

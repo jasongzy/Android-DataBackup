@@ -13,6 +13,25 @@
     <item name="confirm_remove_from_blacklist" type="string" />
     <item name="block" type="string" />
     <item name="unblock" type="string" />
+    <item name="uninstall" type="string" />
+    <item name="confirm_uninstall" type="string" />
+    <item name="clear_data" type="string" />
+    <item name="clear_cache" type="string" />
+    <item name="confirm_clear_data" type="string" />
+    <item name="path_copied" type="string" />
+    <item name="save_app_icon" type="string" />
+    <item name="confirm_save_app_icon" type="string" />
+    <item name="app_icon_saved" type="string" />
+    <item name="app_icon_save_failed" type="string" />
+    <item name="removed_from_blacklist" type="string" />
+    <item name="added_to_blacklist" type="string" />
+    <item name="app_unfrozen" type="string" />
+    <item name="app_frozen" type="string" />
+    <item name="app_uninstalled" type="string" />
+    <item name="app_data_cleared" type="string" />
+    <item name="app_cache_cleared" type="string" />
+    <item name="backup_protected" type="string" />
+    <item name="deleted_successfully" type="string" />
     <item name="disabled" type="string" />
     <item name="keystore" type="string" />
     <item name="ssaid" type="string" />
@@ -27,6 +46,8 @@
     <item name="user" type="string" />
     <item name="uid" type="string" />
     <item name="version" type="string" />
+    <item name="architecture" type="string" />
+    <item name="target_sdk" type="string" />
     <item name="first_install" type="string" />
     <item name="granted" type="string" />
     <item name="denied" type="string" />
@@ -37,6 +58,13 @@
     <item name="no_labels_here" type="string" />
     <item name="last_backup" type="string" />
     <item name="last_update" type="string" />
+    <item name="cancel" type="string" />
+    <item name="share" type="string" />
+    <item name="further_operations" type="string" />
+    <item name="copy_apk_path" type="string" />
+    <item name="share_apk_failed" type="string" />
+    <item name="external_action_failed" type="string" />
+    <item name="no_external_actions" type="string" />
 
     <item name="ic_rounded_person" type="drawable" />
     <item name="ic_rounded_acute" type="drawable" />

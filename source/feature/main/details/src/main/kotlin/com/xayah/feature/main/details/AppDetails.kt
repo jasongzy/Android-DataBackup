@@ -2,6 +2,8 @@ package com.xayah.feature.main.details
 
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -10,10 +12,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
@@ -22,20 +27,26 @@ import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Apps
-import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Api
 import androidx.compose.material.icons.rounded.RemoveRedEye
 import androidx.compose.material.icons.rounded.RocketLaunch
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Update
 import androidx.compose.material.icons.rounded._123
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SingleChoiceSegmentedButtonRowScope
@@ -52,29 +63,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.style.TextOverflow
 import com.xayah.core.common.util.toLineString
 import com.xayah.core.model.OpType
+import com.xayah.core.model.DataType
+import com.xayah.core.model.LabelPalette
 import com.xayah.core.model.database.LabelAppCrossRefEntity
-import com.xayah.core.model.database.LabelEntity
+import com.xayah.core.model.ColoredLabel
 import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.database.PackageDataStates.Companion.setSelected
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.database.PackagePermission
 import com.xayah.core.ui.component.ActionSegmentedButton
 import com.xayah.core.ui.component.AnimatedModalDropdownMenu
+import com.xayah.core.ui.component.BodyMediumText
 import com.xayah.core.ui.component.BodyLargeText
 import com.xayah.core.ui.component.BottomButton
 import com.xayah.core.ui.component.Clickable
 import com.xayah.core.ui.component.DataChips
 import com.xayah.core.ui.component.DropdownMenuItem
-import com.xayah.core.ui.component.HeadlineMediumText
+import com.xayah.core.ui.component.FilledTonalIconTextButton
 import com.xayah.core.ui.component.LocalSlotScope
 import com.xayah.core.ui.component.ModalBottomSheet
 import com.xayah.core.ui.component.PackageIconImage
 import com.xayah.core.ui.component.Title
+import com.xayah.core.ui.component.TitleLargeText
+import com.xayah.core.ui.component.TooltipIconButton
 import com.xayah.core.ui.component.confirm
 import com.xayah.core.ui.component.edit
 import com.xayah.core.ui.component.paddingHorizontal
@@ -90,20 +108,30 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-internal fun AppDetails(
+fun AppDetails(
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
     uiState: DetailsUiState.Success.App,
     onSetDataStates: (Long, PackageDataStates) -> Unit,
     onAddLabel: (String) -> Unit,
     onDeleteLabel: (String) -> Unit,
+    onSetLabelColor: (String, Long) -> Unit,
     onSelectLabel: (Boolean, LabelAppCrossRefEntity?) -> Unit,
-    onBlock: (Boolean) -> Unit,
+    onUninstall: () -> Unit,
+    onClearData: () -> Unit,
+    onCopyDataPath: (DataType) -> Unit,
+    onSaveAppIcon: () -> Unit,
+    onShareApk: () -> Unit,
+    furtherOperations: FurtherOperationsUiState,
+    onLoadFurtherOperations: () -> Unit,
+    onOpenFurtherOperation: (FurtherOperation) -> Unit,
     onFreeze: (Boolean) -> Unit,
     onLaunch: () -> Unit,
     onProtect: () -> Unit,
     onDelete: () -> Unit
 ) {
     var isShow by remember { mutableStateOf(false) }
+    var showFurtherOperations by remember { mutableStateOf(false) }
+    var colorCandidate by remember { mutableStateOf<ColoredLabel?>(null) }
     val sheetState = rememberModalBottomSheetState()
     val onDismissRequest: () -> Unit = {
         coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
@@ -114,37 +142,186 @@ internal fun AppDetails(
     }
     val app = uiState.app
     val opType = app.indexInfo.opType
+    val context = LocalContext.current
+    val dialogState = LocalSlotScope.current!!.dialogSlot
 
     LabelsBottomSheet(isShow, sheetState, onDismissRequest, app, uiState.refs, uiState.labels, onAddLabel, onDeleteLabel, onSelectLabel)
+    if (showFurtherOperations) {
+        FurtherOperationsBottomSheet(
+            onDismiss = { showFurtherOperations = false },
+            onShareApk = {
+                showFurtherOperations = false
+                onShareApk()
+            },
+            onCopyApkPath = {
+                showFurtherOperations = false
+                onCopyDataPath(DataType.PACKAGE_APK)
+            },
+            onOpenFurtherOperation = { operation ->
+                showFurtherOperations = false
+                onOpenFurtherOperation(operation)
+            },
+            uiState = furtherOperations,
+        )
+    }
 
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(SizeTokens.Level12))
 
-        PackageIconImage(packageName = app.packageName, size = SizeTokens.Level128)
+        Box(
+            modifier = Modifier.combinedClickable(
+                onClick = {
+                    if (opType == OpType.BACKUP) {
+                        showFurtherOperations = true
+                        onLoadFurtherOperations()
+                    }
+                },
+                onLongClick = {
+                    dialogState.confirm(
+                        title = context.getString(R.string.save_app_icon),
+                        text = context.getString(R.string.confirm_save_app_icon),
+                        onConfirm = onSaveAppIcon,
+                    )
+                },
+            )
+        ) {
+            PackageIconImage(packageName = app.packageName, size = SizeTokens.Level100)
+        }
 
         Spacer(Modifier.height(SizeTokens.Level12))
 
-        HeadlineMediumText(text = app.packageInfo.label, color = ThemedColorSchemeKeyTokens.OnSurface.value)
-        BodyLargeText(text = app.packageName, color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value)
-        LabelsFlow(opType = opType, app = app, refs = uiState.refs) { isShow = true }
+        TitleLargeText(text = app.packageInfo.label, color = ThemedColorSchemeKeyTokens.OnSurface.value)
+        BodyMediumText(text = app.packageName, color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value)
+        BodyMediumText(text = app.packageInfo.versionName, color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value)
+        LabelsFlow(
+            opType = opType,
+            app = app,
+            refs = uiState.refs,
+            labels = uiState.labels,
+            onEditColor = { colorCandidate = it },
+            onAdd = { isShow = true },
+        )
 
         Spacer(Modifier.height(SizeTokens.Level12))
 
-        ActionsRow(opType = opType, blocked = app.extraInfo.blocked, frozen = app.extraInfo.enabled.not(), protected = app.preserveId != 0L, onBlock = onBlock, onFreeze = onFreeze, onLaunch = onLaunch, onProtect = onProtect, onDelete = onDelete)
+        ActionsRow(opType = opType, frozen = app.extraInfo.enabled.not(), protected = app.preserveId != 0L, onUninstall = onUninstall, onClearData = onClearData, onFreeze = onFreeze, onLaunch = onLaunch, onProtect = onProtect, onDelete = onDelete)
 
         Spacer(Modifier.height(SizeTokens.Level12))
 
-        BackupParts(app = app, isCalculating = uiState.isRefreshing, onSetDataStates = onSetDataStates)
+        BackupParts(app = app, isCalculating = uiState.isRefreshing, onSetDataStates = onSetDataStates, onCopyDataPath = onCopyDataPath)
 
-        Info(app = app)
+        Info(app = app, architecture = uiState.architecture, targetSdk = uiState.targetSdk)
 
         Permissions(permissions = app.extraInfo.permissions)
+    }
+
+    colorCandidate?.let { label ->
+        LabelColorDialog(
+            label = label,
+            onDismiss = { colorCandidate = null },
+            onSelect = { color ->
+                onSetLabelColor(label.label, color)
+                colorCandidate = null
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun FurtherOperationsBottomSheet(
+    onDismiss: () -> Unit,
+    onShareApk: () -> Unit,
+    onCopyApkPath: () -> Unit,
+    onOpenFurtherOperation: (FurtherOperation) -> Unit,
+    uiState: FurtherOperationsUiState,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Title(stringResource(R.string.further_operations))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .paddingHorizontal(SizeTokens.Level24),
+            horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8),
+        ) {
+            FilledTonalIconTextButton(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Rounded.Share,
+                text = stringResource(R.string.share),
+                onClick = onShareApk,
+            )
+            FilledTonalIconTextButton(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Rounded.ContentCopy,
+                text = stringResource(R.string.copy_apk_path),
+                onClick = onCopyApkPath,
+            )
+        }
+        when (uiState) {
+            FurtherOperationsUiState.Idle,
+            FurtherOperationsUiState.Loading -> Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(SizeTokens.Level80),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator()
+            }
+
+            is FurtherOperationsUiState.Content -> {
+                if (uiState.operations.isEmpty()) {
+                    BodyMediumText(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(SizeTokens.Level24),
+                        text = stringResource(R.string.no_external_actions),
+                        color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
+                    )
+                } else {
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .paddingHorizontal(SizeTokens.Level16),
+                        maxItemsInEachRow = 4,
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalArrangement = Arrangement.spacedBy(SizeTokens.Level12),
+                    ) {
+                        uiState.operations.forEach { operation ->
+                            Column(
+                                modifier = Modifier
+                                    .width(SizeTokens.Level80)
+                                    .clickable { onOpenFurtherOperation(operation) }
+                                    .padding(vertical = SizeTokens.Level8),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                PackageIconImage(packageName = operation.packageName, size = SizeTokens.Level48)
+                                Spacer(Modifier.height(SizeTokens.Level8))
+                                Text(
+                                    text = operation.label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(SizeTokens.Level24))
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LabelsFlow(opType: OpType, app: PackageEntity, refs: List<LabelAppCrossRefEntity>, onAdd: () -> Unit) {
+private fun LabelsFlow(
+    opType: OpType,
+    app: PackageEntity,
+    refs: List<LabelAppCrossRefEntity>,
+    labels: List<ColoredLabel>,
+    onEditColor: (ColoredLabel) -> Unit,
+    onAdd: () -> Unit,
+) {
     FlowRow(
         modifier = Modifier
             .fillMaxWidth()
@@ -201,13 +378,25 @@ private fun LabelsFlow(opType: OpType, app: PackageEntity, refs: List<LabelAppCr
             )
         }
 
+        val labelsByName = labels.associateBy(ColoredLabel::label)
         refs.forEach { item ->
-            AssistChip(
-                onClick = { },
-                label = { Text(item.label) },
-            )
+            labelsByName[item.label]?.let { label ->
+                val color = Color(label.colorArgb)
+                androidx.compose.material3.Surface(
+                    onClick = { onEditColor(label) },
+                    color = Color.Transparent,
+                    contentColor = color,
+                    shape = androidx.compose.material3.MaterialTheme.shapes.small,
+                    border = BorderStroke(SizeTokens.Level1, color),
+                ) {
+                    Text(
+                        modifier = Modifier.paddingHorizontal(SizeTokens.Level8).paddingVertical(SizeTokens.Level4),
+                        text = label.label,
+                    )
+                }
+            }
         }
-        IconButton(onClick = onAdd) {
+        TooltipIconButton(tooltip = stringResource(R.string.add_label), onClick = onAdd) {
             Icon(Icons.Rounded.Add, contentDescription = null)
         }
     }
@@ -221,7 +410,7 @@ private fun LabelsBottomSheet(
     onDismissRequest: () -> Unit,
     app: PackageEntity,
     refs: List<LabelAppCrossRefEntity>,
-    labels: List<LabelEntity>,
+    labels: List<ColoredLabel>,
     onAddLabel: (String) -> Unit,
     onDeleteLabel: (String) -> Unit,
     onSelectLabel: (Boolean, LabelAppCrossRefEntity?) -> Unit,
@@ -339,10 +528,10 @@ private fun SingleChoiceSegmentedButtonRowScope.ActionItem(
 @Composable
 private fun ActionsRow(
     opType: OpType,
-    blocked: Boolean,
     frozen: Boolean,
     protected: Boolean,
-    onBlock: (Boolean) -> Unit,
+    onUninstall: () -> Unit,
+    onClearData: () -> Unit,
     onFreeze: (Boolean) -> Unit,
     onLaunch: () -> Unit,
     onProtect: () -> Unit,
@@ -357,7 +546,7 @@ private fun ActionsRow(
     ) {
         when (opType) {
             OpType.BACKUP -> {
-                BackupActions(blocked, frozen, onBlock, onFreeze, onLaunch)
+                BackupActions(frozen, onUninstall, onClearData, onFreeze, onLaunch)
             }
 
             OpType.RESTORE -> {
@@ -369,26 +558,44 @@ private fun ActionsRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SingleChoiceSegmentedButtonRowScope.BackupActions(blocked: Boolean, frozen: Boolean, onBlock: (Boolean) -> Unit, onFreeze: (Boolean) -> Unit, onLaunch: () -> Unit) {
+private fun SingleChoiceSegmentedButtonRowScope.BackupActions(
+    frozen: Boolean,
+    onUninstall: () -> Unit,
+    onClearData: () -> Unit,
+    onFreeze: (Boolean) -> Unit,
+    onLaunch: () -> Unit,
+) {
     val context = LocalContext.current
     val dialogState = LocalSlotScope.current!!.dialogSlot
     ActionItem(
         index = 0,
-        count = 3,
-        title = stringResource(if (blocked) R.string.unblock else R.string.block),
-        icon = Icons.Rounded.Block
+        count = 4,
+        title = stringResource(R.string.uninstall),
+        icon = Icons.Rounded.DeleteForever,
+        containerColor = ThemedColorSchemeKeyTokens.ErrorContainer.value,
     ) {
         dialogState.confirm(
             title = context.getString(R.string.prompt),
-            text = context.getString(if (blocked) R.string.confirm_remove_from_blacklist else R.string.confirm_add_to_blacklist),
-            onConfirm = {
-                onBlock(blocked)
-            }
+            text = context.getString(R.string.confirm_uninstall),
+            onConfirm = onUninstall,
         )
     }
     ActionItem(
         index = 1,
-        count = 3,
+        count = 4,
+        title = stringResource(R.string.clear_data),
+        icon = Icons.Rounded.CleaningServices,
+        containerColor = ThemedColorSchemeKeyTokens.ErrorContainer.value,
+    ) {
+        dialogState.confirm(
+            title = context.getString(R.string.prompt),
+            text = context.getString(R.string.confirm_clear_data),
+            onConfirm = onClearData,
+        )
+    }
+    ActionItem(
+        index = 2,
+        count = 4,
         title = stringResource(if (frozen) R.string.unfreeze else R.string.freeze),
         icon = Icons.Rounded.AcUnit
     ) {
@@ -402,8 +609,8 @@ private fun SingleChoiceSegmentedButtonRowScope.BackupActions(blocked: Boolean, 
     }
     ActionItem(
         enabled = frozen.not(),
-        index = 2,
-        count = 3,
+        index = 3,
+        count = 4,
         title = context.getString(R.string.launch),
         icon = Icons.Rounded.RocketLaunch
     ) {
@@ -449,18 +656,26 @@ private fun SingleChoiceSegmentedButtonRowScope.RestoreActions(protected: Boolea
 }
 
 @Composable
-private fun BackupParts(app: PackageEntity, isCalculating: Boolean, onSetDataStates: (Long, PackageDataStates) -> Unit) {
+private fun BackupParts(
+    app: PackageEntity,
+    isCalculating: Boolean,
+    onSetDataStates: (Long, PackageDataStates) -> Unit,
+    onCopyDataPath: (DataType) -> Unit,
+) {
     Title(title = stringResource(id = R.string.backup_parts)) {
-        DataChips(selections = app.dataStates, displayStats = app.displayStats, isCalculating = isCalculating) { type, selected ->
-            onSetDataStates(app.id, type.setSelected(app.dataStates, selected.not()))
-        }
+        DataChips(
+            selections = app.dataStates,
+            displayStats = app.displayStats,
+            isCalculating = isCalculating,
+            onItemLongClick = onCopyDataPath,
+        ) { type, selected -> onSetDataStates(app.id, type.setSelected(app.dataStates, selected.not())) }
         Spacer(Modifier.height(SizeTokens.Level12))
     }
 }
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-private fun Info(app: PackageEntity) {
+private fun Info(app: PackageEntity, architecture: String, targetSdk: Int) {
     Title(title = stringResource(id = R.string.info)) {
         Clickable(
             icon = ImageVector.vectorResource(id = R.drawable.ic_rounded_person),
@@ -475,8 +690,22 @@ private fun Info(app: PackageEntity) {
         Clickable(
             icon = Icons.Rounded.Apps,
             title = stringResource(id = R.string.version),
-            value = app.packageInfo.versionName
+            value = "${app.packageInfo.versionName} (${app.packageInfo.versionCode})"
         )
+        if (architecture.isNotEmpty()) {
+            Clickable(
+                icon = Icons.Rounded.Memory,
+                title = stringResource(id = R.string.architecture),
+                value = architecture,
+            )
+        }
+        if (targetSdk != 0) {
+            Clickable(
+                icon = Icons.Rounded.Api,
+                title = stringResource(id = R.string.target_sdk),
+                value = targetSdk.toString(),
+            )
+        }
         if (app.packageInfo.firstInstallTime != 0L) {
             Clickable(
                 icon = Icons.Rounded.Download,
@@ -536,4 +765,36 @@ private fun Permissions(permissions: List<PackagePermission>) {
             }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LabelColorDialog(label: ColoredLabel, onDismiss: () -> Unit, onSelect: (Long) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(label.label) },
+        text = {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level12),
+                verticalArrangement = Arrangement.spacedBy(SizeTokens.Level12),
+            ) {
+                LabelPalette.colors.forEach { colorArgb ->
+                    val color = Color(colorArgb)
+                    androidx.compose.material3.Surface(
+                        modifier = Modifier.size(40.dp),
+                        onClick = { onSelect(colorArgb) },
+                        color = color,
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        border = if (colorArgb == label.colorArgb) BorderStroke(SizeTokens.Level2, LocalContentColor.current) else null,
+                    ) {}
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
 }

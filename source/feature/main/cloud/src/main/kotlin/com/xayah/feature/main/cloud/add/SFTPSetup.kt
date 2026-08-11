@@ -20,7 +20,6 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -60,6 +59,7 @@ import com.xayah.core.ui.component.FullscreenModalBottomSheet
 import com.xayah.core.ui.component.InnerBottomSpacer
 import com.xayah.core.ui.component.LocalSlotScope
 import com.xayah.core.ui.component.Title
+import com.xayah.core.ui.component.TooltipIconButton
 import com.xayah.core.ui.component.confirm
 import com.xayah.core.ui.component.paddingBottom
 import com.xayah.core.ui.component.paddingHorizontal
@@ -268,12 +268,16 @@ fun PageSFTPSetup() {
                             },
                             sheetState = sheetState,
                             actions = {
-                                IconButton(onClick = {
+                                TooltipIconButton(
+                                    tooltip = stringResource(id = android.R.string.paste),
+                                    onClick = {
                                     val clipboardManager =
                                         context.getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
 
-                                    privateKey = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString() ?: return@IconButton
-                                }) {
+                                        privateKey = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString()
+                                            ?: return@TooltipIconButton
+                                    },
+                                ) {
                                     Icon(
                                         imageVector = Icons.Filled.ContentPaste,
                                         contentDescription = stringResource(id = android.R.string.paste),
@@ -323,6 +327,7 @@ fun PageSFTPSetup() {
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     leadingIcon = ImageVector.vectorResource(id = R.drawable.ic_rounded_key),
                     trailingIcon = if (passwordVisible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
+                    trailingIconTooltip = stringResource(R.string.toggle_password_visibility),
                     onTrailingIconClick = {
                         passwordVisible = passwordVisible.not()
                     },

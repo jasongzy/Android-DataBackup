@@ -61,7 +61,15 @@ fun PageRestoreSettings() {
                 val items = stringArrayResource(id = R.array.kill_app_options)
                 val dialogItems by remember(items) {
                     mutableStateOf(items.mapIndexed { index, s ->
-                        DialogRadioItem(enum = KillAppOption.indexOf(index), title = s, desc = null)
+                        DialogRadioItem(
+                            enum = KillAppOption.indexOf(index),
+                            title = s,
+                            desc = when (index) {
+                                1 -> context.getString(R.string.kill_app_option_i_desc)
+                                2 -> context.getString(R.string.kill_app_option_ii_desc)
+                                else -> null
+                            },
+                        )
                     })
                 }
                 val currentOption by context.readKillAppOption().collectAsStateWithLifecycle(initialValue = KillAppOption.OPTION_II)
@@ -83,14 +91,14 @@ fun PageRestoreSettings() {
 
                 Switchable(
                     key = KeyCleanRestoring,
-                    defValue = false,
+                    defValue = true,
                     title = stringResource(id = R.string.clean_restoring),
                     checkedText = stringResource(id = R.string.clean_restoring_desc),
                 )
 
                 Switchable(
                     key = KeyRestorePermissions,
-                    defValue = true,
+                    defValue = false,
                     title = stringResource(id = R.string.restore_permissions),
                     checkedText = stringResource(id = R.string.restore_permissions_desc),
                 )

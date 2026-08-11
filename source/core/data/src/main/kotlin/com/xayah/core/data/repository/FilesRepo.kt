@@ -51,22 +51,29 @@ class FilesRepo @Inject constructor(
         opType: OpType,
         listData: Flow<ListData>,
         refs: Flow<List<LabelFileCrossRefEntity>>,
-        labels: Flow<Set<String>>,
+        labelFilters: Flow<Map<String, LabelFilterMode>>,
         cloudName: String,
         backupDir: String
     ): Flow<List<File>> = combine(
         listData,
         refs,
-        labels,
+        labelFilters,
         when (opType) {
             OpType.BACKUP -> filesDao.queryFilesFlow(opType = opType, existed = true, blocked = false)
             OpType.RESTORE -> filesDao.queryFilesFlow(opType = opType, cloud = cloudName, backupDir = backupDir)
         }
-    ) { lData, lRefs, lLabels, files ->
+    ) { lData, lRefs, filters, files ->
         val data = lData.castTo<ListData.Files>()
+        val labelsByFile = lRefs.groupBy { it.path to it.preserveId }
+            .mapValues { (_, refs) -> refs.mapTo(mutableSetOf()) { it.label } }
+        val included = filters.filterValues { it == LabelFilterMode.INCLUDE }.keys
+        val excluded = filters.filterValues { it == LabelFilterMode.EXCLUDE }.keys
         files.asSequence()
             .filter(mediaRepo.getKeyPredicateNew(key = data.searchQuery))
-            .filter { if (lLabels.isNotEmpty()) lRefs.find { ref -> it.path == ref.path && it.preserveId == ref.preserveId } != null else true }
+            .filter { file ->
+                val fileLabels = labelsByFile[file.path to file.preserveId].orEmpty()
+                (included.isEmpty() || fileLabels.any(included::contains)) && fileLabels.none(excluded::contains)
+            }
             .sortedWith(mediaRepo.getSortComparatorNew(sortIndex = data.sortIndex, sortType = data.sortType))
             .sortedByDescending { p -> p.extraInfo.activated }.toList()
             .map(MediaEntity::asExternalModel)

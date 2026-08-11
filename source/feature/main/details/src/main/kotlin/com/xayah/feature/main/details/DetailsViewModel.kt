@@ -1,19 +1,39 @@
 package com.xayah.feature.main.details
 
+import android.Manifest
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.ComponentName
+import android.content.ContentValues
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
+import android.graphics.Bitmap
+import android.media.MediaScannerConnection
+import android.os.Build
+import android.os.Environment
+import android.os.StrictMode
+import android.provider.MediaStore
+import android.provider.Settings
 import android.widget.Toast
+import androidx.annotation.StringRes
+import androidx.core.content.FileProvider
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xayah.core.data.repository.AppsRepo
 import com.xayah.core.data.repository.FilesRepo
 import com.xayah.core.data.repository.LabelsRepo
+import com.xayah.core.data.util.srcDir
 import com.xayah.core.hiddenapi.castTo
+import com.xayah.core.common.util.BuildConfigUtil
 import com.xayah.core.model.OpType
+import com.xayah.core.model.DataType
 import com.xayah.core.model.Target
 import com.xayah.core.model.database.LabelAppCrossRefEntity
-import com.xayah.core.model.database.LabelEntity
+import com.xayah.core.model.ColoredLabel
 import com.xayah.core.model.database.LabelFileCrossRefEntity
 import com.xayah.core.model.database.MediaEntity
 import com.xayah.core.model.database.PackageDataStates
@@ -22,7 +42,8 @@ import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.util.decodeURL
 import com.xayah.core.util.launchOnDefault
-import com.xayah.core.util.withMainContext
+import com.xayah.core.util.PathUtil
+import com.xayah.core.util.command.BaseUtil
 import com.xayah.feature.main.details.DetailsUiState.Error
 import com.xayah.feature.main.details.DetailsUiState.Loading
 import com.xayah.feature.main.details.DetailsUiState.Success
@@ -31,10 +52,28 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.Deflater
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 import javax.inject.Inject
+
+private const val ICON_EXPORT_DIR = "IridiumBackup"
 
 @HiltViewModel
 class DetailsViewModel @Inject constructor(
@@ -46,16 +85,43 @@ class DetailsViewModel @Inject constructor(
     private val labelsRepo: LabelsRepo,
 ) : ViewModel() {
     private val id: Long = savedStateHandle.get<String>(MainRoutes.ARG_ID)?.toLongOrNull() ?: 0L
-    private val target: Target = Target.valueOf(savedStateHandle.get<String>(MainRoutes.ARG_TARGET)!!.decodeURL().trim())
+    private val packageName = savedStateHandle.get<String>(MainRoutes.ARG_PACKAGE_NAME)
+    private val userId = savedStateHandle.get<String>(MainRoutes.ARG_USER_ID)?.toIntOrNull() ?: 0
+    private val target: Target = savedStateHandle.get<String>(MainRoutes.ARG_TARGET)
+        ?.let { Target.valueOf(it.decodeURL().trim()) }
+        ?: Target.Apps
     private val isRefreshing: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    private val appRuntimeInfo = MutableStateFlow(AppRuntimeInfo())
+    private val shareMutex = Mutex()
+    private val refreshMutex = Mutex()
+    private val _furtherOperations = MutableStateFlow<FurtherOperationsUiState>(FurtherOperationsUiState.Idle)
+    val furtherOperations = _furtherOperations.asStateFlow()
 
     val uiState: StateFlow<DetailsUiState> = when (target) {
         Target.Apps -> {
-            combine(appsRepo.getApp(id), isRefreshing, labelsRepo.getLabelsFlow(), labelsRepo.getAppRefsFlow()) { app, isRefreshing, labels, refs ->
+            val appFlow = if (id != 0L) {
+                appsRepo.getApp(id)
+            } else {
+                appsRepo.getApp(checkNotNull(packageName), userId)
+            }
+            viewModelScope.launchOnDefault {
+                appFlow
+                    .filterNotNull()
+                    .distinctUntilChangedBy { Triple(it.packageName, it.userId, it.packageInfo.versionCode) }
+                    .collect(::loadAppRuntimeInfo)
+            }
+            combine(appFlow, isRefreshing, labelsRepo.getColoredLabelsFlow(), labelsRepo.getAppRefsFlow(), appRuntimeInfo) { app, isRefreshing, labels, refs, runtimeInfo ->
                 if (app != null) {
-                    Success.App(uuid = UUID.randomUUID(), isRefreshing = isRefreshing, labels = labels, app = app, refs = refs.filter { ref ->
-                        labels.find { it.label == ref.label } != null && ref.packageName == app.packageName && ref.userId == app.userId && ref.preserveId == app.preserveId
-                    })
+                    Success.App(
+                        isRefreshing = isRefreshing,
+                        labels = labels,
+                        app = app,
+                        refs = refs.filter { ref ->
+                            labels.find { it.label == ref.label } != null && ref.packageName == app.packageName && ref.userId == app.userId && ref.preserveId == app.preserveId
+                        },
+                        architecture = runtimeInfo.architecture,
+                        targetSdk = runtimeInfo.targetSdk,
+                    )
                 } else {
                     Error
                 }
@@ -63,9 +129,9 @@ class DetailsViewModel @Inject constructor(
         }
 
         Target.Files -> {
-            combine(filesRepo.getFile(id), isRefreshing, labelsRepo.getLabelsFlow(), labelsRepo.getFileRefsFlow()) { file, isRefreshing, labels, refs ->
+            combine(filesRepo.getFile(id), isRefreshing, labelsRepo.getColoredLabelsFlow(), labelsRepo.getFileRefsFlow()) { file, isRefreshing, labels, refs ->
                 if (file != null) {
-                    Success.File(uuid = UUID.randomUUID(), isRefreshing = isRefreshing, labels = labels, file = file, refs = refs.filter { ref ->
+                    Success.File(isRefreshing = isRefreshing, labels = labels, file = file, refs = refs.filter { ref ->
                         labels.find { it.label == ref.label } != null && ref.path == file.path && ref.preserveId == file.preserveId
                     })
                 } else {
@@ -79,45 +145,42 @@ class DetailsViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5_000),
     )
 
-    fun onResume() {
+    fun refresh() {
         viewModelScope.launchOnDefault {
-            when (uiState.value) {
-                is Success.App -> {
-                    val state: Success.App = uiState.value.castTo()
-                    when (state.app.indexInfo.opType) {
-                        OpType.BACKUP -> {
-                            isRefreshing.emit(true)
-                            appsRepo.updateApp(state.app, state.app.userId)
-                            appsRepo.calculateLocalAppSize(state.app)
-                            isRefreshing.emit(false)
+            refreshMutex.withLock {
+                val state = uiState.first { it !is Loading }
+                if (state !is Success) return@withLock
+                isRefreshing.emit(true)
+                try {
+                    when (state) {
+                        is Success.App -> {
+                            when (state.app.indexInfo.opType) {
+                                OpType.BACKUP -> {
+                                    appsRepo.updateApp(state.app, state.app.userId)
+                                    appsRepo.calculateLocalAppSize(state.app)
+                                }
+
+                                OpType.RESTORE -> {
+                                    appsRepo.calculateLocalAppArchiveSize(state.app)
+                                }
+                            }
                         }
 
-                        OpType.RESTORE -> {
-                            isRefreshing.emit(true)
-                            appsRepo.calculateLocalAppArchiveSize(state.app)
-                            isRefreshing.emit(false)
-                        }
-                    }
-                }
+                        is Success.File -> {
+                            when (state.file.indexInfo.opType) {
+                                OpType.BACKUP -> {
+                                    filesRepo.calculateLocalFileSize(state.file)
+                                }
 
-                is Success.File -> {
-                    val state: Success.File = uiState.value.castTo()
-                    when (state.file.indexInfo.opType) {
-                        OpType.BACKUP -> {
-                            isRefreshing.emit(true)
-                            filesRepo.calculateLocalFileSize(state.file)
-                            isRefreshing.emit(false)
-                        }
-
-                        OpType.RESTORE -> {
-                            isRefreshing.emit(true)
-                            filesRepo.calculateLocalFileArchiveSize(state.file)
-                            isRefreshing.emit(false)
+                                OpType.RESTORE -> {
+                                    filesRepo.calculateLocalFileArchiveSize(state.file)
+                                }
+                            }
                         }
                     }
+                } finally {
+                    isRefreshing.emit(false)
                 }
-
-                else -> {}
             }
         }
     }
@@ -130,11 +193,18 @@ class DetailsViewModel @Inject constructor(
 
     fun addLabel(label: String) {
         viewModelScope.launchOnDefault {
-            if (label.trim().isEmpty() || labelsRepo.addLabel(label.trim()) == -1L) {
-                withMainContext {
-                    Toast.makeText(context, context.getString(R.string.failed), Toast.LENGTH_SHORT).show()
-                }
-            }
+            val normalized = label.trim()
+            val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
+            if (normalized.isEmpty()) return@launchOnDefault
+            labelsRepo.addLabel(normalized)
+            labelsRepo.addLabelAppCrossRef(
+                LabelAppCrossRefEntity(
+                    label = normalized,
+                    packageName = app.packageName,
+                    userId = app.userId,
+                    preserveId = app.preserveId,
+                )
+            )
         }
     }
 
@@ -142,6 +212,10 @@ class DetailsViewModel @Inject constructor(
         viewModelScope.launchOnDefault {
             labelsRepo.deleteLabel(label)
         }
+    }
+
+    fun setLabelColor(label: String, colorArgb: Long) {
+        viewModelScope.launchOnDefault { labelsRepo.setLabelColor(label, colorArgb) }
     }
 
     fun selectAppLabel(selected: Boolean, ref: LabelAppCrossRefEntity?) {
@@ -174,11 +248,13 @@ class DetailsViewModel @Inject constructor(
                 is Success.App -> {
                     val state = uiState.value.castTo<Success.App>()
                     appsRepo.blockByIds(listOf(state.app.id))
+                    showToast(if (blocked) R.string.removed_from_blacklist else R.string.added_to_blacklist)
                 }
 
                 is Success.File -> {
                     val state = uiState.value.castTo<Success.File>()
                     filesRepo.blockByIds(listOf(state.file.id))
+                    showToast(if (blocked) R.string.removed_from_blacklist else R.string.added_to_blacklist)
                 }
 
                 else -> {}
@@ -197,7 +273,9 @@ class DetailsViewModel @Inject constructor(
                     } else {
                         rootService.setApplicationEnabledSetting(app.packageName, PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER, 0, app.userId, null)
                     }
-                    appsRepo.setEnabled(app.id, rootService.getApplicationEnabledSetting(app.packageName, app.userId) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
+                    val enabled = rootService.getApplicationEnabledSetting(app.packageName, app.userId) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                    appsRepo.setEnabled(app.id, enabled)
+                    if (enabled == frozen) showToast(if (frozen) R.string.app_unfrozen else R.string.app_frozen)
                 }
 
                 else -> {}
@@ -219,6 +297,341 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
+    fun uninstallApp() {
+        viewModelScope.launchOnDefault {
+            val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
+            if (rootService.uninstallPackageAsUser(app.packageName, app.userId)) {
+                appsRepo.removeUninstalledApp(app.packageName, app.userId)
+                showToast(R.string.app_uninstalled)
+            }
+        }
+    }
+
+    fun clearAppData() {
+        viewModelScope.launchOnDefault {
+            val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
+            if (rootService.clearPackageDataAsUser(app.packageName, app.userId)) {
+                appsRepo.calculateLocalAppSize(app)
+                showToast(R.string.app_data_cleared)
+            }
+        }
+    }
+
+    fun clearAppCache() {
+        viewModelScope.launchOnDefault {
+            val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
+            if (rootService.clearPackageCacheAsUser(app.packageName, app.userId)) {
+                appsRepo.calculateLocalAppSize(app)
+                showToast(R.string.app_cache_cleared)
+            }
+        }
+    }
+
+    fun openAppSettings() {
+        val app = (uiState.value as? Success.App)?.app ?: return
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(android.net.Uri.fromParts("package", app.packageName, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { context.startActivity(intent) }.isFailure) {
+            viewModelScope.launch { showToast(R.string.external_action_failed) }
+        }
+    }
+
+    fun copyDataPath(dataType: DataType) {
+        viewModelScope.launchOnDefault {
+            val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
+            val path = if (dataType == DataType.PACKAGE_APK) {
+                rootService.getPackageSourceDir(app.packageName, app.userId).firstOrNull()
+            } else {
+                "${dataType.srcDir(app.userId)}/${app.packageName}"
+            }
+            if (path == null) return@launchOnDefault
+            withContext(Dispatchers.Main.immediate) {
+                context.getSystemService(ClipboardManager::class.java)
+                    .setPrimaryClip(ClipData.newPlainText(app.packageName, path))
+                Toast.makeText(context, context.getString(R.string.path_copied, path), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun saveAppIcon() {
+        viewModelScope.launchOnDefault {
+            val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
+            val icon = runCatching { context.packageManager.getApplicationIcon(app.packageName) }.getOrNull()
+                ?: BaseUtil.readIcon(context, PathUtil.getPackageIconPath(context, app.packageName, true))
+                ?: BaseUtil.readIcon(context, PathUtil.getPackageIconPath(context, app.packageName, false))
+            val saved = icon != null && saveIcon(icon.toBitmap(512, 512, Bitmap.Config.ARGB_8888), app.packageName)
+            showToast(if (saved) R.string.app_icon_saved else R.string.app_icon_save_failed)
+        }
+    }
+
+    fun shareApk() {
+        viewModelScope.launch {
+            val app = (uiState.value as? Success.App)?.app ?: return@launch
+            val file = withContext(Dispatchers.IO) { prepareAppShareFile(app) }
+            if (file == null) {
+                showToast(R.string.share_apk_failed)
+                return@launch
+            }
+            val uri = FileProvider.getUriForFile(
+                context,
+                fileProviderAuthority,
+                file,
+            )
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = if (file.extension.equals("apk", ignoreCase = true)) APK_MIME_TYPE else BINARY_MIME_TYPE
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(shareIntent, context.getString(R.string.share)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val launched = withContext(Dispatchers.Main.immediate) {
+                runCatching { context.startActivity(chooser) }.isSuccess
+            }
+            if (!launched) showToast(R.string.share_apk_failed)
+        }
+    }
+
+    fun loadFurtherOperations() {
+        if (_furtherOperations.value == FurtherOperationsUiState.Loading) return
+        viewModelScope.launch {
+            val app = (uiState.value as? Success.App)?.app ?: return@launch
+            _furtherOperations.value = FurtherOperationsUiState.Loading
+            val operations = withContext(Dispatchers.IO) {
+                runCatching { resolveFurtherOperations(app) }.getOrDefault(emptyList())
+            }
+            _furtherOperations.value = FurtherOperationsUiState.Content(operations)
+        }
+    }
+
+    fun openFurtherOperation(operation: FurtherOperation) {
+        val launched = runCatching { context.startActivity(operation.intent) }.isSuccess
+        if (!launched) {
+            viewModelScope.launch { showToast(R.string.external_action_failed) }
+        }
+    }
+
+    private suspend fun resolveFurtherOperations(app: PackageEntity): List<FurtherOperation> {
+        val operations = mutableListOf<FurtherOperation>()
+        val appInfoIntent = Intent(Intent.ACTION_SHOW_APP_INFO)
+        queryIntentActivities(appInfoIntent).forEach { resolveInfo ->
+            operations += resolveInfo.toFurtherOperation(
+                Intent(Intent.ACTION_SHOW_APP_INFO)
+                    .setComponent(resolveInfo.componentName)
+                    .putExtra(Intent.EXTRA_PACKAGE_NAME, app.packageName)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+        }
+
+        rootService.getPackageSourceDir(app.packageName, app.userId).firstOrNull()?.let { source ->
+            allowFileUriExposure()
+            val sourceUri = android.net.Uri.fromFile(File(source))
+            val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(sourceUri, APK_MIME_TYPE)
+            queryIntentActivities(viewIntent).forEach { resolveInfo ->
+                if (isFileManager(resolveInfo.activityInfo.packageName)) {
+                    operations += resolveInfo.toFurtherOperation(
+                        Intent(Intent.ACTION_VIEW)
+                            .setPackage(resolveInfo.activityInfo.packageName)
+                            .setDataAndType(sourceUri, APK_MIME_TYPE)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    )
+                }
+            }
+        }
+
+        val marketIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=${app.packageName}"))
+        queryIntentActivities(marketIntent).forEach { resolveInfo ->
+            operations += resolveInfo.toFurtherOperation(
+                Intent(marketIntent)
+                    .setComponent(resolveInfo.componentName)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+        }
+        return operations
+            .filterNot { it.packageName == context.packageName }
+            .distinctBy(FurtherOperation::packageName)
+    }
+
+    private fun queryIntentActivities(intent: Intent): List<ResolveInfo> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.queryIntentActivities(
+                intent,
+                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        }
+
+    private fun ResolveInfo.toFurtherOperation(intent: Intent) = FurtherOperation(
+        packageName = activityInfo.packageName,
+        label = loadLabel(context.packageManager).toString(),
+        intent = intent,
+    )
+
+    private val ResolveInfo.componentName: ComponentName
+        get() = ComponentName(activityInfo.packageName, activityInfo.name)
+
+    private fun isFileManager(packageName: String): Boolean {
+        val canHandleFiles = queryIntentActivities(
+            Intent(Intent.ACTION_VIEW)
+                .setPackage(packageName)
+                .setDataAndType(android.net.Uri.parse("file:///"), "*/*")
+        ).any { it.activityInfo.packageName == packageName }
+        val canPickFiles = queryIntentActivities(
+            Intent(Intent.ACTION_GET_CONTENT).setPackage(packageName).setType("*/*")
+        ).any { it.activityInfo.packageName == packageName }
+        val canManageDirectories = queryIntentActivities(
+            Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).setPackage(packageName)
+        ).any { it.activityInfo.packageName == packageName }
+        val permissions = getRequestedPermissions(packageName)
+        val hasStoragePermission = permissions.any {
+            it == Manifest.permission.MANAGE_EXTERNAL_STORAGE ||
+                it == Manifest.permission.READ_EXTERNAL_STORAGE ||
+                it == Manifest.permission.WRITE_EXTERNAL_STORAGE
+        }
+        return (canHandleFiles || canPickFiles || canManageDirectories) && hasStoragePermission
+    }
+
+    private fun getRequestedPermissions(packageName: String): List<String> = runCatching {
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                packageName,
+                PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+        }
+        packageInfo.requestedPermissions.orEmpty().toList()
+    }.getOrDefault(emptyList())
+
+    private fun allowFileUriExposure() {
+        if (!fileUriExposureAttempted.compareAndSet(false, true)) return
+        runCatching {
+            StrictMode::class.java.getDeclaredMethod("disableDeathOnFileUriExposure").invoke(null)
+        }
+    }
+
+    private suspend fun prepareAppShareFile(app: PackageEntity): File? = shareMutex.withLock {
+        val sources = rootService.getPackageSourceDir(app.packageName, app.userId)
+        if (sources.isEmpty()) return@withLock null
+        val shareDir = File(context.externalCacheDir ?: context.cacheDir, SHARED_APK_DIR)
+        if (!shareDir.exists() && !shareDir.mkdirs()) return@withLock null
+        shareDir.listFiles().orEmpty().forEach { rootService.deleteRecursively(it.path) }
+
+        val label = app.packageInfo.label.ifBlank { app.packageName }
+        val version = app.packageInfo.versionName.ifBlank { app.packageInfo.versionCode.toString() }
+        val fileName = "$label-$version".replace(INVALID_FILE_NAME_CHARS, "_").trim().ifEmpty { app.packageName }
+        if (sources.size == 1) {
+            val target = File(shareDir, "$fileName.apk")
+            if (!rootService.copyTo(sources.first(), target.path, true)) return@withLock null
+            rootService.setAllPermissions(target.path)
+            return@withLock target.takeIf(File::isFile)
+        }
+
+        val stagingDir = File(shareDir, "staging")
+        if (!stagingDir.mkdirs()) return@withLock null
+        val stagedFiles = mutableListOf<File>()
+        for ((index, source) in sources.withIndex()) {
+            val name = if (index == 0) "base.apk" else File(source).name
+            val staged = File(stagingDir, name)
+            if (!rootService.copyTo(source, staged.path, true)) {
+                rootService.deleteRecursively(stagingDir.path)
+                return@withLock null
+            }
+            rootService.setAllPermissions(staged.path)
+            stagedFiles += staged
+        }
+
+        val target = File(shareDir, "$fileName.apks")
+        val created = runCatching {
+            ZipOutputStream(BufferedOutputStream(FileOutputStream(target))).use { output ->
+                output.setLevel(Deflater.NO_COMPRESSION)
+                stagedFiles.forEach { file ->
+                    output.putNextEntry(ZipEntry(file.name).apply { time = file.lastModified() })
+                    file.inputStream().use { it.copyTo(output) }
+                    output.closeEntry()
+                }
+            }
+            true
+        }.getOrDefault(false)
+        rootService.deleteRecursively(stagingDir.path)
+        target.takeIf { created && it.isFile }
+    }
+
+    private suspend fun loadAppRuntimeInfo(app: PackageEntity) {
+        val info = rootService.getPackageInfoAsUser(app.packageName, 0, app.userId)
+        val applicationInfo = info?.applicationInfo
+        val archiveAbis = rootService.getPackageSourceDir(app.packageName, app.userId)
+            .flatMap(::readApkAbis)
+            .distinct()
+        val nativeAbi = applicationInfo?.nativeLibraryDir?.substringAfterLast('/')?.toAndroidAbi()
+        appRuntimeInfo.emit(
+            AppRuntimeInfo(
+                architecture = archiveAbis.ifEmpty { listOfNotNull(nativeAbi) }.joinToString(),
+                targetSdk = applicationInfo?.targetSdkVersion ?: 0,
+            )
+        )
+    }
+
+    private fun readApkAbis(path: String): List<String> = runCatching {
+        ZipFile(path).use { archive ->
+            archive.entries().asSequence()
+                .map { it.name }
+                .filter { it.startsWith("lib/") && it.endsWith(".so") }
+                .map { it.substringAfter("lib/").substringBefore('/') }
+                .distinct()
+                .toList()
+        }
+    }.getOrDefault(emptyList())
+
+    private fun String.toAndroidAbi(): String? = when (this) {
+        "arm64" -> "arm64-v8a"
+        "arm" -> "armeabi-v7a"
+        "x86", "x86_64" -> this
+        else -> null
+    }
+
+    private fun saveIcon(bitmap: Bitmap, packageName: String): Boolean {
+        val fileName = "${packageName}_${System.currentTimeMillis()}.png"
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/$ICON_EXPORT_DIR")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+            val saved = runCatching {
+                resolver.openOutputStream(uri)?.use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } == true
+            }.getOrDefault(false)
+            if (saved) {
+                resolver.update(uri, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null)
+            } else {
+                resolver.delete(uri, null, null)
+            }
+            saved
+        } else {
+            saveLegacyIcon(bitmap, fileName)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun saveLegacyIcon(bitmap: Bitmap, fileName: String): Boolean = runCatching {
+        val directory = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            ICON_EXPORT_DIR,
+        )
+        if (directory.exists().not() && directory.mkdirs().not()) return@runCatching false
+        val file = File(directory, fileName)
+        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        MediaScannerConnection.scanFile(context, arrayOf(file.path), arrayOf("image/png"), null)
+        true
+    }.getOrDefault(false)
+
     fun protect() {
         viewModelScope.launchOnDefault {
             when (uiState.value) {
@@ -226,12 +639,14 @@ class DetailsViewModel @Inject constructor(
                     val state = uiState.value.castTo<Success.App>()
                     val app = state.app
                     appsRepo.protectApp(app.indexInfo.cloud, app)
+                    showToast(R.string.backup_protected)
                 }
 
                 else -> {
                     val state = uiState.value.castTo<Success.File>()
                     val file = state.file
                     filesRepo.protectFile(file.indexInfo.cloud, file)
+                    showToast(R.string.backup_protected)
                 }
             }
         }
@@ -244,6 +659,7 @@ class DetailsViewModel @Inject constructor(
                     val state = uiState.value.castTo<Success.App>()
                     val app = state.app
                     appsRepo.deleteApp(app.indexInfo.cloud, app)
+                    showToast(R.string.deleted_successfully)
                 }
 
                 is Success.File -> {
@@ -252,10 +668,12 @@ class DetailsViewModel @Inject constructor(
                     when (file.indexInfo.opType) {
                         OpType.BACKUP -> {
                             filesRepo.delete(file.id)
+                            showToast(R.string.deleted_successfully)
                         }
 
                         OpType.RESTORE -> {
                             filesRepo.deleteFile(file.indexInfo.cloud, file)
+                            showToast(R.string.deleted_successfully)
                         }
                     }
                 }
@@ -264,31 +682,62 @@ class DetailsViewModel @Inject constructor(
             }
         }
     }
+
+    private suspend fun showToast(@StringRes message: Int) = withContext(Dispatchers.Main.immediate) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private companion object {
+        const val APK_MIME_TYPE = "application/vnd.android.package-archive"
+        const val BINARY_MIME_TYPE = "application/octet-stream"
+        const val SHARED_APK_DIR = "shared_apk"
+        val INVALID_FILE_NAME_CHARS = Regex("""[\\/:*?"<>|]""")
+        val fileUriExposureAttempted = AtomicBoolean(false)
+    }
+
+    private val fileProviderAuthority: String
+        get() = "com.xayah.core.provider.FileSharingProvider.${BuildConfigUtil.FLAVOR_feature.lowercase()}"
+}
+
+data class FurtherOperation(
+    val packageName: String,
+    val label: String,
+    val intent: Intent,
+)
+
+sealed interface FurtherOperationsUiState {
+    data object Idle : FurtherOperationsUiState
+    data object Loading : FurtherOperationsUiState
+    data class Content(val operations: List<FurtherOperation>) : FurtherOperationsUiState
 }
 
 sealed interface DetailsUiState {
     data object Loading : DetailsUiState
     sealed class Success(
-        open val uuid: UUID,
         open val isRefreshing: Boolean,
-        open val labels: List<LabelEntity>,
+        open val labels: List<ColoredLabel>,
     ) : DetailsUiState {
         data class App(
-            override val uuid: UUID,
             override val isRefreshing: Boolean,
-            override val labels: List<LabelEntity>,
+            override val labels: List<ColoredLabel>,
             val app: PackageEntity,
             val refs: List<LabelAppCrossRefEntity>,
-        ) : Success(uuid, isRefreshing, labels)
+            val architecture: String,
+            val targetSdk: Int,
+        ) : Success(isRefreshing, labels)
 
         data class File(
-            override val uuid: UUID,
             override val isRefreshing: Boolean,
-            override val labels: List<LabelEntity>,
+            override val labels: List<ColoredLabel>,
             val file: MediaEntity,
             val refs: List<LabelFileCrossRefEntity>,
-        ) : Success(uuid, isRefreshing, labels)
+        ) : Success(isRefreshing, labels)
     }
 
     data object Error : DetailsUiState
 }
+
+private data class AppRuntimeInfo(
+    val architecture: String = "",
+    val targetSdk: Int = 0,
+)

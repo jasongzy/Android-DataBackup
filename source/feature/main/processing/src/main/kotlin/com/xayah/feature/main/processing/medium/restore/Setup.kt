@@ -26,7 +26,6 @@ import androidx.compose.ui.res.vectorResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.xayah.core.datastore.KeyAutoScreenOff
-import com.xayah.core.datastore.KeyResetRestoreList
 import com.xayah.core.ui.component.Clickable
 import com.xayah.core.ui.component.Switchable
 import com.xayah.core.ui.component.Title
@@ -96,12 +95,6 @@ fun PageMediumRestoreProcessingSetup(localNavController: NavHostController, view
                     defValue = false,
                     title = stringResource(id = R.string.auto_screen_off),
                     checkedText = stringResource(id = R.string.auto_screen_off_desc),
-                )
-                Switchable(
-                    key = KeyResetRestoreList,
-                    defValue = false,
-                    title = stringResource(id = R.string.reset_restore_list),
-                    checkedText = stringResource(id = R.string.reset_restore_list_desc),
                 )
             }
         }

@@ -41,6 +41,9 @@ interface IRemoteRootService {
     int getScreenOffTimeout();
     void setScreenOffTimeout(int timeout);
     void forceStopPackageAsUser(String packageName, int userId);
+    boolean uninstallPackageAsUser(String packageName, int userId);
+    boolean clearPackageDataAsUser(String packageName, int userId);
+    boolean clearPackageCacheAsUser(String packageName, int userId);
     void setApplicationEnabledSetting(in String packageName, in int newState, int flags, int userId, String callingPackage);
     int getApplicationEnabledSetting(in String packageName, int userId);
     List<PackagePermission> getPermissions(in PackageInfo packageInfo);

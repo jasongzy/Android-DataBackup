@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="back">Back</string>
+    <string name="apk" translatable="false">APK</string>
+    <string name="app_data">App data</string>
+    <string name="backup_revisions">Backup revisions</string>
+    <string name="no_backup_revisions">No backup revisions yet</string>
+    <string name="revision_details">%1$s · %2$s</string>
+    <string name="back_up">Back up</string>
+    <string name="backup_scope">Backup contents</string>
+    <string name="restore_scope">Restore contents</string>
+    <string name="revision_info">Backup details</string>
+    <string name="created_at">Created %1$s</string>
+    <string name="delete_revision">Delete backup</string>
+    <string name="confirm_delete_revision">Permanently delete this backup?</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="more_options">More options</string>
+    <string name="blacklist">Blacklist</string>
+    <string name="add_to_blacklist">Add to blacklist</string>
+    <string name="remove_from_blacklist">Remove from blacklist</string>
+    <string name="confirm_add_to_blacklist">Add this app to the blacklist?</string>
+    <string name="confirm_remove_from_blacklist">Remove this app from the blacklist?</string>
+    <string name="confirm">Confirm</string>
+    <string name="clear_cache">Clear cache</string>
+    <string name="open_settings">Open settings</string>
+    <string name="backup_deleted">Backup deleted</string>
+</resources>

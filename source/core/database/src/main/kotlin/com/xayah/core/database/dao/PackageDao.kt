@@ -37,6 +37,13 @@ interface PackageDao {
 
     @Query(
         "SELECT * FROM PackageEntity WHERE" +
+                " indexInfo_packageName = :packageName AND indexInfo_opType = :opType" +
+                " AND indexInfo_userId = :userId AND indexInfo_preserveId = :preserveId"
+    )
+    suspend fun queryRevisions(packageName: String, opType: OpType, userId: Int, preserveId: Long): List<PackageEntity>
+
+    @Query(
+        "SELECT * FROM PackageEntity WHERE" +
                 " indexInfo_packageName = :packageName AND indexInfo_opType = :opType AND indexInfo_userId = :userId" +
                 " AND indexInfo_cloud = :cloud AND indexInfo_backupDir = :backupDir"
     )
@@ -103,6 +110,9 @@ interface PackageDao {
 
     @Query("SELECT * FROM PackageEntity WHERE id = :id")
     suspend fun queryById(id: Long): PackageEntity?
+
+    @Query("SELECT * FROM PackageEntity WHERE id IN (:ids)")
+    suspend fun queryByIds(ids: List<Long>): List<PackageEntity>
 
     @Query("SELECT * FROM PackageEntity WHERE id = :id")
     fun queryFlowById(id: Long): Flow<PackageEntity?>

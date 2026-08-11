@@ -1,6 +1,7 @@
 package com.xayah.feature.main.list
 
 import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,11 +9,14 @@ import com.xayah.core.data.repository.AppsRepo
 import com.xayah.core.data.repository.FilesRepo
 import com.xayah.core.data.repository.ListData
 import com.xayah.core.data.repository.ListDataRepo
+import com.xayah.core.data.repository.LabelsRepo
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.App
 import com.xayah.core.model.File
 import com.xayah.core.model.OpType
 import com.xayah.core.model.Target
+import com.xayah.core.model.ColoredLabel
+import com.xayah.core.model.database.LabelAppCrossRefEntity
 import com.xayah.core.model.util.of
 import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.util.decodeURL
@@ -26,6 +30,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -35,8 +41,11 @@ class ListActionsViewModel @Inject constructor(
     private val listDataRepo: ListDataRepo,
     private val appsRepo: AppsRepo,
     private val filesRepo: FilesRepo,
+    private val labelsRepo: LabelsRepo,
 ) : ViewModel() {
-    private val target: Target = Target.valueOf(savedStateHandle.get<String>(MainRoutes.ARG_TARGET)!!.decodeURL().trim())
+    private val target: Target = savedStateHandle.get<String>(MainRoutes.ARG_TARGET)
+        ?.let { Target.valueOf(it.decodeURL().trim()) }
+        ?: Target.Apps
     private val opType: OpType = OpType.of(savedStateHandle.get<String>(MainRoutes.ARG_OP_TYPE)?.decodeURL()?.trim())
     private val cloudName: String = savedStateHandle.get<String>(MainRoutes.ARG_ACCOUNT_NAME)?.decodeURL()?.trim() ?: ""
     private val backupDir: String = savedStateHandle.get<String>(MainRoutes.ARG_ACCOUNT_REMOTE)?.decodeURL()?.trim() ?: ""
@@ -44,14 +53,17 @@ class ListActionsViewModel @Inject constructor(
     val uiState: StateFlow<ListActionsUiState> = when (target) {
         Target.Apps -> combine(
             listDataRepo.getListData(),
-            listDataRepo.getAppList()
-        ) { lData, aList ->
+            listDataRepo.getAppList(),
+            labelsRepo.getColoredLabelsFlow(),
+        ) { lData, aList, labels ->
             val listData = lData.castTo<ListData.Apps>()
             Success.Apps(
                 opType = opType,
                 selected = listData.selected,
+                selectionMode = listData.selectionMode,
                 isUpdating = listData.isUpdating,
                 appList = aList,
+                labels = labels,
             )
         }
 
@@ -63,6 +75,7 @@ class ListActionsViewModel @Inject constructor(
             Success.Files(
                 opType = opType,
                 selected = listData.selected,
+                selectionMode = listData.selectionMode,
                 isUpdating = listData.isUpdating,
                 fileList = fList,
             )
@@ -79,7 +92,7 @@ class ListActionsViewModel @Inject constructor(
                 is Success.Apps -> {
                     when (opType) {
                         OpType.BACKUP -> {
-                            WorkManagerInitializer.fullInitializeAndUpdateApps(context)
+                            WorkManagerInitializer.fastInitializeAndUpdateApps(context)
                         }
 
                         OpType.RESTORE -> {
@@ -116,7 +129,7 @@ class ListActionsViewModel @Inject constructor(
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    appsRepo.selectAll(state.appList.map { it.id })
+                    listDataRepo.selectApps(state.appList.map { it.id })
                 }
 
                 is Success.Files -> {
@@ -135,7 +148,7 @@ class ListActionsViewModel @Inject constructor(
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    appsRepo.unselectAll(state.appList.map { it.id })
+                    listDataRepo.unselectApps(state.appList.map { it.id })
                 }
 
                 is Success.Files -> {
@@ -154,7 +167,7 @@ class ListActionsViewModel @Inject constructor(
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    appsRepo.reverseAll(state.appList.map { it.id })
+                    listDataRepo.reverseAppSelection(state.appList.map { it.id })
                 }
 
                 is Success.Files -> {
@@ -173,12 +186,20 @@ class ListActionsViewModel @Inject constructor(
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    appsRepo.blockSelected(state.appList.filter { it.selected }.map { it.id })
+                    val ids = state.appList.filter { it.selected }.map { it.id }
+                    if (ids.isNotEmpty()) {
+                        appsRepo.blockSelected(ids)
+                        showToast(R.string.items_added_to_blacklist)
+                    }
                 }
 
                 is Success.Files -> {
                     val state = uiState.value.castTo<Success.Files>()
-                    filesRepo.blockSelected(state.fileList.filter { it.selected }.map { it.id })
+                    val ids = state.fileList.filter { it.selected }.map { it.id }
+                    if (ids.isNotEmpty()) {
+                        filesRepo.blockSelected(ids)
+                        showToast(R.string.items_added_to_blacklist)
+                    }
                 }
 
                 else -> {}
@@ -198,20 +219,27 @@ class ListActionsViewModel @Inject constructor(
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    appsRepo.deleteSelected(state.appList.filter { it.selected }.map { it.id })
+                    val ids = state.appList.filter { it.selected }.map { it.id }
+                    if (ids.isNotEmpty()) {
+                        appsRepo.deleteSelected(ids)
+                        showToast(R.string.items_deleted)
+                    }
                 }
 
                 is Success.Files -> {
                     val state = uiState.value.castTo<Success.Files>()
+                    val ids = state.fileList.filter { it.selected }.map { it.id }
+                    if (ids.isEmpty()) return@launchOnDefault
                     when (opType) {
                         OpType.BACKUP -> {
-                            filesRepo.delete(state.fileList.filter { it.selected }.map { it.id })
+                            filesRepo.delete(ids)
                         }
 
                         OpType.RESTORE -> {
-                            filesRepo.deleteSelected(state.fileList.filter { it.selected }.map { it.id })
+                            filesRepo.deleteSelected(ids)
                         }
                     }
+                    showToast(R.string.items_deleted)
                 }
 
                 else -> {}
@@ -225,6 +253,38 @@ class ListActionsViewModel @Inject constructor(
             filesRepo.addFiles(pathList)
         }
     }
+
+    fun createLabel(label: String) {
+        viewModelScope.launchOnDefault {
+            val normalized = label.trim()
+            if (normalized.isNotEmpty()) labelsRepo.addLabel(normalized)
+            if (normalized.isNotEmpty()) showToast(R.string.label_created)
+        }
+    }
+
+    fun addLabelsToSelected(labels: Set<String>) {
+        viewModelScope.launchOnDefault {
+            val state = uiState.value as? Success.Apps ?: return@launchOnDefault
+            labelsRepo.addLabelAppCrossRefs(labels.flatMap { state.selectedLabelRefs(it) })
+            showToast(R.string.labels_updated)
+        }
+    }
+
+    fun removeLabelsFromSelected(labels: Set<String>) {
+        viewModelScope.launchOnDefault {
+            val state = uiState.value as? Success.Apps ?: return@launchOnDefault
+            labelsRepo.deleteLabelAppCrossRefs(labels.flatMap { state.selectedLabelRefs(it) })
+            showToast(R.string.labels_updated)
+        }
+    }
+
+    private fun Success.Apps.selectedLabelRefs(label: String) = appList.filter(App::selected).map { app ->
+        LabelAppCrossRefEntity(label, app.packageName, app.userId, app.preserveId)
+    }
+
+    private suspend fun showToast(message: Int) = withContext(Dispatchers.Main.immediate) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
 }
 
 sealed interface ListActionsUiState {
@@ -232,20 +292,24 @@ sealed interface ListActionsUiState {
     sealed class Success(
         open val opType: OpType,
         open val selected: Long,
+        open val selectionMode: Boolean,
         open val isUpdating: Boolean,
     ) : ListActionsUiState {
         data class Apps(
             override val opType: OpType,
             override val selected: Long,
+            override val selectionMode: Boolean,
             override val isUpdating: Boolean,
             val appList: List<App>,
-        ) : Success(opType, selected, isUpdating)
+            val labels: List<ColoredLabel>,
+        ) : Success(opType, selected, selectionMode, isUpdating)
 
         data class Files(
             override val opType: OpType,
             override val selected: Long,
+            override val selectionMode: Boolean,
             override val isUpdating: Boolean,
             val fileList: List<File>,
-        ) : Success(opType, selected, isUpdating)
+        ) : Success(opType, selected, selectionMode, isUpdating)
     }
 }

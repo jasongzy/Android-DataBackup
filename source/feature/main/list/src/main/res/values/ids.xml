@@ -31,6 +31,24 @@
     <item name="apps_which_have_no_backups" type="string" />
     <item name="installed" type="string" />
     <item name="not_installed" type="string" />
+    <item name="edit_labels" type="string" />
+    <item name="add_label_to_selected" type="string" />
+    <item name="remove_label_from_selected" type="string" />
+    <item name="new_label" type="string" />
+    <item name="confirm_add_labels" type="string" />
+    <item name="confirm_remove_labels" type="string" />
+    <item name="delete_label" type="string" />
+    <item name="confirm_delete_label" type="string" />
+    <item name="label_created" type="string" />
+    <item name="labels_updated" type="string" />
+    <item name="label_deleted" type="string" />
+    <item name="items_added_to_blacklist" type="string" />
+    <item name="items_deleted" type="string" />
+    <item name="cancel" type="string" />
+    <item name="more_options" type="string" />
+    <item name="selection_options" type="string" />
+    <item name="settings" type="string" />
+    <item name="app_name" type="string" />
 
     <item name="backup_sort_type_items_apps" type="array" />
     <item name="backup_sort_type_items_files" type="array" />

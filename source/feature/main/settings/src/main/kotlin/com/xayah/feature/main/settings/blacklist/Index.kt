@@ -56,7 +56,7 @@ fun PageBlackList() {
         title = stringResource(id = R.string.blacklist),
         actions = {
             AnimatedVisibility(visible = uiState.appIds.isNotEmpty() || uiState.fileIds.isNotEmpty()) {
-                IconButton(icon = Icons.Outlined.Delete) {
+                IconButton(icon = Icons.Outlined.Delete, tooltip = stringResource(R.string.delete)) {
                     viewModel.launchOnIO {
                         if (dialogState.confirm(title = context.getString(R.string.prompt), text = context.getString(R.string.confirm_remove_from_blacklist))) {
                             viewModel.emitIntentOnIO(IndexUiIntent.RemoveSelected)
@@ -65,7 +65,7 @@ fun PageBlackList() {
                 }
             }
             if (packagesState.isNotEmpty() || mediumState.isNotEmpty())
-                IconButton(icon = Icons.Outlined.Checklist) {
+                IconButton(icon = Icons.Outlined.Checklist, tooltip = stringResource(R.string.select_all)) {
                     viewModel.emitIntentOnIO(IndexUiIntent.SelectAll)
                 }
         }
@@ -91,9 +91,10 @@ fun PageBlackList() {
             }
 
             items(items = packagesState, key = { "apps-${it.id}" }) { item ->
-                Row(modifier = Modifier.animateItemPlacement()) {
+                Row {
                     PackageItem(
                         item = item,
+                        showDataIndicator = false,
                         checked = item.id in uiState.appIds,
                         onCheckedChange = {
                             viewModel.emitIntentOnIO(IndexUiIntent.SelectApp(item.id))
@@ -112,7 +113,7 @@ fun PageBlackList() {
             }
 
             items(items = mediumState, key = { "files-${it.id}" }) { item ->
-                Row(modifier = Modifier.animateItemPlacement()) {
+                Row {
                     MediaItem(
                         item = item,
                         enabled = true,

@@ -31,10 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xayah.core.model.SortType
+import com.xayah.core.ui.R
 import com.xayah.core.ui.token.SizeTokens
 
 @ExperimentalMaterial3Api
@@ -131,6 +133,7 @@ fun TitleSort(text: String, sortType: SortType, onSort: () -> Unit) {
                 SortType.ASCENDING -> Icons.Outlined.ArrowDropUp
                 SortType.DESCENDING -> Icons.Outlined.ArrowDropDown
             },
+            tooltip = stringResource(R.string.sort),
             onClick = onSort
         )
     }

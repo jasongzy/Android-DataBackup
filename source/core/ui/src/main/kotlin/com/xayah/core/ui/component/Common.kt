@@ -3,6 +3,7 @@ package com.xayah.core.ui.component
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -78,16 +80,22 @@ fun ActionButton(
     onColorContainer: ThemedColorSchemeKeyTokens,
     trailingIcon: @Composable (RowScope.() -> Unit)? = null,
     onClick: () -> Unit = {},
+    onLongClick: () -> Unit = {},
     content: @Composable RowScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Card(
-        modifier = modifier.wrapContentHeight(),
+        modifier = modifier
+            .wrapContentHeight()
+            .combinedClickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = ripple(),
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
         shape = RoundedCornerShape(SizeTokens.Level18),
         colors = CardDefaults.cardColors(containerColor = colorContainer.value.withState(enabled)),
-        onClick = onClick,
-        enabled = enabled,
-        interactionSource = interactionSource,
     ) {
         Row(
             modifier = Modifier
@@ -164,6 +172,7 @@ fun PackageIcons(
 fun PackageItem(
     item: PackageEntity,
     checked: Boolean? = null,
+    showDataIndicator: Boolean = true,
     onCheckedChange: ((Boolean) -> Unit)?,
     onItemsIconClick: ((Int) -> Unit)? = null,
     onClick: () -> Unit
@@ -191,7 +200,7 @@ fun PackageItem(
                     )
                 }
 
-                AnimatedContent(targetState = item.selectionFlag, label = AnimationTokens.AnimatedContentLabel) { flag ->
+                if (showDataIndicator) AnimatedContent(targetState = item.selectionFlag, label = AnimationTokens.AnimatedContentLabel) { flag ->
                     val state = rememberTooltipState()
 
                     LaunchedEffect(flag) {
@@ -234,9 +243,9 @@ fun PackageItem(
                     }
                 }
 
-                VerticalDivider(
-                    modifier = Modifier.height(SizeTokens.Level32)
-                )
+                if (showDataIndicator) {
+                    VerticalDivider(modifier = Modifier.height(SizeTokens.Level32))
+                }
                 Checkbox(
                     checked = checked ?: item.extraInfo.activated,
                     onCheckedChange = onCheckedChange

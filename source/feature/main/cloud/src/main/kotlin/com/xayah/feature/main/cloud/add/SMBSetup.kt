@@ -273,6 +273,7 @@ fun PageSMBSetup() {
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             leadingIcon = ImageVector.vectorResource(id = R.drawable.ic_rounded_key),
                             trailingIcon = if (passwordVisible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
+                            trailingIconTooltip = stringResource(R.string.toggle_password_visibility),
                             onTrailingIconClick = {
                                 passwordVisible = passwordVisible.not()
                             },

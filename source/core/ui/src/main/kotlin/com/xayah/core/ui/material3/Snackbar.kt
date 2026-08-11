@@ -31,7 +31,6 @@ import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -52,11 +51,13 @@ import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastFirst
 import androidx.compose.ui.util.fastFirstOrNull
 import com.xayah.core.ui.R
+import com.xayah.core.ui.component.TooltipIconButton
 import com.xayah.core.ui.theme.ThemedColorSchemeKeyTokens
 import com.xayah.core.ui.theme.value
 import com.xayah.core.ui.token.SizeTokens
@@ -225,7 +226,8 @@ fun Snackbar(
     val dismissActionComposable: (@Composable () -> Unit)? =
         if (snackbarData.visuals.withDismissAction) {
             @Composable {
-                IconButton(
+                TooltipIconButton(
+                    tooltip = stringResource(R.string.dismiss),
                     onClick = { snackbarData.dismiss() },
                     content = {
                         Icon(

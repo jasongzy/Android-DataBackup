@@ -34,6 +34,8 @@
     <item name="insecure_server_connection_desc" type="string"/>
     <item name="no_root_directory" type="string"/>
     <item name="confirm" type="string"/>
+    <item name="settings" type="string"/>
+    <item name="toggle_password_visibility" type="string"/>
 
     <item name="ftp_auth_mode" type="array"/>
     <item name="smb_auth_mode" type="array"/>

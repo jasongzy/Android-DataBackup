@@ -58,6 +58,10 @@ sealed class MainRoutes(val route: String) {
     }
 
     data object History : MainRoutes(route = "main_history")
+    data object AppRevisions : MainRoutes(route = "main_app_revisions/{$ARG_PACKAGE_NAME}/{$ARG_USER_ID}") {
+        fun getRoute(packageName: String, userId: Int) = "main_app_revisions/$packageName/$userId"
+    }
+
     data object TaskDetails : MainRoutes(route = "main_task_details/{$ARG_ID}") {
         fun getRoute(id: Long) = "main_task_details/${id}"
     }

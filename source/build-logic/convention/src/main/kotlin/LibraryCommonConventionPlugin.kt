@@ -18,6 +18,7 @@ private fun Project.configureCommon() {
 
     extensions.getByType<LibraryExtension>().apply {
         compileSdk = catalogLibs.findVersion("compileSdk").get().toString().toInt()
+        buildToolsVersion = catalogLibs.findVersion("buildTools").get().toString()
 
         defaultConfig {
             minSdk = catalogLibs.findVersion("minSdk").get().toString().toInt()

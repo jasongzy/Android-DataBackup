@@ -19,7 +19,7 @@ import com.xayah.core.work.workers.FilesUpdateWorker
 
 object WorkManagerInitializer {
     /**
-     * Fully initialize at app startup
+     * Fully initialize all data
      */
     fun fullInitialize(context: Context, regular: Boolean = true) {
         WorkManager.getInstance(context)
@@ -48,6 +48,16 @@ object WorkManagerInitializer {
         WorkManager.getInstance(context)
             .beginUniqueWork(FAST_INIT_AND_UPDATE_APPS_WORK_NAME, ExistingWorkPolicy.KEEP, AppsFastInitWorker.buildRequest())
             .then(AppsFastUpdateWorker.buildRequest())
+            .enqueue()
+    }
+
+    fun incrementalInitialize(context: Context) {
+        WorkManager.getInstance(context)
+            .beginUniqueWork(FAST_INIT_AND_UPDATE_APPS_WORK_NAME, ExistingWorkPolicy.KEEP, AppsFastInitWorker.buildRequest())
+            .then(AppsFastUpdateWorker.buildRequest())
+            .then(FilesUpdateWorker.buildRequest())
+            .then(AppsLoadWorker.buildRequest(null))
+            .then(FilesLoadWorker.buildRequest(null))
             .enqueue()
     }
 

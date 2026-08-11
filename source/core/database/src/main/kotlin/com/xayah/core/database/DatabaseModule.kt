@@ -2,6 +2,7 @@ package com.xayah.core.database
 
 import android.content.Context
 import androidx.room.Room
+import com.xayah.core.database.dao.AppBackupDao
 import com.xayah.core.database.dao.CloudDao
 import com.xayah.core.database.dao.DirectoryDao
 import com.xayah.core.database.dao.LabelDao
@@ -23,6 +24,7 @@ object DatabaseModule {
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "database-databackup")
             .enableMultiInstanceInvalidation()
+            .fallbackToDestructiveMigration()
             .build()
 
     @Provides
@@ -48,4 +50,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideLabelDao(database: AppDatabase): LabelDao = database.labelDao()
+
+    @Provides
+    @Singleton
+    fun provideAppBackupDao(database: AppDatabase): AppBackupDao = database.appBackupDao()
 }

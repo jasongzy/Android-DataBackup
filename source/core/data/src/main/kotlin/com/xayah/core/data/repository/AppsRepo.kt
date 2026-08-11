@@ -62,7 +62,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
+
+private const val APP_INIT_BATCH_SIZE = 50
+private val appInitializationMutex = Mutex()
 
 class AppsRepo @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -72,7 +77,9 @@ class AppsRepo @Inject constructor(
     private val rootService: RemoteRootService,
     private val settingsDataRepo: SettingsDataRepo,
     private val pathUtil: PathUtil,
-    private val cloudRepo: CloudRepository
+    private val cloudRepo: CloudRepository,
+    private val appBackupRepository: AppBackupRepository,
+    private val labelsRepo: LabelsRepo,
 ) {
     fun getBackups(filters: Flow<Filters>): Flow<Set<String>> = combine(
         filters,
@@ -91,36 +98,53 @@ class AppsRepo @Inject constructor(
 
     fun getApp(id: Long) = appsDao.queryPackageFlow(id).flowOn(defaultDispatcher)
 
+    fun getApp(packageName: String, userId: Int) =
+        appsDao.queryFlow(packageName, OpType.BACKUP, userId, DefaultPreserveId)
+            .flowOn(defaultDispatcher)
+
     fun getApps(
         opType: OpType,
         listData: Flow<ListData>,
         pkgUserSet: Flow<Set<String>>,
         refs: Flow<List<LabelAppCrossRefEntity>>,
-        labels: Flow<Set<String>>,
+        labelFilters: Flow<Map<String, LabelFilterMode>>,
         cloudName: String,
         backupDir: String
     ): Flow<List<App>> = combine(
         listData,
         pkgUserSet,
         refs,
-        labels,
+        labelFilters,
         when (opType) {
             OpType.BACKUP -> appsDao.queryPackagesFlow(opType = opType, blocked = false)
             OpType.RESTORE -> appsDao.queryPackagesFlow(opType = opType, cloud = cloudName, backupDir = backupDir)
         }
-    ) { lData, pSet, lRefs, lLabels, apps ->
+    ) { lData, pSet, lRefs, filters, apps ->
         val data = lData.castTo<ListData.Apps>()
+        val labelsByApp = lRefs.groupBy { Triple(it.packageName, it.userId, it.preserveId) }
+            .mapValues { (_, refs) -> refs.mapTo(mutableSetOf()) { it.label } }
+        val included = filters.filterValues { it == LabelFilterMode.INCLUDE }.keys
+        val excluded = filters.filterValues { it == LabelFilterMode.EXCLUDE }.keys
         apps.asSequence()
             .filter(packageRepo.getKeyPredicateNew(key = data.searchQuery))
             .filter(packageRepo.getShowSystemAppsPredicate(value = data.filters.showSystemApps))
             .filter(packageRepo.getHasBackupsPredicate(value = data.filters.hasBackups, pkgUserSet = pSet))
             .filter(packageRepo.getHasNoBackupsPredicate(value = data.filters.hasNoBackups, pkgUserSet = pSet))
-            .filter(packageRepo.getInstalledPredicate(value = data.filters.installedApps, pkgUserSet = pSet))
-            .filter(packageRepo.getNotInstalledPredicate(value = data.filters.notInstalledApps, pkgUserSet = pSet))
+            .filter {
+                if (opType == OpType.BACKUP) data.filters.installedApps
+                else packageRepo.getInstalledPredicate(value = data.filters.installedApps, pkgUserSet = pSet)(it)
+            }
+            .filter {
+                if (opType == OpType.BACKUP) true
+                else packageRepo.getNotInstalledPredicate(value = data.filters.notInstalledApps, pkgUserSet = pSet)(it)
+            }
             .filter(packageRepo.getUserIdPredicateNew(userId = data.userList.getOrNull(data.userIndex)?.id))
-            .filter { if (lLabels.isNotEmpty()) lRefs.find { ref -> it.packageName == ref.packageName && it.userId == ref.userId && it.preserveId == ref.preserveId } != null else true }
+            .filter { app ->
+                val appLabels = labelsByApp[Triple(app.packageName, app.userId, app.preserveId)].orEmpty()
+                (included.isEmpty() || appLabels.any(included::contains)) && appLabels.none(excluded::contains)
+            }
             .sortedWith(packageRepo.getSortComparatorNew(sortIndex = data.sortIndex, sortType = data.sortType))
-            .sortedByDescending { p -> p.extraInfo.activated }.toList()
+            .toList()
             .map(PackageEntity::asExternalModel)
     }.flowOn(defaultDispatcher)
 
@@ -131,6 +155,11 @@ class AppsRepo @Inject constructor(
 
     suspend fun selectApp(id: Long, selected: Boolean) {
         appsDao.activateById(id, selected)
+    }
+
+    suspend fun replaceSelection(opType: OpType, ids: Collection<Long>) {
+        appsDao.clearActivated(opType)
+        appsDao.activateByIds(ids.toList(), true)
     }
 
     suspend fun selectDataItems(id: Long, apk: DataState, user: DataState, userDe: DataState, data: DataState, obb: DataState, media: DataState) {
@@ -195,7 +224,7 @@ class AppsRepo @Inject constructor(
      *
      * Faster than [fastInitialize] if there are too many newly installed apps.
      */
-    suspend fun fullInitialize(onInit: suspend (cur: Int, max: Int, content: String) -> Unit) {
+    suspend fun fullInitialize(onInit: suspend (cur: Int, max: Int, content: String) -> Unit) = appInitializationMutex.withLock {
         val loadSystemApps = context.readLoadSystemApps().first()
         val settings = settingsDataRepo.settingsData.first()
         val pm = context.packageManager
@@ -216,45 +245,70 @@ class AppsRepo @Inject constructor(
                     val isSystemApp = ((info.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM) != 0
                     if (loadSystemApps || isSystemApp.not()) {
                         apps.add(initializeApp(settings, pm, userId, info))
+                        if (apps.size == APP_INIT_BATCH_SIZE) {
+                            appsDao.upsert(apps.toList())
+                            apps.clear()
+                        }
                     }
                 }
             }
-            appsDao.upsert(apps)
+            if (apps.isNotEmpty()) appsDao.upsert(apps)
+            syncInstalledApps(userId)
         }
+        labelsRepo.deleteOrphanedAppRefs()
     }
 
     /**
      * Initialize only newly installed apps or remove uninstalled apps.
      */
-    suspend fun fastInitialize(onInit: suspend (cur: Int, max: Int, content: String) -> Unit) {
+    suspend fun fastInitialize(onInit: suspend (cur: Int, max: Int, content: String) -> Unit) = appInitializationMutex.withLock {
         val loadSystemApps = context.readLoadSystemApps().first()
         val settings = settingsDataRepo.settingsData.first()
         val pm = context.packageManager
         val userInfoList = rootService.getUsers()
         for (userInfo in userInfoList) {
             val userId = userInfo.id
-            val installedPackages = getInstalledPackages(userId).map { it.packageName }.toSet()
-            val storedSet = appsDao.queryPkgSetByUserId(OpType.BACKUP, userId).toSet()
+            val installedPackages = getInstalledPackages(userId).associateBy { it.packageName }
+            val storedApps = appsDao.queryPkgEntitiesByUserId(OpType.BACKUP, userId)
+            val storedPackages = storedApps.associateBy { it.packageName }
 
-            // Remove uninstalled apps
-            val outdatedPackages = storedSet.subtract(installedPackages)
+            val outdatedPackages = storedPackages.keys.subtract(installedPackages.keys)
             appsDao.deleteByPkgNames(opType = OpType.BACKUP, userId = userId, packageNames = outdatedPackages)
 
-            // Add newly install apps
+            val missingPackages = installedPackages.filterKeys { it !in storedPackages }
+            val changedApps = storedApps.filter { app ->
+                val info = installedPackages[app.packageName] ?: return@filter false
+                val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    info.longVersionCode
+                } else {
+                    info.versionCode.toLong()
+                }
+                app.packageInfo.versionCode != versionCode || app.packageInfo.lastUpdateTime != info.lastUpdateTime
+            }
+            val itemCount = missingPackages.size + changedApps.size
             val apps = mutableListOf<PackageEntity>()
-            val missingPackages = installedPackages.subtract(storedSet)
-            missingPackages.forEachIndexed { index, pkg ->
-                onInit(index, missingPackages.size, pkg)
-                val info = rootService.getPackageInfoAsUser(pkg, 0, userId)
-                if (info != null) {
-                    val isSystemApp = ((info.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM) != 0
-                    if (loadSystemApps || isSystemApp.not()) {
-                        apps.add(initializeApp(settings, pm, userId, info))
+            missingPackages.values.forEachIndexed { index, info ->
+                onInit(index, itemCount, info.packageName)
+                val isSystemApp = ((info.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM) != 0
+                if (loadSystemApps || isSystemApp.not()) {
+                    apps.add(initializeApp(settings, pm, userId, info))
+                    if (apps.size == APP_INIT_BATCH_SIZE) {
+                        appsDao.upsert(apps.toList())
+                        apps.clear()
                     }
                 }
             }
-            appsDao.upsert(apps)
+            if (apps.isNotEmpty()) appsDao.upsert(apps)
+
+            val userHandle = rootService.getUserHandle(userId)
+            val updates = changedApps.mapIndexedNotNull { index, app ->
+                onInit(missingPackages.size + index, itemCount, app.packageName)
+                updateApp(pm, app, userId, userHandle)
+            }
+            appsDao.update(updates)
+            syncInstalledApps(userId)
         }
+        labelsRepo.deleteOrphanedAppRefs()
     }
 
     private fun initializeApp(settings: SettingsData, pm: PackageManager, userId: Int, info: android.content.pm.PackageInfo): PackageEntity {
@@ -317,6 +371,7 @@ class AppsRepo @Inject constructor(
                 }
             }
             appsDao.update(updateList)
+            syncInstalledApps(userId)
         }
     }
 
@@ -335,6 +390,14 @@ class AppsRepo @Inject constructor(
             }
         }
         appsDao.update(updateList)
+        appsDao.queryUserIds(OpType.BACKUP).forEach { syncInstalledApps(it) }
+    }
+
+    private suspend fun syncInstalledApps(userId: Int) {
+        appBackupRepository.syncInstalledApps(
+            userId = userId,
+            apps = appsDao.queryPkgEntitiesByUserId(OpType.BACKUP, userId),
+        )
     }
 
     suspend fun updateApp(pkg: PackageEntity, userId: Int) {
@@ -343,7 +406,14 @@ class AppsRepo @Inject constructor(
         val updateEntity = updateApp(pm, pkg, userId, userHandle)
         if (updateEntity != null) {
             appsDao.update(updateEntity)
+            syncInstalledApps(userId)
         }
+    }
+
+    suspend fun removeUninstalledApp(packageName: String, userId: Int) {
+        appsDao.deleteByPkgNames(OpType.BACKUP, userId, setOf(packageName))
+        syncInstalledApps(userId)
+        labelsRepo.deleteOrphanedAppRefs()
     }
 
     private suspend fun updateApp(pm: PackageManager, pkg: PackageEntity, userId: Int, userHandle: UserHandle?): PackageUpdateEntity? {
@@ -402,10 +472,10 @@ class AppsRepo @Inject constructor(
         }
     }
 
-    private suspend fun getInstalledPackages(userId: Int) = rootService.getInstalledPackagesAsUser(0, userId).filter {
-        // Filter itself
-        it.packageName != context.packageName
-    }
+    private suspend fun getInstalledPackages(userId: Int) =
+        rootService.getInstalledPackagesAsUser(0, userId)
+            .filter { it.packageName != context.packageName }
+            .distinctBy { it.packageName }
 
     suspend fun load(cloudName: String?, onLoad: suspend (cur: Int, max: Int, content: String) -> Unit) {
         if (cloudName.isNullOrEmpty().not()) {

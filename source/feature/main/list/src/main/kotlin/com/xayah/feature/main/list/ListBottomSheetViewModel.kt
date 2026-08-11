@@ -1,5 +1,7 @@
 package com.xayah.feature.main.list
 
+import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,6 +11,7 @@ import com.xayah.core.data.repository.Filters
 import com.xayah.core.data.repository.LabelsRepo
 import com.xayah.core.data.repository.ListData
 import com.xayah.core.data.repository.ListDataRepo
+import com.xayah.core.data.repository.LabelFilterMode
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.App
 import com.xayah.core.model.File
@@ -17,6 +20,7 @@ import com.xayah.core.model.SortType
 import com.xayah.core.model.Target
 import com.xayah.core.model.database.CloudEntity
 import com.xayah.core.model.database.LabelEntity
+import com.xayah.core.model.ColoredLabel
 import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.util.of
 import com.xayah.core.ui.route.MainRoutes
@@ -25,6 +29,9 @@ import com.xayah.core.util.launchOnDefault
 import com.xayah.feature.main.list.ListBottomSheetUiState.Loading
 import com.xayah.feature.main.list.ListBottomSheetUiState.Success
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -33,20 +40,23 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ListBottomSheetViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
     private val listDataRepo: ListDataRepo,
     private val appsRepo: AppsRepo,
     cloudRepo: CloudRepository,
-    labelsRepo: LabelsRepo
+    private val labelsRepo: LabelsRepo
 ) : ViewModel() {
-    private val target: Target = Target.valueOf(savedStateHandle.get<String>(MainRoutes.ARG_TARGET)!!.decodeURL().trim())
+    private val target: Target = savedStateHandle.get<String>(MainRoutes.ARG_TARGET)
+        ?.let { Target.valueOf(it.decodeURL().trim()) }
+        ?: Target.Apps
     private val opType: OpType = OpType.of(savedStateHandle.get<String>(MainRoutes.ARG_OP_TYPE)?.decodeURL()?.trim())
 
     val uiState: StateFlow<ListBottomSheetUiState> = when (target) {
         Target.Apps -> combine(
             listDataRepo.getListData(),
             listDataRepo.getAppList(),
-            labelsRepo.getLabelsFlow(),
+            labelsRepo.getColoredLabelsFlow(),
             cloudRepo.clouds,
         ) { lData, aList, labels, clouds ->
             val listData = lData.castTo<ListData.Apps>()
@@ -56,7 +66,7 @@ class ListBottomSheetViewModel @Inject constructor(
                 sortIndex = listData.sortIndex,
                 sortType = listData.sortType,
                 labelEntities = labels,
-                labels = listData.labels,
+                labelFilters = listData.labelFilters,
                 showDataItemsSheet = listData.showDataItemsSheet,
                 filters = listData.filters,
                 appList = aList,
@@ -67,7 +77,7 @@ class ListBottomSheetViewModel @Inject constructor(
         Target.Files -> combine(
             listDataRepo.getListData(),
             listDataRepo.getFileList(),
-            labelsRepo.getLabelsFlow()
+            labelsRepo.getColoredLabelsFlow()
         ) { lData, fList, labels ->
             val listData = lData.castTo<ListData.Files>()
             Success.Files(
@@ -76,7 +86,7 @@ class ListBottomSheetViewModel @Inject constructor(
                 sortIndex = listData.sortIndex,
                 sortType = listData.sortType,
                 labelEntities = labels,
-                labels = listData.labels,
+                labelFilters = listData.labelFilters,
                 fileList = fList,
             )
         }
@@ -105,7 +115,7 @@ class ListBottomSheetViewModel @Inject constructor(
                 listDataRepo.setFilters { filters }
                 val state = uiState.value.castTo<Success.Apps>()
                 if (isShow.not()) {
-                    appsRepo.unselectAll(state.appList.filter { it.isSystemApp }.map { it.id })
+                    listDataRepo.unselectApps(state.appList.filter { it.isSystemApp }.map { it.id })
                 }
             }
         }
@@ -123,15 +133,17 @@ class ListBottomSheetViewModel @Inject constructor(
         }
     }
 
-    fun addOrRemoveLabel(label: String) {
+    fun cycleLabelFilter(label: String) {
         viewModelScope.launchOnDefault {
-            if (uiState.value is Success) {
-                val state = uiState.value.castTo<Success>()
-                if (label in state.labels) {
-                    listDataRepo.removeLabel(label)
-                } else {
-                    listDataRepo.addLabel(label)
-                }
+            listDataRepo.cycleLabelFilter(label)
+        }
+    }
+
+    fun deleteLabel(label: String) {
+        viewModelScope.launchOnDefault {
+            labelsRepo.deleteLabel(label)
+            withContext(Dispatchers.Main.immediate) {
+                Toast.makeText(context, R.string.label_deleted, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -153,30 +165,30 @@ sealed interface ListBottomSheetUiState {
         open val showFilterSheet: Boolean,
         open val sortIndex: Int,
         open val sortType: SortType,
-        open val labelEntities: List<LabelEntity>,
-        open val labels: Set<String>,
+        open val labelEntities: List<ColoredLabel>,
+        open val labelFilters: Map<String, LabelFilterMode>,
     ) : ListBottomSheetUiState {
         data class Apps(
             override val opType: OpType,
             override val showFilterSheet: Boolean,
             override val sortIndex: Int,
             override val sortType: SortType,
-            override val labelEntities: List<LabelEntity>,
-            override val labels: Set<String>,
+            override val labelEntities: List<ColoredLabel>,
+            override val labelFilters: Map<String, LabelFilterMode>,
             val showDataItemsSheet: Boolean,
             val filters: Filters,
             val appList: List<App>,
             val clouds: List<CloudEntity>,
-        ) : Success(opType, showFilterSheet, sortIndex, sortType, labelEntities, labels)
+        ) : Success(opType, showFilterSheet, sortIndex, sortType, labelEntities, labelFilters)
 
         data class Files(
             override val opType: OpType,
             override val showFilterSheet: Boolean,
             override val sortIndex: Int,
             override val sortType: SortType,
-            override val labelEntities: List<LabelEntity>,
-            override val labels: Set<String>,
+            override val labelEntities: List<ColoredLabel>,
+            override val labelFilters: Map<String, LabelFilterMode>,
             val fileList: List<File>,
-        ) : Success(opType, showFilterSheet, sortIndex, sortType, labelEntities, labels)
+        ) : Success(opType, showFilterSheet, sortIndex, sortType, labelEntities, labelFilters)
     }
 }

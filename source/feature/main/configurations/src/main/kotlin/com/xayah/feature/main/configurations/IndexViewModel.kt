@@ -50,7 +50,6 @@ data class IndexUiState(
     val selectedCount: Int,
     val blacklistSelected: Boolean,
     val cloudSelected: Boolean,
-    val fileSelected: Boolean,
     val labelSelected: Boolean,
 ) : UiState
 
@@ -72,10 +71,9 @@ class IndexViewModel @Inject constructor(
     private val pathUtil: PathUtil,
 ) : BaseViewModel<IndexUiState, IndexUiIntent, IndexUiEffect>(
     IndexUiState(
-        selectedCount = 4,
+        selectedCount = 3,
         blacklistSelected = true,
         cloudSelected = true,
-        fileSelected = true,
         labelSelected = true,
     )
 ) {
@@ -83,7 +81,12 @@ class IndexViewModel @Inject constructor(
         when (intent) {
             is IndexUiIntent.Export -> {
                 rootService.mkdirs(pathUtil.getLocalBackupConfigsDir())
-                val result = commonBackupUtil.backupConfigs(pathUtil.getLocalBackupConfigsDir())
+                val result = commonBackupUtil.backupConfigs(
+                    dstDir = pathUtil.getLocalBackupConfigsDir(),
+                    includeBlacklist = state.blacklistSelected,
+                    includeCloud = state.cloudSelected,
+                    includeLabels = state.labelSelected,
+                )
                 emitEffect(IndexUiEffect.DismissSnackbar)
                 emitEffect(IndexUiEffect.ShowSnackbar(type = if (result.isSuccess) SnackbarType.Success else SnackbarType.Error, message = result.outString, duration = SnackbarDuration.Short))
             }
@@ -115,19 +118,6 @@ class IndexViewModel @Inject constructor(
                                     DialogCheckBoxItem(
                                         enum = ConstantUtil.CONFIGURATIONS_KEY_CLOUD,
                                         title = joinOf(context.getString(R.string.cloud), " (${config.cloud.size})")
-                                    )
-                                )
-                            }
-                        }.withLog()
-                        runCatching {
-                            if (config.file.isNotEmpty()) {
-                                items.add(
-                                    DialogCheckBoxItem(
-                                        enum = ConstantUtil.CONFIGURATIONS_KEY_FILE,
-                                        title = joinOf(
-                                            context.getString(R.string.files),
-                                            " (${config.file.size})",
-                                        )
                                     )
                                 )
                             }
@@ -247,15 +237,12 @@ class IndexViewModel @Inject constructor(
                                             }
                                         }
 
-                                        ConstantUtil.CONFIGURATIONS_KEY_FILE -> {
-                                            if (config?.file != null) {
-                                                mediaRepo.addMedia(config.file.map { it.path })
-                                            }
-                                        }
-
                                         ConstantUtil.CONFIGURATIONS_KEY_LABEL -> {
                                             if (config?.labels != null) {
                                                 labelsRepo.addLabels(config.labels)
+                                            }
+                                            if (config?.labelColors != null) {
+                                                labelsRepo.setLabelColors(config.labelColors)
                                             }
                                             if (config?.labelAppRefs != null) {
                                                 labelsRepo.addLabelAppCrossRefs(config.labelAppRefs)
@@ -288,9 +275,6 @@ class IndexViewModel @Inject constructor(
 
     private val _accounts: Flow<List<CloudEntity>> = cloudRepo.clouds.flowOnIO()
     val accounts: StateFlow<List<CloudEntity>> = _accounts.stateInScope(listOf())
-
-    private val _files: Flow<List<MediaEntity>> = mediaRepo.queryFlow(opType = OpType.BACKUP, blocked = false).flowOnIO()
-    val files: StateFlow<List<MediaEntity>> = _files.stateInScope(listOf())
 
     private val _labels: Flow<List<LabelEntity>> = labelsRepo.getLabelsFlow().flowOnIO()
     private val _labelAppRefs: Flow<List<LabelAppCrossRefEntity>> = labelsRepo.getAppRefsFlow().flowOnIO()

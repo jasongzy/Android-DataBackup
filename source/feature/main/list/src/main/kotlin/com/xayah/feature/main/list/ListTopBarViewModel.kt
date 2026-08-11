@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xayah.core.data.repository.ListData
 import com.xayah.core.data.repository.ListDataRepo
+import com.xayah.core.data.repository.WorkRepo
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.OpType
 import com.xayah.core.model.Target
@@ -18,6 +19,7 @@ import com.xayah.feature.main.list.ListTopBarUiState.Success
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
@@ -26,18 +28,22 @@ import javax.inject.Inject
 class ListTopBarViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val listDataRepo: ListDataRepo,
+    private val workRepo: WorkRepo,
 ) : ViewModel() {
-    private val target: Target = Target.valueOf(savedStateHandle.get<String>(MainRoutes.ARG_TARGET)!!.decodeURL().trim())
+    private val target: Target = savedStateHandle.get<String>(MainRoutes.ARG_TARGET)
+        ?.let { Target.valueOf(it.decodeURL().trim()) }
+        ?: Target.Apps
     private val opType: OpType = OpType.of(savedStateHandle.get<String>(MainRoutes.ARG_OP_TYPE)?.decodeURL()?.trim())
 
     val uiState: StateFlow<ListTopBarUiState> = when (target) {
-        Target.Apps -> listDataRepo.getListData().map {
-            val listData = it.castTo<ListData.Apps>()
+        Target.Apps -> combine(listDataRepo.getListData(), workRepo.getAppRefreshProgress()) { data, refreshProgress ->
+            val listData = data.castTo<ListData.Apps>()
             Success.Apps(
                 opType = opType,
                 selected = listData.selected,
                 total = listData.total,
                 isUpdating = listData.isUpdating,
+                refreshProgress = refreshProgress,
                 userIndex = listData.userIndex,
                 userList = listData.userList,
                 userMap = listData.userMap,
@@ -51,6 +57,7 @@ class ListTopBarViewModel @Inject constructor(
                 selected = listData.selected,
                 total = listData.total,
                 isUpdating = listData.isUpdating,
+                refreshProgress = null,
             )
         }
     }.stateIn(
@@ -79,22 +86,25 @@ sealed interface ListTopBarUiState {
         open val selected: Long,
         open val total: Long,
         open val isUpdating: Boolean,
+        open val refreshProgress: Float?,
     ) : ListTopBarUiState {
         data class Apps(
             override val opType: OpType,
             override val selected: Long,
             override val total: Long,
             override val isUpdating: Boolean,
+            override val refreshProgress: Float?,
             val userIndex: Int,
             val userList: List<UserInfo>,
             val userMap: Map<Int, Long>,
-        ) : Success(opType, selected, total, isUpdating)
+        ) : Success(opType, selected, total, isUpdating, refreshProgress)
 
         data class Files(
             override val opType: OpType,
             override val selected: Long,
             override val total: Long,
             override val isUpdating: Boolean,
-        ) : Success(opType, selected, total, isUpdating)
+            override val refreshProgress: Float?,
+        ) : Success(opType, selected, total, isUpdating, refreshProgress)
     }
 }

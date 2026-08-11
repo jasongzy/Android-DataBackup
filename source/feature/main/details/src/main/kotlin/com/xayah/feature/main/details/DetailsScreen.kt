@@ -19,7 +19,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.ui.component.InnerBottomSpacer
 import com.xayah.core.ui.component.InnerTopSpacer
 import com.xayah.core.ui.component.SecondaryLargeTopBar
-import com.xayah.core.ui.component.SetOnResume
 import com.xayah.core.ui.util.LocalNavController
 import com.xayah.core.util.maybePopBackStack
 
@@ -29,7 +28,9 @@ fun DetailsRoute(
 ) {
     val navController = LocalNavController.current!!
     val uiState: DetailsUiState by viewModel.uiState.collectAsStateWithLifecycle()
-    SetOnResume(onResume = viewModel::onResume)
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
+    }
     AppDetailsScreen(uiState, viewModel)
     LaunchedEffect(uiState) {
         if (uiState is DetailsUiState.Error) {
@@ -41,6 +42,7 @@ fun DetailsRoute(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AppDetailsScreen(uiState: DetailsUiState, viewModel: DetailsViewModel) {
+    val furtherOperations by viewModel.furtherOperations.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -62,8 +64,16 @@ internal fun AppDetailsScreen(uiState: DetailsUiState, viewModel: DetailsViewMod
                                 onSetDataStates = viewModel::setDataStates,
                                 onAddLabel = viewModel::addLabel,
                                 onDeleteLabel = viewModel::deleteLabel,
+                                onSetLabelColor = viewModel::setLabelColor,
                                 onSelectLabel = viewModel::selectAppLabel,
-                                onBlock = viewModel::block,
+                                onUninstall = viewModel::uninstallApp,
+                                onClearData = viewModel::clearAppData,
+                                onCopyDataPath = viewModel::copyDataPath,
+                                onSaveAppIcon = viewModel::saveAppIcon,
+                                onShareApk = viewModel::shareApk,
+                                furtherOperations = furtherOperations,
+                                onLoadFurtherOperations = viewModel::loadFurtherOperations,
+                                onOpenFurtherOperation = viewModel::openFurtherOperation,
                                 onFreeze = viewModel::freezeApp,
                                 onLaunch = viewModel::launchApp,
                                 onProtect = viewModel::protect,

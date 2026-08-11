@@ -30,7 +30,7 @@ class SplashActivity : AppCompatActivity() {
             // There is an update
             startActivity(Intent(this, SetupActivity::class.java))
         } else {
-            WorkManagerInitializer.fullInitialize(this)
+            WorkManagerInitializer.incrementalInitialize(this)
             startActivity(Intent(this, MainActivity::class.java))
         }
         finish()

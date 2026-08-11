@@ -84,6 +84,7 @@ fun PageCloud() {
                             )
                             IconButton(
                                 icon = Icons.Outlined.Settings,
+                                tooltip = stringResource(R.string.settings),
                                 tint = ThemedColorSchemeKeyTokens.Primary.value,
                                 onClick = {
                                     navController.navigateSingle(

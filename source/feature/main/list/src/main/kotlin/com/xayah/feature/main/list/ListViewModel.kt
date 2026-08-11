@@ -5,6 +5,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
+import com.xayah.core.data.repository.AppsRepo
+import com.xayah.core.data.repository.BackupRequestStore
+import com.xayah.core.data.repository.DirectoryRepository
 import com.xayah.core.data.repository.ListData
 import com.xayah.core.data.repository.ListDataRepo
 import com.xayah.core.hiddenapi.castTo
@@ -25,23 +28,35 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class ListViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
-    listDataRepo: ListDataRepo,
+    private val listDataRepo: ListDataRepo,
+    private val appsRepo: AppsRepo,
+    private val backupRequestStore: BackupRequestStore,
+    private val directoryRepository: DirectoryRepository,
 ) : ViewModel() {
-    private val target: Target = Target.valueOf(savedStateHandle.get<String>(MainRoutes.ARG_TARGET)!!.decodeURL().trim())
+    private var initialRefreshRequested = false
+    private val target: Target = savedStateHandle.get<String>(MainRoutes.ARG_TARGET)
+        ?.let { Target.valueOf(it.decodeURL().trim()) }
+        ?: Target.Apps
     private val opType: OpType = OpType.of(savedStateHandle.get<String>(MainRoutes.ARG_OP_TYPE)?.decodeURL()?.trim())
     private val cloudName: String = savedStateHandle.get<String>(MainRoutes.ARG_ACCOUNT_NAME)?.decodeURL()?.trim() ?: ""
     private val backupDir: String = savedStateHandle.get<String>(MainRoutes.ARG_ACCOUNT_REMOTE)?.decodeURL()?.trim()?.ifEmpty { context.localBackupSaveDir() } ?: context.localBackupSaveDir()
 
     init {
-        // Reset list data
         listDataRepo.initialize(target, opType, cloudName, backupDir)
+        if (target == Target.Apps) {
+            viewModelScope.launchOnDefault {
+                listDataRepo.loadAppSortPreference()
+            }
+        }
     }
 
     val uiState: StateFlow<ListUiState> = when (target) {
@@ -50,6 +65,7 @@ class ListViewModel @Inject constructor(
             Success.Apps(
                 opType = opType,
                 selected = listData.selected,
+                selectionMode = listData.selectionMode,
                 isUpdating = listData.isUpdating,
                 cloudName = cloudName,
                 backupDir = backupDir,
@@ -61,6 +77,7 @@ class ListViewModel @Inject constructor(
             Success.Files(
                 opType = opType,
                 selected = listData.selected,
+                selectionMode = listData.selectionMode,
                 isUpdating = listData.isUpdating,
                 cloudName = cloudName,
                 backupDir = backupDir,
@@ -72,55 +89,54 @@ class ListViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5_000),
     )
 
-    fun onResume() {
+    fun refresh(initial: Boolean = false) {
+        if (initial && initialRefreshRequested) return
+        if (initial) initialRefreshRequested = true
         viewModelScope.launchOnDefault {
-            when (uiState.value) {
-                is Success.Apps -> {
-                    when (opType) {
-                        OpType.BACKUP -> {
-                            val state = uiState.value.castTo<Success.Apps>()
-                            if (state.isUpdating.not()) {
-                                WorkManagerInitializer.fastInitializeAndUpdateApps(context)
-                            }
-                        }
-
-                        OpType.RESTORE -> {}
-                    }
-                }
-
-                is Success.Files -> {
-                    when (opType) {
-                        OpType.BACKUP -> {
-                            val state = uiState.value.castTo<Success.Files>()
-                            if (state.isUpdating.not()) {
-                                WorkManagerInitializer.fastInitializeAndUpdateFiles(context)
-                            }
-                        }
-
-                        OpType.RESTORE -> {}
-                    }
-                }
-
-                else -> {}
+            if ((uiState.value as? ListUiState.Success)?.isUpdating == true || opType != OpType.BACKUP) return@launchOnDefault
+            when (target) {
+                Target.Apps -> WorkManagerInitializer.fastInitializeAndUpdateApps(context)
+                Target.Files -> WorkManagerInitializer.fastInitializeAndUpdateFiles(context)
             }
         }
     }
 
+    fun clearSelection() {
+        listDataRepo.clearAppSelection()
+    }
+
     fun toNextPage(navController: NavHostController) {
+        if (target == Target.Apps && opType == OpType.BACKUP) {
+            viewModelScope.launch {
+                val ids = listDataRepo.getSelectedAppIds().value
+                backupRequestStore.prepare(ids)
+                listDataRepo.clearAppSelection()
+                directoryRepository.updateSelected()
+                val route = if (directoryRepository.querySelectedByDirectoryTypeFlow().first() == null) {
+                    MainRoutes.Directory.route
+                } else {
+                    MainRoutes.PackagesBackupProcessingGraph.route
+                }
+                navController.navigateSingle(route)
+            }
+            return
+        }
         when (target) {
             Target.Apps -> {
                 when (opType) {
-                    OpType.BACKUP -> {
-                        navController.navigateSingle(MainRoutes.PackagesBackupProcessingGraph.route)
-                    }
+                    OpType.BACKUP -> Unit
 
                     OpType.RESTORE -> {
-                        navController.navigateSingle(
-                            MainRoutes.PackagesRestoreProcessingGraph.getRoute(
-                                cloudName = cloudName.ifEmptyEncodeURLWithSpace(),
-                                backupDir = backupDir.ifEmptyEncodeURLWithSpace()
+                        viewModelScope.launch {
+                            appsRepo.replaceSelection(opType, listDataRepo.getSelectedAppIds().value)
+                            listDataRepo.clearAppSelection()
+                            navController.navigateSingle(
+                                MainRoutes.PackagesRestoreProcessingGraph.getRoute(
+                                    cloudName = cloudName.ifEmptyEncodeURLWithSpace(),
+                                    backupDir = backupDir.ifEmptyEncodeURLWithSpace()
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
@@ -150,6 +166,7 @@ sealed interface ListUiState {
     sealed class Success(
         open val opType: OpType,
         open val selected: Long,
+        open val selectionMode: Boolean,
         open val isUpdating: Boolean,
         open val cloudName: String,
         open val backupDir: String,
@@ -157,17 +174,19 @@ sealed interface ListUiState {
         data class Apps(
             override val opType: OpType,
             override val selected: Long,
+            override val selectionMode: Boolean,
             override val isUpdating: Boolean,
             override val cloudName: String,
             override val backupDir: String,
-        ) : Success(opType, selected, isUpdating, cloudName, backupDir)
+        ) : Success(opType, selected, selectionMode, isUpdating, cloudName, backupDir)
 
         data class Files(
             override val opType: OpType,
             override val selected: Long,
+            override val selectionMode: Boolean,
             override val isUpdating: Boolean,
             override val cloudName: String,
             override val backupDir: String,
-        ) : Success(opType, selected, isUpdating, cloudName, backupDir)
+        ) : Success(opType, selected, selectionMode, isUpdating, cloudName, backupDir)
     }
 }

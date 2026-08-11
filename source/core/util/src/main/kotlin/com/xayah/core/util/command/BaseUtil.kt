@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.drawable.Drawable
+import android.os.Build
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.graphics.drawable.toDrawable
 import com.topjohnwu.superuser.Shell
@@ -33,6 +34,9 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
+
+private val supportedBinaryAbis = setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+private val requiredBinaries = setOf("busybox", "tar", "zstd")
 
 private class EnvInitializer : Shell.Initializer() {
     companion object {
@@ -64,6 +68,10 @@ object BaseUtil {
     private suspend fun getNewShell(context: Context): Shell? = runCatching { getShellBuilder(context).build() }.getOrNull()
 
     suspend fun initializeEnvironment(context: Context) = run {
+        if (hasBaseBinaries(context).not()) {
+            releaseBase(context)
+        }
+
         // Set up shell environment.
         Shell.enableVerboseLogging = BuildConfigUtil.ENABLE_VERBOSE
         Shell.setDefaultBuilder(getShellBuilder(context))
@@ -200,30 +208,37 @@ object BaseUtil {
      * Unzip and return file headers.
      */
     private suspend fun unzip(src: String, dst: String): List<String> = withIOContext {
-        runCatching {
-            val zip = ZipFile(src)
+        ZipFile(src).use { zip ->
             zip.extractAll(dst)
             zip.fileHeaders.map { it.fileName }
-        }.getOrElse { listOf() }
+        }
     }
 
-    private suspend fun releaseAssets(context: Context, src: String, child: String) {
+    private suspend fun releaseAsset(context: Context, src: String, child: String) {
         withIOContext {
-            runCatching {
-                val assets = File(context.filesDir(), child)
-                if (!assets.exists()) {
-                    val outStream = FileOutputStream(assets)
-                    val inputStream = context.resources.assets.open(src)
-                    inputStream.copyTo(outStream)
-                    assets.setExecutable(true)
-                    assets.setReadable(true)
-                    assets.setWritable(true)
-                    outStream.flush()
-                    inputStream.close()
-                    outStream.close()
+            val asset = File(context.filesDir(), child)
+            if (asset.exists().not()) {
+                FileOutputStream(asset).use { output ->
+                    context.assets.open(src).use { input ->
+                        input.copyTo(output)
+                    }
                 }
+                asset.setExecutable(true)
+                asset.setReadable(true)
+                asset.setWritable(true)
             }
         }
+    }
+
+    private fun hasBaseBinaries(context: Context): Boolean =
+        requiredBinaries.all { File(context.binDir(), it).isFile }
+
+    private fun getBinArchiveAssetPath(): String? {
+        val buildAbi = BuildConfigUtil.FLAVOR_abi
+        if (buildAbi in supportedBinaryAbis) return BinArchiveName
+        return Build.SUPPORTED_ABIS
+            .firstOrNull { it in supportedBinaryAbis }
+            ?.let { "$it/$BinArchiveName" }
     }
 
     suspend fun releaseBase(context: Context): Boolean = withIOContext {
@@ -235,13 +250,18 @@ object BaseUtil {
         binArchive.deleteRecursively()
 
         // Release binaries
-        releaseAssets(context = context, src = BinArchiveName, child = BinArchiveName)
-        unzip(src = context.binArchivePath(), dst = context.binDir())
+        val assetPath = getBinArchiveAssetPath() ?: return@withIOContext false
+        releaseAsset(context = context, src = assetPath, child = BinArchiveName)
+        if (unzip(src = context.binArchivePath(), dst = context.binDir()).isEmpty()) {
+            return@withIOContext false
+        }
 
         // All binaries need full permissions
         bin.listFiles()?.forEach { file ->
             if (file.setAllPermissions().not()) return@withIOContext false
-        }
+        } ?: return@withIOContext false
+
+        if (hasBaseBinaries(context).not()) return@withIOContext false
 
         // Remove binary archive
         binArchive.deleteRecursively()

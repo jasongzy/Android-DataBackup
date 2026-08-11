@@ -56,6 +56,21 @@ class PackageRepository @Inject constructor(
     }
 
     suspend fun getPackage(packageName: String, opType: OpType, userId: Int) = packageDao.query(packageName, opType, userId)
+    suspend fun getRevisions(packageName: String, userId: Int, preserveId: Long) =
+        packageDao.queryRevisions(packageName, OpType.RESTORE, userId, preserveId)
+    suspend fun getPackage(id: Long) = packageDao.queryById(id)
+
+    suspend fun selectOnlyForRestore(id: Long, dataStates: PackageDataStates) {
+        packageDao.clearActivated(OpType.RESTORE)
+        packageDao.queryById(id)?.let { app ->
+            packageDao.update(
+                app.copy(
+                    extraInfo = app.extraInfo.copy(activated = true),
+                    dataStates = dataStates,
+                )
+            )
+        }
+    }
     fun queryPackagesFlow(opType: OpType, blocked: Boolean) = packageDao.queryPackagesFlow(opType, blocked).distinctUntilChanged()
     suspend fun queryPackages(opType: OpType, blocked: Boolean) = packageDao.queryPackages(opType, blocked)
     suspend fun queryUserIds(opType: OpType) = packageDao.queryUserIds(opType)
@@ -139,7 +154,16 @@ class PackageRepository @Inject constructor(
     fun getSortComparatorNew(sortIndex: Int, sortType: SortType): Comparator<in PackageEntity> = when (sortIndex) {
         1 -> sortByInstallTimeNew(sortType)
         2 -> sortByDataSizeNew(sortType)
+        3 -> compareByDirection(sortType) { it.packageInfo.lastUpdateTime }
+        4 -> compareByDirection(sortType) { it.extraInfo.lastBackupTime }
         else -> sortByAlphabetNew(sortType)
+    }
+
+    private fun <T : Comparable<T>> compareByDirection(
+        sortType: SortType,
+        selector: (PackageEntity) -> T,
+    ): Comparator<PackageEntity> = compareBy(selector).let { comparator ->
+        if (sortType == SortType.ASCENDING) comparator else comparator.reversed()
     }
 
     fun getDataSrcDir(dataType: DataType, userId: Int) = dataType.srcDir(userId)
@@ -183,7 +207,12 @@ class PackageRepository @Inject constructor(
         val appsDir = pathUtil.getLocalBackupAppsDir()
         val isSuccess = if (p.indexInfo.cloud.isEmpty()) {
             val src = "${appsDir}/${p.archivesRelativeDir}"
-            rootService.deleteRecursively(src)
+            rootService.deleteRecursively(src).also { deleted ->
+                val packageDir = "${appsDir}/${p.packageName}"
+                if (deleted && rootService.exists(packageDir) && rootService.listFilePaths(packageDir).isEmpty()) {
+                    rootService.deleteRecursively(packageDir)
+                }
+            }
         } else {
             runCatching {
                 cloudRepository.withClient(p.indexInfo.cloud) { client, entity ->
@@ -191,6 +220,13 @@ class PackageRepository @Inject constructor(
                     val remoteArchivesPackagesDir = pathUtil.getCloudRemoteAppsDir(remote)
                     val src = "${remoteArchivesPackagesDir}/${p.archivesRelativeDir}"
                     if (client.exists(src)) client.deleteRecursively(src)
+                    val packageDir = "${remoteArchivesPackagesDir}/${p.packageName}"
+                    if (client.exists(packageDir)) {
+                        val children = client.listFiles(packageDir)
+                        if (children.files.isEmpty() && children.directories.isEmpty()) {
+                            client.removeDirectory(packageDir)
+                        }
+                    }
                 }
             }.onFailure(rootService.onFailure).isSuccess
         }

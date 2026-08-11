@@ -1,7 +1,6 @@
 package com.xayah.core.service.medium.restore
 
 import android.annotation.SuppressLint
-import com.xayah.core.datastore.readResetRestoreList
 import com.xayah.core.datastore.saveLastRestoreTime
 import com.xayah.core.model.DataType
 import com.xayah.core.model.OpType
@@ -126,9 +125,7 @@ internal abstract class AbstractRestoreService : AbstractMediumService() {
                     mContext.getString(R.string.wait_for_remaining_data_processing)
                 )
 
-                if (mContext.readResetRestoreList().first() && mTaskEntity.failureCount == 0) {
-                    mMediaDao.clearActivated(OpType.RESTORE)
-                }
+                mMediaDao.clearActivated(OpType.RESTORE)
                 val isSuccess = runCatchingOnService { clear() }
                 entity.update(progress = 1f, state = if (isSuccess) OperationState.DONE else OperationState.ERROR)
             }

@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import com.xayah.core.common.util.toLineString
 import com.xayah.core.datastore.readBackupConfigs
 import com.xayah.core.datastore.readBackupItself
-import com.xayah.core.datastore.readResetBackupList
 import com.xayah.core.datastore.saveLastBackupTime
 import com.xayah.core.model.DataType
 import com.xayah.core.model.OpType
@@ -203,9 +202,7 @@ internal abstract class AbstractBackupService : AbstractMediumService() {
                 }
                 entity.update(progress = 0.5f)
 
-                if (mContext.readResetBackupList().first() && mTaskEntity.failureCount == 0) {
-                    mMediaDao.clearActivated(OpType.BACKUP)
-                }
+                mMediaDao.clearActivated(OpType.BACKUP)
                 if (runCatchingOnService { clear() }.not()) {
                     isSuccess = false
                 }

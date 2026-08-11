@@ -18,11 +18,15 @@
     <item name="check_keystore_desc" type="string" />
     <item name="load_system_apps" type="string" />
     <item name="settings" type="string" />
+    <item name="delete" type="string" />
+    <item name="select_all" type="string" />
     <item name="backup_settings" type="string" />
     <item name="restore_settings" type="string" />
     <item name="setup" type="string" />
     <item name="enter_the_setup_page_again" type="string" />
     <item name="manage_backups" type="string" />
+    <item name="cloud" type="string" />
+    <item name="cloud_accounts_desc" type="string" />
     <item name="backup_dir" type="string" />
     <item name="appearance" type="string" />
     <item name="theme_auto" type="string" />
@@ -60,6 +64,8 @@
     <item name="unknown" type="string" />
     <item name="kill_app_options" type="string" />
     <item name="kill_app_options_desc" type="string" />
+    <item name="kill_app_option_i_desc" type="string" />
+    <item name="kill_app_option_ii_desc" type="string" />
     <item name="language" type="string" />
     <item name="system" type="string" />
     <item name="backup_configs" type="string" />

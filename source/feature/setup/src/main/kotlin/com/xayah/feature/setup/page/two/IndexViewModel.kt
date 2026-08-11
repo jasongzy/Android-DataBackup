@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.xayah.core.datastore.saveAppVersionName
+import com.xayah.core.data.repository.DirectoryRepository
 import com.xayah.core.ui.viewmodel.BaseViewModel
 import com.xayah.core.ui.viewmodel.IndexUiEffect
 import com.xayah.core.ui.viewmodel.UiIntent
@@ -16,14 +17,18 @@ import javax.inject.Inject
 data object IndexUiState : UiState
 
 sealed class IndexUiIntent : UiIntent {
+    data object PrepareDirectory : IndexUiIntent()
     data class ToMain(val context: Activity) : IndexUiIntent()
 }
 
 @ExperimentalMaterial3Api
 @HiltViewModel
-class IndexViewModel @Inject constructor() : BaseViewModel<IndexUiState, IndexUiIntent, IndexUiEffect>(IndexUiState) {
+class IndexViewModel @Inject constructor(
+    private val directoryRepository: DirectoryRepository,
+) : BaseViewModel<IndexUiState, IndexUiIntent, IndexUiEffect>(IndexUiState) {
     override suspend fun onEvent(state: IndexUiState, intent: IndexUiIntent) {
         when (intent) {
+            IndexUiIntent.PrepareDirectory -> directoryRepository.update()
             is IndexUiIntent.ToMain -> {
                 val context = intent.context
                 WorkManagerInitializer.fullInitialize(context)

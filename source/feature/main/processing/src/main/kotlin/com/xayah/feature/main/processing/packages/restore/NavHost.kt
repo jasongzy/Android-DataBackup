@@ -41,7 +41,8 @@ fun PackagesRestoreProcessingGraph() {
                 finishedTitleId = R.string.restore_completed,
                 finishedSubtitleId = R.string.args_apps_restored,
                 finishedWithErrorsSubtitleId = R.string.args_apps_restored_and_failed,
-                viewModel = viewModel
+                viewModel = viewModel,
+                autoStart = true,
             )
         }
         composable(MainRoutes.PackagesRestoreProcessingSetup.route) {

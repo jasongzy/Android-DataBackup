@@ -15,6 +15,8 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -27,22 +29,31 @@ import com.xayah.core.model.OpType
 import com.xayah.core.model.UserInfo
 import com.xayah.core.ui.component.Divider
 import com.xayah.core.ui.component.LinearProgressIndicator
+import com.xayah.core.ui.component.IconButton
+import com.xayah.core.ui.component.PrimaryTopBar
 import com.xayah.core.ui.component.SearchBar
 import com.xayah.core.ui.component.SecondaryTopBar
 import com.xayah.core.ui.component.paddingHorizontal
 import com.xayah.core.ui.component.paddingVertical
 import com.xayah.core.ui.token.SizeTokens
+import com.xayah.core.ui.route.MainRoutes
+import com.xayah.core.ui.util.LocalNavController
+import com.xayah.core.util.navigateSingle
 
 @Composable
-internal fun ListTopBar(viewModel: ListTopBarViewModel = hiltViewModel()) {
+internal fun ListTopBar(
+    isDashboard: Boolean = false,
+    viewModel: ListTopBarViewModel = hiltViewModel(),
+) {
     val uiState: ListTopBarUiState by viewModel.uiState.collectAsStateWithLifecycle()
-    ListTopBar(uiState, viewModel)
+    ListTopBar(uiState, isDashboard, viewModel)
 }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 internal fun ListTopBar(
     uiState: ListTopBarUiState,
+    isDashboard: Boolean,
     viewModel: ListTopBarViewModel
 ) {
     val title: String
@@ -78,17 +89,42 @@ internal fun ListTopBar(
     }
 
     Column {
-        SecondaryTopBar(
-            scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState()),
-            title = title,
-            subtitle = subtitle,
-            actions = {
-                ListActions()
-            },
-        )
+        val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
+        if (isDashboard) {
+            val navController = LocalNavController.current!!
+            val dashboardTitle = if (subtitle == null) {
+                stringResource(R.string.app_name)
+            } else {
+                "${stringResource(R.string.app_name)} $subtitle"
+            }
+            PrimaryTopBar(
+                scrollBehavior = scrollBehavior,
+                title = dashboardTitle,
+                actions = {
+                    ListActions()
+                    IconButton(
+                        icon = Icons.Outlined.Settings,
+                        tooltip = stringResource(R.string.settings),
+                        onClick = { navController.navigateSingle(MainRoutes.Settings.route) },
+                    )
+                },
+            )
+        } else {
+            SecondaryTopBar(
+                scrollBehavior = scrollBehavior,
+                title = title,
+                subtitle = subtitle,
+                actions = { ListActions() },
+            )
+        }
 
         AnimatedVisibility(visible = (uiState is ListTopBarUiState.Loading) || (uiState is ListTopBarUiState.Success && uiState.isUpdating)) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            val progress = (uiState as? ListTopBarUiState.Success)?.refreshProgress
+            if (progress == null) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            } else {
+                LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
+            }
         }
 
         if (uiState is ListTopBarUiState.Success) {

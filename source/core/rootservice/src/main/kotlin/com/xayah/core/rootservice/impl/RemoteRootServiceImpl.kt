@@ -474,6 +474,24 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
         activityManager.forceStopPackageAsUser(packageName, userId)
     }
 
+    override fun uninstallPackageAsUser(packageName: String, userId: Int): Boolean = synchronized(lock) {
+        ShellUtils.fastCmd("pm uninstall --user $userId $packageName").trim() == "Success"
+    }
+
+    override fun clearPackageDataAsUser(packageName: String, userId: Int): Boolean = synchronized(lock) {
+        ShellUtils.fastCmd("pm clear --user $userId $packageName").trim() == "Success"
+    }
+
+    override fun clearPackageCacheAsUser(packageName: String, userId: Int): Boolean = synchronized(lock) {
+        listOf(
+            "${PathUtil.getPackageUserDir(userId)}/$packageName/cache",
+            "${PathUtil.getPackageUserDir(userId)}/$packageName/code_cache",
+            "${PathUtil.getPackageUserDeDir(userId)}/$packageName/cache",
+            "${PathUtil.getPackageUserDeDir(userId)}/$packageName/code_cache",
+            "${PathUtil.getPackageDataDir(userId)}/$packageName/cache",
+        ).map { path -> File(path).let { file -> file.exists().not() || file.deleteRecursively() } }.all { it }
+    }
+
     override fun setApplicationEnabledSetting(packageName: String, newState: Int, flags: Int, userId: Int, callingPackage: String?) = synchronized(lock) {
         packageManagerService.setApplicationEnabledSetting(packageName, newState, flags, userId, callingPackage)
     }

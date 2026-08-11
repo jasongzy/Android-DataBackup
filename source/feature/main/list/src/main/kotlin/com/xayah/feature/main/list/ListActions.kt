@@ -1,13 +1,16 @@
 package com.xayah.feature.main.list
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Rule
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowRight
 import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Bookmarks
 import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.Checklist
@@ -15,7 +18,12 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RestartAlt
-import androidx.compose.material.icons.rounded.Rule
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,13 +37,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.model.OpType
 import com.xayah.core.model.Target
-import com.xayah.core.ui.component.AnimatedModalDropdownMenu
-import com.xayah.core.ui.component.Divider
 import com.xayah.core.ui.component.DropdownMenuItem
 import com.xayah.core.ui.component.IconButton
 import com.xayah.core.ui.component.LocalSlotScope
 import com.xayah.core.ui.component.ModalDropdownMenu
 import com.xayah.core.ui.component.confirm
+import com.xayah.core.ui.token.SizeTokens
 import com.xayah.libpickyou.PickYouLauncher
 import com.xayah.libpickyou.ui.model.PermissionType
 import com.xayah.libpickyou.ui.model.PickerType
@@ -67,112 +74,110 @@ internal fun ListActions(
 
         FilterAction(viewModel::showFilterSheet)
 
-        ListAction(
-            target = target,
-            opType = uiState.opType,
-            selected = uiState.selected,
-            viewModel = viewModel,
-        )
+        if (uiState.selectionMode) {
+            ListAction(viewModel)
+        }
 
         var moreExpanded by remember { mutableStateOf(false) }
+        var labelsExpanded by remember { mutableStateOf(false) }
         Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
-            IconButton(icon = Icons.Rounded.MoreVert) {
+            IconButton(icon = Icons.Rounded.MoreVert, tooltip = stringResource(R.string.more_options)) {
                 moreExpanded = true
             }
             ModalDropdownMenu(
                 expanded = moreExpanded,
                 onDismissRequest = { moreExpanded = false }
             ) {
-                RefreshItem(enabled = uiState.isUpdating.not()) {
-                    moreExpanded = false
-                    viewModel.refresh()
-                }
-
-                when (target) {
-                    Target.Apps -> {}
-
-                    Target.Files -> {
-                        if (uiState.opType == OpType.BACKUP) {
-                            AddItem(enabled = uiState.isUpdating.not()) {
+                if (uiState.selectionMode.not()) {
+                    RefreshItem(enabled = uiState.isUpdating.not()) {
+                        moreExpanded = false
+                        viewModel.refresh()
+                    }
+                    if (target == Target.Files && uiState.opType == OpType.BACKUP) {
+                        AddItem(enabled = uiState.isUpdating.not()) {
+                            moreExpanded = false
+                            PickYouLauncher(
+                                checkPermission = true,
+                                title = context.getString(R.string.select_target_directory),
+                                pickerType = PickerType.DIRECTORY,
+                                permissionType = PermissionType.ROOT,
+                            ).apply { launch(context) { viewModel.addFiles(listOf(it)) } }
+                        }
+                    }
+                } else when (target) {
+                    Target.Apps -> {
+                        AppsListActions(
+                            enabled = true,
+                            opType = uiState.opType,
+                            checkListExpanded = { moreExpanded = false },
+                            onBlockSelected = viewModel::blockSelected,
+                            onSelectDataItems = viewModel::showDataItemsSheet,
+                            onDeleteSelected = viewModel::deleteSelected,
+                        )
+                        if (uiState is ListActionsUiState.Success.Apps) {
+                            BatchLabelsItem {
                                 moreExpanded = false
-                                PickYouLauncher(
-                                    checkPermission = true,
-                                    title = context.getString(R.string.select_target_directory),
-                                    pickerType = PickerType.DIRECTORY,
-                                    permissionType = PermissionType.ROOT,
-                                ).apply {
-                                    launch(context) {
-                                        viewModel.addFiles(listOf(it))
-                                    }
-                                }
+                                labelsExpanded = true
                             }
                         }
                     }
+
+                    Target.Files -> FilesListActions(
+                        enabled = true,
+                        opType = uiState.opType,
+                        checkListExpanded = { moreExpanded = false },
+                        onBlockSelected = viewModel::blockSelected,
+                        onDeleteSelected = viewModel::deleteSelected,
+                    )
                 }
             }
+        }
+
+        if (labelsExpanded && uiState is ListActionsUiState.Success.Apps) {
+            BatchLabelsDialog(
+                labels = uiState.labels.map { it.label },
+                onDismiss = { labelsExpanded = false },
+                onCreate = viewModel::createLabel,
+                onAdd = {
+                    viewModel.addLabelsToSelected(it)
+                    labelsExpanded = false
+                },
+                onRemove = {
+                    viewModel.removeLabelsFromSelected(it)
+                    labelsExpanded = false
+                },
+            )
         }
     }
 }
 
 @Composable
 private fun FilterAction(onFilter: () -> Unit) {
-    IconButton(icon = Icons.Outlined.FilterList, onClick = onFilter)
+    IconButton(icon = Icons.Outlined.FilterList, tooltip = stringResource(R.string.filters), onClick = onFilter)
 }
 
 @Composable
-private fun ListAction(target: Target, opType: OpType, selected: Long, viewModel: ListActionsViewModel) {
+private fun ListAction(viewModel: ListActionsViewModel) {
     var checkListExpanded by remember { mutableStateOf(false) }
-    var checkListSelectedExpanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
-        IconButton(icon = Icons.Rounded.Checklist) {
-            checkListSelectedExpanded = false
+        IconButton(icon = Icons.Rounded.Checklist, tooltip = stringResource(R.string.selection_options)) {
             checkListExpanded = true
         }
-        AnimatedModalDropdownMenu(
-            targetState = checkListSelectedExpanded,
+        ModalDropdownMenu(
             expanded = checkListExpanded,
             onDismissRequest = { checkListExpanded = false }
         ) {
-            if (it.not()) {
-                SelectAllItem {
-                    checkListExpanded = false
-                    viewModel.selectAll()
-                }
-                UnselectAllItem {
-                    checkListExpanded = false
-                    viewModel.unselectAll()
-                }
-                ReverseItem {
-                    checkListExpanded = false
-                    viewModel.reverseAll()
-                }
-                Divider(modifier = Modifier.fillMaxWidth())
-                ForSelectedItem {
-                    checkListSelectedExpanded = true
-                }
-            } else {
-                    when (target) {
-                        Target.Apps -> {
-                            AppsListActions(
-                                enabled = selected != 0L,
-                                opType = opType,
-                                checkListExpanded = { checkListExpanded = false },
-                                onBlockSelected = viewModel::blockSelected,
-                                onSelectDataItems = viewModel::showDataItemsSheet,
-                                onDeleteSelected = viewModel::deleteSelected,
-                            )
-                        }
-
-                        Target.Files -> {
-                            FilesListActions(
-                                enabled = selected != 0L,
-                                opType = opType,
-                                checkListExpanded = { checkListExpanded = false },
-                                onBlockSelected = viewModel::blockSelected,
-                                onDeleteSelected = viewModel::deleteSelected,
-                            )
-                        }
-                    }
+            SelectAllItem {
+                checkListExpanded = false
+                viewModel.selectAll()
+            }
+            UnselectAllItem {
+                checkListExpanded = false
+                viewModel.unselectAll()
+            }
+            ReverseItem {
+                checkListExpanded = false
+                viewModel.reverseAll()
             }
         }
     }
@@ -300,16 +305,6 @@ private fun ReverseItem(onClick: () -> Unit) {
 }
 
 @Composable
-private fun ForSelectedItem(onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = stringResource(id = R.string.for_selected),
-        leadingIcon = Icons.Rounded.MoreVert,
-        trailingIcon = Icons.Rounded.ArrowRight,
-        onClick = onClick,
-    )
-}
-
-@Composable
 private fun BlockItem(enabled: Boolean, onClick: () -> Unit) {
     DropdownMenuItem(
         text = stringResource(id = R.string.block),
@@ -323,7 +318,7 @@ private fun BlockItem(enabled: Boolean, onClick: () -> Unit) {
 private fun DetailedDataItem(enabled: Boolean, onClick: () -> Unit) {
     DropdownMenuItem(
         text = stringResource(id = R.string.detailed_data_items),
-        leadingIcon = Icons.Rounded.Rule,
+        leadingIcon = Icons.AutoMirrored.Rounded.Rule,
         onClick = onClick,
         enabled = enabled,
     )
@@ -357,4 +352,93 @@ private fun AddItem(enabled: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         enabled = enabled,
     )
+}
+
+@Composable
+private fun BatchLabelsItem(onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = stringResource(R.string.edit_labels),
+        leadingIcon = Icons.Rounded.Bookmarks,
+        onClick = onClick,
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BatchLabelsDialog(
+    labels: List<String>,
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit,
+    onAdd: (Set<String>) -> Unit,
+    onRemove: (Set<String>) -> Unit,
+) {
+    var selected by remember { mutableStateOf(emptySet<String>()) }
+    var newLabel by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf<Boolean?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.edit_labels)) },
+        text = {
+            androidx.compose.foundation.layout.Column {
+                OutlinedTextField(
+                    value = newLabel,
+                    onValueChange = { newLabel = it },
+                    label = { Text(stringResource(R.string.new_label)) },
+                    singleLine = true,
+                    trailingIcon = {
+                        com.xayah.core.ui.component.TooltipIconButton(
+                            tooltip = stringResource(R.string.add),
+                            enabled = newLabel.isNotBlank(),
+                            onClick = {
+                                onCreate(newLabel)
+                                newLabel = ""
+                            },
+                        ) { Icon(Icons.Rounded.Add, contentDescription = null) }
+                    },
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8)) {
+                    labels.forEach { label ->
+                        FilterChip(
+                            selected = label in selected,
+                            onClick = {
+                                selected = if (label in selected) selected - label else selected + label
+                            },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = selected.isNotEmpty(), onClick = { confirmation = true }) {
+                Text(stringResource(R.string.add_label_to_selected))
+            }
+        },
+        dismissButton = {
+            androidx.compose.foundation.layout.Row {
+                TextButton(enabled = selected.isNotEmpty(), onClick = { confirmation = false }) {
+                    Text(stringResource(R.string.remove_label_from_selected))
+                }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            }
+        },
+    )
+    confirmation?.let { adding ->
+        AlertDialog(
+            onDismissRequest = { confirmation = null },
+            title = { Text(stringResource(R.string.edit_labels)) },
+            text = {
+                Text(stringResource(if (adding) R.string.confirm_add_labels else R.string.confirm_remove_labels, selected.size))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (adding) onAdd(selected) else onRemove(selected)
+                    confirmation = null
+                }) { Text(stringResource(R.string.confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmation = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
 }

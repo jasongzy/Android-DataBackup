@@ -85,7 +85,15 @@ fun PageBackupSettings() {
                 val items = stringArrayResource(id = R.array.kill_app_options)
                 val dialogItems by remember(items) {
                     mutableStateOf(items.mapIndexed { index, s ->
-                        DialogRadioItem(enum = KillAppOption.indexOf(index), title = s, desc = null)
+                        DialogRadioItem(
+                            enum = KillAppOption.indexOf(index),
+                            title = s,
+                            desc = when (index) {
+                                1 -> context.getString(R.string.kill_app_option_i_desc)
+                                2 -> context.getString(R.string.kill_app_option_ii_desc)
+                                else -> null
+                            },
+                        )
                     })
                 }
                 val currentOption by context.readKillAppOption().collectAsStateWithLifecycle(initialValue = KillAppOption.OPTION_II)
@@ -113,7 +121,7 @@ fun PageBackupSettings() {
                 )
                 Switchable(
                     key = KeyBackupItself,
-                    defValue = true,
+                    defValue = false,
                     title = stringResource(id = R.string.backup_itself),
                     checkedText = stringResource(id = R.string.backup_itself_desc),
                 )

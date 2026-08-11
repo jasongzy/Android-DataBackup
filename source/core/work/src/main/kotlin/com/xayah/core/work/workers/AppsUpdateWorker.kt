@@ -54,17 +54,18 @@ internal class AppsUpdateWorker @AssistedInject constructor(
         if (regular.not() || hasPassedOneDay) {
             settingsDataRepo.setAppsUpdateTime(curTime)
             appsRepo.fullUpdate { cur, max, content ->
-                mNotificationInfo = NotificationUtil.createForegroundInfo(
-                    appContext,
-                    mNotificationBuilder,
-                    appContext.getString(R.string.updating_app_list),
-                    content,
-                    max,
-                    cur
-                )
-                setForeground(
-                    mNotificationInfo!!
-                )
+                if (cur % 10 == 0 || cur == max - 1) {
+                    publishProgress(cur + 1, max)
+                    mNotificationInfo = NotificationUtil.createForegroundInfo(
+                        appContext,
+                        mNotificationBuilder,
+                        appContext.getString(R.string.updating_app_list),
+                        content,
+                        max,
+                        cur + 1
+                    )
+                    setForeground(mNotificationInfo!!)
+                }
             }
         }
         Result.success()

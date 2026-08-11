@@ -86,7 +86,8 @@ fun PageProcessing(
     finishedTitleId: Int,
     finishedSubtitleId: Int,
     finishedWithErrorsSubtitleId: Int,
-    viewModel: AbstractProcessingViewModel
+    viewModel: AbstractProcessingViewModel,
+    autoStart: Boolean = false,
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -108,8 +109,9 @@ fun PageProcessing(
     }
     val screenOffCountDown by viewModel.screenOffCountDown.collectAsStateWithLifecycle()
 
-    LaunchedEffect(null) {
-        viewModel.emitIntentOnIO(ProcessingUiIntent.Initialize)
+    LaunchedEffect(viewModel, autoStart) {
+        viewModel.emitIntent(ProcessingUiIntent.Initialize)
+        if (autoStart) viewModel.emitIntent(ProcessingUiIntent.Process)
     }
 
     LaunchedEffect(screenOffCountDown, uiState.state) {
@@ -195,10 +197,14 @@ fun PageProcessing(
                     }
                 }
 
-                Button(modifier = Modifier.fillMaxWidth(), enabled = uiState.state == OperationState.IDLE || uiState.state == OperationState.DONE, onClick = {
-                    if (uiState.state == OperationState.IDLE) viewModel.emitIntentOnIO(ProcessingUiIntent.Process)
-                    else navController.popBackStack()
-                }) {
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = (uiState.state == OperationState.IDLE && !autoStart) || uiState.state == OperationState.DONE,
+                    onClick = {
+                        if (uiState.state == OperationState.IDLE) viewModel.emitIntentOnIO(ProcessingUiIntent.Process)
+                        else navController.popBackStack()
+                    },
+                ) {
                     AnimatedTextContainer(targetState = if (uiState.state == OperationState.DONE) stringResource(id = R.string.finish) else stringResource(id = R.string._continue)) { text ->
                         Text(text = text)
                     }

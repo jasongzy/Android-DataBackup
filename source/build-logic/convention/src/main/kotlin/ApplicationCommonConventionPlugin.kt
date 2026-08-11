@@ -6,19 +6,41 @@ import org.gradle.kotlin.dsl.getByType
 import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.util.Properties
 
 private fun Project.configureCommon() {
     pluginManager.apply("com.android.application")
     pluginManager.apply("org.jetbrains.kotlin.android")
 
+    val signingProperties = Properties()
+    val signingPropertiesFile = rootProject.file("keystore.properties")
+    if (signingPropertiesFile.isFile) {
+        signingPropertiesFile.inputStream().use(signingProperties::load)
+    }
+    fun signingValue(environmentName: String, propertyName: String): String? =
+        System.getenv(environmentName)?.takeIf(String::isNotBlank)
+            ?: signingProperties.getProperty(propertyName)?.takeIf(String::isNotBlank)
+
+    val storePath = signingValue("STORE_FILE", "storeFile")
+    val storePassword = signingValue("STORE_PASSWORD", "storePassword")
+    val keyAlias = signingValue("KEY_ALIAS", "keyAlias")
+    val keyPassword = signingValue("KEY_PASSWORD", "keyPassword")
+    val hasReleaseSigning = listOf(storePath, storePassword, keyAlias, keyPassword).all { it != null }
+
     extensions.getByType<ApplicationExtension>().apply {
-        signingConfigs {
-            create("release") {
-                storeFile = file(System.getenv("STORE_FILE") ?: "placeholder")
-                storePassword = System.getenv("STORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("KEY_ALIAS") ?: ""
-                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+        buildToolsVersion = catalogLibs.findVersion("buildTools").get().toString()
+
+        val releaseSigningConfig = if (hasReleaseSigning) {
+            signingConfigs.create("release") {
+                storeFile = rootProject.file(storePath!!)
+                this.storePassword = storePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+                enableV2Signing = true
+                enableV3Signing = true
             }
+        } else {
+            null
         }
 
         buildTypes {
@@ -27,7 +49,7 @@ private fun Project.configureCommon() {
                 isShrinkResources = true
                 proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
                 buildConfigField("Boolean", "ENABLE_VERBOSE", "false")
-                signingConfig = signingConfigs.getByName("release")
+                signingConfig = releaseSigningConfig
             }
             debug {
                 isMinifyEnabled = false

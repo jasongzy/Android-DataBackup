@@ -12,6 +12,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -46,6 +47,10 @@ fun PageTwo() {
     val viewModel = hiltViewModel<IndexViewModel>()
     val backupSavePathSaved by context.readBackupSavePathSaved().collectAsStateWithLifecycle(initialValue = false)
     val backupSavePath by context.readBackupSavePath().collectAsStateWithLifecycle(initialValue = "")
+
+    LaunchedEffect(Unit) {
+        viewModel.emitIntent(IndexUiIntent.PrepareDirectory)
+    }
 
     SetupScaffold(
         topBar = {
@@ -100,7 +105,7 @@ fun PageTwo() {
                 }
                 Switchable(
                     key = KeyLoadSystemApps,
-                    defValue = false,
+                    defValue = true,
                     title = stringResource(id = R.string.load_system_apps),
                     checkedText = stringResource(id = R.string.enabled),
                     notCheckedText = stringResource(id = R.string.not_enabled),

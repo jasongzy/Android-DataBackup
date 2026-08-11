@@ -1,4 +1,5 @@
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
+import org.gradle.api.tasks.Sync
 
 plugins {
     alias(libs.plugins.application.common)
@@ -8,12 +9,30 @@ plugins {
     alias(libs.plugins.refine)
 }
 
+val universalAssetsDir = layout.buildDirectory.dir("generated/universalAssets")
+val generateUniversalAssets by tasks.registering(Sync::class) {
+    into(universalAssetsDir)
+    listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86").forEach { abi ->
+        from("src/$abi/assets/bin.zip") {
+            into(abi)
+        }
+    }
+}
+
+tasks.matching {
+    it.name != "generateUniversalAssets" &&
+        it.name.contains("Universal") &&
+        (it.name.endsWith("Assets") || it.name.contains("lint", ignoreCase = true))
+}.configureEach {
+    dependsOn(generateUniversalAssets)
+}
+
 android {
     namespace = "com.xayah.databackup"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.xayah.databackup"
+        applicationId = "com.jasongzy.databackup"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = libs.versions.versionCode.get().toInt()
@@ -21,15 +40,22 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String[]", "SUPPORTED_LOCALES", generateSupportedLocales())
+        buildConfigField("String[]", "SUPPORTED_LOCALES", "new String[]{\"en\",\"zh-CN\"}")
     }
 
     lint {
         disable += "MissingTranslation"
     }
 
+    androidResources {
+        localeFilters += listOf("en", "zh-rCN")
+    }
+
     flavorDimensions += listOf("abi", "feature")
     productFlavors {
+        create("universal") {
+            dimension = "abi"
+        }
         create("arm64-v8a") {
             dimension = "abi"
             versionCode = 4 + (android.defaultConfig.versionCode ?: 0)
@@ -52,7 +78,6 @@ android {
         }
         create("foss") {
             dimension = "feature"
-            applicationIdSuffix = ".foss"
         }
         create("premium") {
             dimension = "feature"
@@ -66,10 +91,12 @@ android {
         }
     }
 
+    sourceSets.getByName("universal").assets.srcDir(generateUniversalAssets)
+
     applicationVariants.all {
         outputs.forEach { output ->
             (output as BaseVariantOutputImpl).outputFileName =
-                "DataBackup-${versionName}-${productFlavors[0].name}-${productFlavors[1].name}-${buildType.name}.apk"
+                "IridiumBackup-${versionName}-${productFlavors[0].name}-${productFlavors[1].name}-${buildType.name}.apk"
         }
     }
 
@@ -79,29 +106,6 @@ android {
         // Disables dependency metadata when building Android App Bundles.
         includeInBundle = false
     }
-}
-
-fun generateSupportedLocales(): String {
-    val foundLocales = StringBuilder()
-    foundLocales.append("new String[]{")
-
-    val languages = mutableListOf<String>()
-    fileTree("src/main/res").visit {
-        if(file.path.endsWith("strings.xml")){
-            var languageCode = file.parent.replace("\\", "/").split('/').last()
-                .replace("values-", "").replace("-r", "-")
-            if (languageCode == "values") {
-                languageCode = "en"
-            }
-            languages.add(languageCode)
-        }
-    }
-    languages.sorted().forEach {
-        foundLocales.append("\"").append(it).append("\"").append(",")
-    }
-
-    foundLocales.append("}")
-    return foundLocales.toString().replace(",}","}")
 }
 
 dependencies {

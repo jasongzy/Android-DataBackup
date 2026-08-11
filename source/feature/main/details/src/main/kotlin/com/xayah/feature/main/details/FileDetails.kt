@@ -28,7 +28,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -50,7 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import com.xayah.core.model.OpType
-import com.xayah.core.model.database.LabelEntity
+import com.xayah.core.model.ColoredLabel
 import com.xayah.core.model.database.LabelFileCrossRefEntity
 import com.xayah.core.model.database.MediaEntity
 import com.xayah.core.ui.component.ActionSegmentedButton
@@ -64,6 +63,7 @@ import com.xayah.core.ui.component.LocalSlotScope
 import com.xayah.core.ui.component.ModalBottomSheet
 import com.xayah.core.ui.component.PackageIconImage
 import com.xayah.core.ui.component.Title
+import com.xayah.core.ui.component.TooltipIconButton
 import com.xayah.core.ui.component.confirm
 import com.xayah.core.ui.component.edit
 import com.xayah.core.ui.component.paddingHorizontal
@@ -164,7 +164,7 @@ private fun LabelsFlow(opType: OpType, file: MediaEntity, refs: List<LabelFileCr
                 label = { Text(item.label) },
             )
         }
-        IconButton(onClick = onAdd) {
+        TooltipIconButton(tooltip = stringResource(R.string.add_label), onClick = onAdd) {
             Icon(Icons.Rounded.Add, contentDescription = null)
         }
     }
@@ -178,7 +178,7 @@ private fun LabelsBottomSheet(
     onDismissRequest: () -> Unit,
     file: MediaEntity,
     refs: List<LabelFileCrossRefEntity>,
-    labels: List<LabelEntity>,
+    labels: List<ColoredLabel>,
     onAddLabel: (String) -> Unit,
     onDeleteLabel: (String) -> Unit,
     onSelectLabel: (Boolean, LabelFileCrossRefEntity?) -> Unit,

@@ -25,6 +25,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
+private const val UNIVERSAL_ABI = "universal"
+
 data class IndexUiState(
     val abiErr: String
 ) : UiState
@@ -75,12 +77,14 @@ class IndexViewModel @Inject constructor(
                     if (abiState.value == EnvState.Idle || abiState.value == EnvState.Failed) {
                         _abiState.value = EnvState.Processing
                         val buildABI = BuildConfigUtil.FLAVOR_abi
-                        val deviceABI = Build.SUPPORTED_ABIS.firstOrNull().toString()
-                        if (buildABI == deviceABI) {
+                        val deviceABI = Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
+                        val isSupported = buildABI == UNIVERSAL_ABI || buildABI in Build.SUPPORTED_ABIS
+                        if (isSupported) {
                             _abiState.value = if (runCatching { BaseUtil.releaseBase(context = context) }.getOrElse { false }) {
                                 emitState(state.copy(abiErr = ""))
                                 EnvState.Succeed
                             } else {
+                                emitState(state.copy(abiErr = context.getString(R.string.base_binaries_release_failed)))
                                 EnvState.Failed
                             }
                         } else {

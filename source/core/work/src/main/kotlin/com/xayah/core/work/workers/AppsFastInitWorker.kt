@@ -42,17 +42,18 @@ internal class AppsFastInitWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result = withContext(defaultDispatcher) {
         appsRepo.fastInitialize { cur, max, content ->
-            mNotificationInfo = NotificationUtil.createForegroundInfo(
-                appContext,
-                mNotificationBuilder,
-                appContext.getString(R.string.initializing_app_list),
-                content,
-                max,
-                cur
-            )
-            setForeground(
-                mNotificationInfo!!
-            )
+            if (cur % 10 == 0 || cur == max - 1) {
+                publishProgress(cur + 1, max)
+                mNotificationInfo = NotificationUtil.createForegroundInfo(
+                    appContext,
+                    mNotificationBuilder,
+                    appContext.getString(R.string.initializing_app_list),
+                    content,
+                    max,
+                    cur + 1
+                )
+                setForeground(mNotificationInfo!!)
+            }
         }
         Result.success()
     }

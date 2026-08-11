@@ -1,12 +1,13 @@
 [versions]
 # config
-compileSdk = "35"
+compileSdk = "36"
+buildTools = "36.0.0"
 minSdk = "24"
-targetSdk = "35"
+targetSdk = "36"
 # __(API)____(version)_(abi)
-versionCode = "3501190"
+versionCode = "1"
 versionCodeAlpha = "23"
-versionName = "2.0.12"
+versionName = "1.0.0"
 
 # libraries
 accompanist = "0.30.1"

@@ -47,6 +47,13 @@ interface DirectoryDao {
     @Query("UPDATE DirectoryEntity SET selected = CASE WHEN id = :id THEN 1 ELSE 0 END")
     suspend fun select(id: Long)
 
+    @Query(
+        "DELETE FROM DirectoryEntity WHERE id NOT IN (" +
+            "SELECT COALESCE(MAX(CASE WHEN selected = 1 THEN id END), MIN(id)) " +
+            "FROM DirectoryEntity GROUP BY parent, child)"
+    )
+    suspend fun deleteDuplicates()
+
     @Delete(entity = DirectoryEntity::class)
     suspend fun delete(item: DirectoryEntity)
 }

@@ -373,7 +373,15 @@ fun DataChip(
 @ExperimentalMaterial3Api
 @ExperimentalFoundationApi
 @Composable
-fun PackageDataChip(modifier: Modifier = Modifier, enabled: Boolean = true, dataType: DataType, selected: Boolean, subtitle: String? = null, onClick: () -> Unit) {
+fun PackageDataChip(
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    dataType: DataType,
+    selected: Boolean,
+    subtitle: String? = null,
+    onLongClick: () -> Unit = {},
+    onClick: () -> Unit,
+) {
     ActionChip(
         modifier = modifier,
         enabled = enabled,
@@ -381,7 +389,8 @@ fun PackageDataChip(modifier: Modifier = Modifier, enabled: Boolean = true, data
         selected = selected,
         title = dataType.type.uppercase(),
         subtitle = subtitle,
-        onClick = onClick
+        onClick = onClick,
+        onLongClick = onLongClick,
     )
 }
 
@@ -395,7 +404,8 @@ fun ActionChip(
     selected: Boolean,
     title: String,
     subtitle: String? = null,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
 ) {
     ActionButton(
         modifier = modifier,
@@ -404,7 +414,8 @@ fun ActionChip(
         colorContainer = if (selected) ThemedColorSchemeKeyTokens.PrimaryContainer else ThemedColorSchemeKeyTokens.SurfaceContainerHigh,
         colorL80D20 = if (selected) ThemedColorSchemeKeyTokens.OnPrimaryContainer else ThemedColorSchemeKeyTokens.SurfaceDim,
         onColorContainer = if (selected) ThemedColorSchemeKeyTokens.PrimaryContainer else ThemedColorSchemeKeyTokens.OnSurface,
-        onClick = onClick
+        onClick = onClick,
+        onLongClick = onLongClick,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             LabelLargeText(
@@ -448,7 +459,14 @@ fun RoundChip(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, labe
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
-fun DataChips(selections: PackageDataStates, displayStats: PackageDataStats? = null, isCalculating: Boolean = false, onItemClick: (DataType, Boolean) -> Unit) {
+fun DataChips(
+    selections: PackageDataStates,
+    displayStats: PackageDataStats? = null,
+    isCalculating: Boolean = false,
+    isEnabled: (DataType) -> Boolean = { true },
+    onItemLongClick: (DataType) -> Unit = {},
+    onItemClick: (DataType, Boolean) -> Unit,
+) {
     FlowRow(
         modifier = Modifier
             .fillMaxWidth()
@@ -472,12 +490,14 @@ fun DataChips(selections: PackageDataStates, displayStats: PackageDataStats? = n
             val selected = it.getSelected(selections)
             PackageDataChip(
                 modifier = Modifier.weight(1f),
+                enabled = isEnabled(it),
                 dataType = it,
                 selected = selected,
                 subtitle = if (isCalculating)
                     it.getDisplayStats(displayStats)?.toDouble()?.formatSize()?.let { size -> "$size${SymbolUtil.DOT}${stringResource(id = R.string.calculating)}" }
                 else
-                    it.getDisplayStats(displayStats)?.toDouble()?.formatSize()
+                    it.getDisplayStats(displayStats)?.toDouble()?.formatSize(),
+                onLongClick = { onItemLongClick(it) },
             ) {
                 onItemClick(it, selected)
             }

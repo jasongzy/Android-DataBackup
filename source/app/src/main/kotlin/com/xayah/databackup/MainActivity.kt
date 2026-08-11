@@ -23,6 +23,7 @@ import com.xayah.feature.main.cloud.add.PageSFTPSetup
 import com.xayah.feature.main.cloud.add.PageSMBSetup
 import com.xayah.feature.main.cloud.add.PageWebDAVSetup
 import com.xayah.feature.main.configurations.PageConfigurations
+import com.xayah.feature.main.dashboard.AppRevisionsRoute
 import com.xayah.feature.main.dashboard.PageDashboard
 import com.xayah.feature.main.details.DetailsRoute
 import com.xayah.feature.main.directory.PageDirectory
@@ -103,6 +104,9 @@ class MainActivity : AppCompatActivity() {
                         }
                         composable(MainRoutes.History.route) {
                             HistoryRoute()
+                        }
+                        composable(MainRoutes.AppRevisions.route) {
+                            AppRevisionsRoute()
                         }
                         composable(MainRoutes.TaskDetails.route) {
                             TaskDetailsRoute()

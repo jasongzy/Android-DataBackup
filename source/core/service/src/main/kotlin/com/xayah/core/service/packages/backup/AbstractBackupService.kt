@@ -2,10 +2,11 @@ package com.xayah.core.service.packages.backup
 
 import android.annotation.SuppressLint
 import com.xayah.core.common.util.toLineString
+import com.xayah.core.data.repository.AppBackupRepository
+import com.xayah.core.data.repository.BackupRequestStore
 import com.xayah.core.datastore.readBackupConfigs
 import com.xayah.core.datastore.readBackupItself
 import com.xayah.core.datastore.readKillAppOption
-import com.xayah.core.datastore.readResetBackupList
 import com.xayah.core.datastore.saveLastBackupTime
 import com.xayah.core.model.DataType
 import com.xayah.core.model.OpType
@@ -73,7 +74,7 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
 
     @SuppressLint("StringFormatInvalid")
     override suspend fun onInitializing() {
-        val packages = mPackageRepo.queryActivated(OpType.BACKUP)
+        val packages = mBackupRequestStore.packages.value
         packages.forEach { pkg ->
             mPkgEntities.add(
                 TaskDetailPackageEntity(
@@ -90,6 +91,7 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                 }
             )
         }
+        mBackupRequestStore.clear()
     }
 
     override suspend fun beforePreprocessing() {
@@ -106,6 +108,8 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
     protected open suspend fun clear() {}
 
     protected abstract val mPackagesBackupUtil: PackagesBackupUtil
+    protected abstract val mAppBackupRepository: AppBackupRepository
+    protected abstract val mBackupRequestStore: BackupRequestStore
 
     private lateinit var necessaryInfo: NecessaryInfo
 
@@ -135,7 +139,12 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
 
     override suspend fun onProcessing() {
         // createTargetDirs() before readStatFs().
-        mTaskEntity.update(rawBytes = mTaskRepo.getRawBytes(TaskType.PACKAGE), availableBytes = mTaskRepo.getAvailableBytes(OpType.BACKUP), totalBytes = mTaskRepo.getTotalBytes(OpType.BACKUP), totalCount = mPkgEntities.size)
+        mTaskEntity.update(
+            rawBytes = mTaskRepo.getRawBytes(TaskType.PACKAGE, mPkgEntities.map { it.packageEntity }),
+            availableBytes = mTaskRepo.getAvailableBytes(OpType.BACKUP),
+            totalBytes = mTaskRepo.getTotalBytes(OpType.BACKUP),
+            totalCount = mPkgEntities.size,
+        )
         log { "Task count: ${mPkgEntities.size}." }
 
         val killAppOption = mContext.readKillAppOption().first()
@@ -156,35 +165,62 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                 killApp(killAppOption, pkg)
 
                 pkg.update(state = OperationState.PROCESSING)
-                val p = pkg.packageEntity
-                val dstDir = "${mAppsDir}/${p.archivesRelativeDir}"
-                var restoreEntity = mPackageDao.query(p.packageName, OpType.RESTORE, p.userId, p.preserveId, p.indexInfo.compressionType, mTaskEntity.cloud, mTaskEntity.backupDir)
+                val installedApp = pkg.packageEntity
+                val revisionCreatedAt = DateUtil.getTimestamp()
+                val revisionApp = installedApp.copy(
+                    indexInfo = installedApp.indexInfo.copy(preserveId = revisionCreatedAt),
+                    packageInfo = installedApp.packageInfo.copy(),
+                    extraInfo = installedApp.extraInfo.copy(),
+                    dataStates = installedApp.dataStates.copy(),
+                    storageStats = installedApp.storageStats.copy(),
+                    dataStats = installedApp.dataStats.copy(),
+                    displayStats = installedApp.displayStats.copy(),
+                )
+                val dstDir = "${mAppsDir}/${revisionApp.archivesRelativeDir}"
+                var restoreEntity = mPackageDao.query(
+                    revisionApp.packageName,
+                    OpType.RESTORE,
+                    revisionApp.userId,
+                    revisionApp.preserveId,
+                    revisionApp.indexInfo.compressionType,
+                    mTaskEntity.cloud,
+                    mTaskEntity.backupDir,
+                )
                 mRootService.mkdirs(dstDir)
-                if (onAppDirCreated(archivesRelativeDir = p.archivesRelativeDir)) {
-                    backup(type = DataType.PACKAGE_APK, p = p, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_USER, p = p, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_USER_DE, p = p, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_DATA, p = p, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_OBB, p = p, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_MEDIA, p = p, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    mPackagesBackupUtil.backupPermissions(p = p)
-                    mPackagesBackupUtil.backupSsaid(p = p)
+                if (onAppDirCreated(archivesRelativeDir = revisionApp.archivesRelativeDir)) {
+                    backup(type = DataType.PACKAGE_APK, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_USER, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_USER_DE, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_DATA, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_OBB, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_MEDIA, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
+                    mPackagesBackupUtil.backupPermissions(p = revisionApp)
+                    mPackagesBackupUtil.backupSsaid(p = revisionApp)
 
                     if (pkg.isSuccess) {
-                        // Save config
-                        p.extraInfo.lastBackupTime = DateUtil.getTimestamp()
+                        revisionApp.extraInfo.lastBackupTime = revisionCreatedAt
                         val id = restoreEntity?.id ?: 0
-                        restoreEntity = p.copy(
+                        restoreEntity = revisionApp.copy(
                             id = id,
-                            indexInfo = p.indexInfo.copy(opType = OpType.RESTORE, cloud = mTaskEntity.cloud, backupDir = mTaskEntity.backupDir),
-                            extraInfo = p.extraInfo.copy(activated = false)
+                            indexInfo = revisionApp.indexInfo.copy(
+                                opType = OpType.RESTORE,
+                                cloud = mTaskEntity.cloud,
+                                backupDir = mTaskEntity.backupDir,
+                            ),
+                            extraInfo = revisionApp.extraInfo.copy(activated = false),
                         )
                         val configDst = PathUtil.getPackageRestoreConfigDst(dstDir = dstDir)
                         mRootService.writeJson(data = restoreEntity, dst = configDst)
-                        onConfigSaved(path = configDst, archivesRelativeDir = p.archivesRelativeDir)
+                        onConfigSaved(path = configDst, archivesRelativeDir = revisionApp.archivesRelativeDir)
                         mPackageDao.upsert(restoreEntity)
-                        mPackageDao.upsert(p)
-                        pkg.update(packageEntity = p)
+                        installedApp.extraInfo.lastBackupTime = revisionCreatedAt
+                        mPackageDao.upsert(installedApp)
+                        mAppBackupRepository.recordLegacyRevision(
+                            app = revisionApp,
+                            createdAt = revisionCreatedAt,
+                            repositoryId = "${mTaskEntity.cloud}:${mTaskEntity.backupDir}",
+                        )
+                        pkg.update(packageEntity = installedApp)
                         mTaskEntity.update(successCount = mTaskEntity.successCount + 1)
                     } else {
                         mTaskEntity.update(failureCount = mTaskEntity.failureCount + 1)
@@ -278,9 +314,6 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                     log { "AccessibilityServices restored: ${necessaryInfo.accessibilityServices}." }
                 } else {
                     log { "AccessibilityServices is empty, skip restoring." }
-                }
-                if (mContext.readResetBackupList().first() && mTaskEntity.failureCount == 0) {
-                    mPackageDao.clearActivated(OpType.BACKUP)
                 }
                 if (runCatchingOnService { clear() }.not()) {
                     isSuccess = false
