@@ -83,7 +83,10 @@ interface LabelDao {
         "DELETE FROM LabelAppCrossRefEntity WHERE NOT EXISTS (" +
             "SELECT 1 FROM PackageEntity WHERE " +
             "PackageEntity.indexInfo_packageName = LabelAppCrossRefEntity.packageName AND " +
-            "PackageEntity.indexInfo_userId = LabelAppCrossRefEntity.userId)"
+            "PackageEntity.indexInfo_userId = LabelAppCrossRefEntity.userId) AND NOT EXISTS (" +
+            "SELECT 1 FROM backup_apps WHERE " +
+            "backup_apps.packageName = LabelAppCrossRefEntity.packageName AND " +
+            "backup_apps.userId = LabelAppCrossRefEntity.userId)"
     )
     suspend fun deleteOrphanedAppRefs()
 }

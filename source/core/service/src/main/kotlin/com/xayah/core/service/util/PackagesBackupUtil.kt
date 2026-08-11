@@ -8,6 +8,7 @@ import com.xayah.core.data.repository.PackageRepository
 import com.xayah.core.database.dao.TaskDao
 import com.xayah.core.datastore.readCompressionLevel
 import com.xayah.core.datastore.readFollowSymlinks
+import com.xayah.core.datastore.readFastSameVersionBackup
 import com.xayah.core.datastore.readSelectionType
 import com.xayah.core.model.CompressionType
 import com.xayah.core.model.DataType
@@ -218,7 +219,13 @@ class PackagesBackupUtil @Inject constructor(
         if (list.isNotEmpty()) PathUtil.getParentPath(list[0]) else ""
     }
 
-    suspend fun backupApk(p: PackageEntity, r: PackageEntity?, t: TaskDetailPackageEntity, dstDir: String): ShellResult = run {
+    suspend fun backupApk(
+        p: PackageEntity,
+        previous: PackageEntity?,
+        previousArchive: String?,
+        t: TaskDetailPackageEntity,
+        dstDir: String,
+    ): ShellResult = run {
         log { "Backing up apk..." }
 
         val dataType = DataType.PACKAGE_APK
@@ -237,10 +244,29 @@ class PackagesBackupUtil @Inject constructor(
             if (srcDir.isNotEmpty()) {
                 val sizeBytes = rootService.calculateSize(srcDir)
                 t.updateInfo(dataType = dataType, state = OperationState.PROCESSING, bytes = sizeBytes)
-                if (rootService.exists(dst) && sizeBytes == r?.getDataBytes(dataType)) {
+                val canReuse = context.readFastSameVersionBackup().first() &&
+                    previous != null &&
+                    previous.packageInfo.versionName == p.packageInfo.versionName &&
+                    previous.packageInfo.versionCode == p.packageInfo.versionCode &&
+                    previous.indexInfo.compressionType == p.indexInfo.compressionType &&
+                    previousArchive != null &&
+                    rootService.exists(previousArchive)
+                val previousArchiveValid = canReuse && commonBackupUtil.testArchive(
+                    src = previousArchive!!,
+                    ct = previous.indexInfo.compressionType,
+                ).isSuccess
+                val reusedArchive = if (previousArchiveValid) {
+                    val archive = checkNotNull(previousArchive)
+                    rootService.createHardLink(archive, dst) ||
+                        rootService.copyTo(archive, dst, overwrite = true)
+                } else {
+                    false
+                }
+                if (reusedArchive) {
                     isSuccess = true
-                    t.updateInfo(dataType = dataType, state = OperationState.SKIP)
-                    out.add(log { "Data has not changed." })
+                    p.setDataBytes(dataType, sizeBytes)
+                    p.setDisplayBytes(dataType, rootService.calculateSize(dst))
+                    out.add(log { "Reused APK archive from the latest matching version." })
                 } else {
                     Tar.compressInCur(cur = srcDir, src = "./*.apk", dst = dst, extra = ct.getCompressPara(context.readCompressionLevel().first()))
                         .also { result ->
@@ -324,30 +350,23 @@ class PackagesBackupUtil @Inject constructor(
 
             val sizeBytes = rootService.calculateSize(src)
             t.updateInfo(dataType = dataType, state = OperationState.PROCESSING, bytes = sizeBytes)
-            if (rootService.exists(dst) && sizeBytes == r?.getDataBytes(dataType)) {
-                isSuccess = true
-                t.updateInfo(dataType = dataType, state = OperationState.SKIP)
-                out.add(log { "Data has not changed." })
-            } else {
-                // Compress and test.
-                Tar.compress(
-                    exclusionList = exclusionList,
-                    h = if (context.readFollowSymlinks().first()) "-h" else "",
-                    srcDir = srcDir,
-                    src = packageName,
-                    dst = dst,
-                    extra = ct.getCompressPara(context.readCompressionLevel().first())
-                ).also { result ->
-                    isSuccess = result.isSuccess
-                    out.addAll(result.out)
-                }
-                commonBackupUtil.testArchive(src = dst, ct = ct).also { result ->
-                    isSuccess = isSuccess && result.isSuccess
-                    out.addAll(result.out)
-                    if (result.isSuccess) {
-                        p.setDataBytes(dataType, sizeBytes)
-                        p.setDisplayBytes(dataType, rootService.calculateSize(dst))
-                    }
+            Tar.compress(
+                exclusionList = exclusionList,
+                h = if (context.readFollowSymlinks().first()) "-h" else "",
+                srcDir = srcDir,
+                src = packageName,
+                dst = dst,
+                extra = ct.getCompressPara(context.readCompressionLevel().first())
+            ).also { result ->
+                isSuccess = result.isSuccess
+                out.addAll(result.out)
+            }
+            commonBackupUtil.testArchive(src = dst, ct = ct).also { result ->
+                isSuccess = isSuccess && result.isSuccess
+                out.addAll(result.out)
+                if (result.isSuccess) {
+                    p.setDataBytes(dataType, sizeBytes)
+                    p.setDisplayBytes(dataType, rootService.calculateSize(dst))
                 }
             }
 

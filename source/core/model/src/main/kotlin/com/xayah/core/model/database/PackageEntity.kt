@@ -275,6 +275,7 @@ fun PackageEntity.asExternalModel() = App(
     userId = userId,
     label = packageInfo.label,
     versionName = packageInfo.versionName,
+    versionCode = packageInfo.versionCode,
     preserveId = preserveId,
     isSystemApp = isSystemApp,
     isInstalled = indexInfo.opType == OpType.BACKUP,

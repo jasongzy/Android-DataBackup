@@ -100,8 +100,10 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
 
     protected open suspend fun onTargetDirsCreated() {}
     protected open suspend fun onAppDirCreated(archivesRelativeDir: String): Boolean = true
-    abstract suspend fun backup(type: DataType, p: PackageEntity, r: PackageEntity?, t: TaskDetailPackageEntity, dstDir: String)
-    protected open suspend fun onConfigSaved(path: String, archivesRelativeDir: String) {}
+    abstract suspend fun backup(type: DataType, p: PackageEntity, previous: PackageEntity?, t: TaskDetailPackageEntity, dstDir: String)
+    protected open suspend fun onConfigSaved(path: String, archivesRelativeDir: String): Boolean = true
+    protected open suspend fun onManifestSaved(path: String, archivesRelativeDir: String): Boolean = true
+    protected open suspend fun onBackupFailed(archivesRelativeDir: String) {}
     protected open suspend fun onItselfSaved(path: String, entity: ProcessingInfoEntity) {}
     protected open suspend fun onConfigsSaved(path: String, entity: ProcessingInfoEntity) {}
     protected open suspend fun onIconsSaved(path: String, entity: ProcessingInfoEntity) {}
@@ -177,31 +179,23 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                     displayStats = installedApp.displayStats.copy(),
                 )
                 val dstDir = "${mAppsDir}/${revisionApp.archivesRelativeDir}"
-                var restoreEntity = mPackageDao.query(
-                    revisionApp.packageName,
-                    OpType.RESTORE,
-                    revisionApp.userId,
-                    revisionApp.preserveId,
-                    revisionApp.indexInfo.compressionType,
-                    mTaskEntity.cloud,
-                    mTaskEntity.backupDir,
-                )
+                val repositoryId = "${mTaskEntity.cloud}:${mTaskEntity.backupDir}"
+                val previousRevision = mAppBackupRepository.getLatestVerifiedLegacyRevision(revisionApp, repositoryId)
                 mRootService.mkdirs(dstDir)
                 if (onAppDirCreated(archivesRelativeDir = revisionApp.archivesRelativeDir)) {
-                    backup(type = DataType.PACKAGE_APK, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_USER, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_USER_DE, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_DATA, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_OBB, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
-                    backup(type = DataType.PACKAGE_MEDIA, p = revisionApp, r = restoreEntity, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_APK, p = revisionApp, previous = previousRevision, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_USER, p = revisionApp, previous = previousRevision, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_USER_DE, p = revisionApp, previous = previousRevision, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_DATA, p = revisionApp, previous = previousRevision, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_OBB, p = revisionApp, previous = previousRevision, t = pkg, dstDir = dstDir)
+                    backup(type = DataType.PACKAGE_MEDIA, p = revisionApp, previous = previousRevision, t = pkg, dstDir = dstDir)
                     mPackagesBackupUtil.backupPermissions(p = revisionApp)
                     mPackagesBackupUtil.backupSsaid(p = revisionApp)
 
                     if (pkg.isSuccess) {
                         revisionApp.extraInfo.lastBackupTime = revisionCreatedAt
-                        val id = restoreEntity?.id ?: 0
-                        restoreEntity = revisionApp.copy(
-                            id = id,
+                        val restoreEntity = revisionApp.copy(
+                            id = 0,
                             indexInfo = revisionApp.indexInfo.copy(
                                 opType = OpType.RESTORE,
                                 cloud = mTaskEntity.cloud,
@@ -210,22 +204,45 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                             extraInfo = revisionApp.extraInfo.copy(activated = false),
                         )
                         val configDst = PathUtil.getPackageRestoreConfigDst(dstDir = dstDir)
-                        mRootService.writeJson(data = restoreEntity, dst = configDst)
-                        onConfigSaved(path = configDst, archivesRelativeDir = revisionApp.archivesRelativeDir)
-                        mPackageDao.upsert(restoreEntity)
-                        installedApp.extraInfo.lastBackupTime = revisionCreatedAt
-                        mPackageDao.upsert(installedApp)
-                        mAppBackupRepository.recordLegacyRevision(
-                            app = revisionApp,
-                            createdAt = revisionCreatedAt,
-                            repositoryId = "${mTaskEntity.cloud}:${mTaskEntity.backupDir}",
-                        )
-                        pkg.update(packageEntity = installedApp)
-                        mTaskEntity.update(successCount = mTaskEntity.successCount + 1)
+                        val configSaved = mRootService.writeJson(data = restoreEntity, dst = configDst).isSuccess &&
+                            onConfigSaved(path = configDst, archivesRelativeDir = revisionApp.archivesRelativeDir)
+                        val manifest = if (configSaved) {
+                            mAppBackupRepository.writeManifest(revisionApp, revisionCreatedAt, dstDir)
+                        } else {
+                            null
+                        }
+                        if (
+                            manifest != null && onManifestSaved(
+                                path = PathUtil.getBackupManifestDst(dstDir),
+                                archivesRelativeDir = revisionApp.archivesRelativeDir,
+                            )
+                        ) {
+                            mPackageDao.upsert(restoreEntity)
+                            installedApp.extraInfo.lastBackupTime = revisionCreatedAt
+                            mPackageDao.upsert(installedApp)
+                            mAppBackupRepository.recordLegacyRevision(
+                                app = revisionApp,
+                                createdAt = revisionCreatedAt,
+                                repositoryId = repositoryId,
+                                contentMask = manifest.contentMask,
+                                sizeBytes = manifest.files.orEmpty().sumOf { it.sizeBytes },
+                            )
+                            pkg.update(packageEntity = installedApp)
+                            mTaskEntity.update(successCount = mTaskEntity.successCount + 1)
+                        } else {
+                            mRootService.deleteRecursively(dstDir)
+                            onBackupFailed(revisionApp.archivesRelativeDir)
+                            pkg.update(dataType = DataType.PACKAGE_APK, state = OperationState.ERROR)
+                            mTaskEntity.update(failureCount = mTaskEntity.failureCount + 1)
+                        }
                     } else {
+                        mRootService.deleteRecursively(dstDir)
+                        onBackupFailed(revisionApp.archivesRelativeDir)
                         mTaskEntity.update(failureCount = mTaskEntity.failureCount + 1)
                     }
                 } else {
+                    mRootService.deleteRecursively(dstDir)
+                    onBackupFailed(revisionApp.archivesRelativeDir)
                     pkg.update(dataType = DataType.PACKAGE_APK, state = OperationState.ERROR)
                     pkg.update(dataType = DataType.PACKAGE_USER, state = OperationState.ERROR)
                     pkg.update(dataType = DataType.PACKAGE_USER_DE, state = OperationState.ERROR)

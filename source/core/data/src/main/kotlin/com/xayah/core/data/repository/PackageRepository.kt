@@ -173,6 +173,10 @@ class PackageRepository @Inject constructor(
     suspend fun upsert(item: PackageEntity) = packageDao.upsert(item)
     suspend fun upsert(items: List<PackageEntity>) = packageDao.upsert(items)
 
+    suspend fun replaceLocalRestoreIndex(backupDir: String, items: List<PackageEntity>) {
+        packageDao.replaceLocalRestoreIndex(backupDir, items)
+    }
+
     suspend fun preserve(p: PackageEntity) {
         val pkgEntity = p.copy(id = 0, indexInfo = p.indexInfo.copy(preserveId = DateUtil.getTimestamp()))
         val appsDir = pathUtil.getLocalBackupAppsDir()

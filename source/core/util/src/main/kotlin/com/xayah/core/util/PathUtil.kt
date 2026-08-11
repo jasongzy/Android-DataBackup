@@ -18,6 +18,7 @@ const val AppsRelativeDir = "apps"
 const val FilesRelativeDir = "files"
 const val ConfigsRelativeDir = "configs"
 const val ConfigsPackageRestoreName = "package_restore_config.json"
+const val BackupManifestName = "backup_manifest.json"
 const val ConfigsMediaRestoreName = "media_restore_config.json"
 const val ConfigsConfigurationsName = "configurations.json"
 const val BinArchiveName = "bin.zip"
@@ -71,6 +72,7 @@ class PathUtil @Inject constructor(
 
 
         fun getPackageRestoreConfigDst(dstDir: String): String = "${dstDir}/$ConfigsPackageRestoreName"
+        fun getBackupManifestDst(dstDir: String): String = "${dstDir}/$BackupManifestName"
         fun getMediaRestoreConfigDst(dstDir: String): String = "${dstDir}/$ConfigsMediaRestoreName"
 
         suspend fun setFilesDirSELinux(context: Context) = SELinux.getContext(path = context.filesDir()).also { result ->

@@ -51,11 +51,14 @@ internal class BackupServiceLocalImpl @Inject constructor() : AbstractBackupServ
         )
     }
 
-    override suspend fun backup(type: DataType, p: PackageEntity, r: PackageEntity?, t: TaskDetailPackageEntity, dstDir: String) {
+    override suspend fun backup(type: DataType, p: PackageEntity, previous: PackageEntity?, t: TaskDetailPackageEntity, dstDir: String) {
         if (type == DataType.PACKAGE_APK) {
-            mPackagesBackupUtil.backupApk(p = p, t = t, r = r, dstDir = dstDir)
+            val previousArchive = previous?.let {
+                mPackageRepo.getArchiveDst("$mAppsDir/${it.archivesRelativeDir}", type, it.indexInfo.compressionType)
+            }
+            mPackagesBackupUtil.backupApk(p, previous, previousArchive, t, dstDir)
         } else {
-            mPackagesBackupUtil.backupData(p = p, t = t, r = r, dataType = type, dstDir = dstDir)
+            mPackagesBackupUtil.backupData(p = p, t = t, r = previous, dataType = type, dstDir = dstDir)
         }
         t.update(dataType = type, progress = 1f)
         t.update(processingIndex = t.processingIndex + 1)

@@ -9,6 +9,7 @@ interface IRemoteRootService {
     boolean mkdirs(String path);
     boolean copyRecursively(String path, String targetPath, boolean overwrite);
     boolean copyTo(String path, String targetPath, boolean overwrite);
+    boolean createHardLink(String path, String targetPath);
     boolean renameTo(String src, String dst);
     boolean exists(String path);
     boolean createNewFile(String path);
@@ -42,6 +43,7 @@ interface IRemoteRootService {
     void setScreenOffTimeout(int timeout);
     void forceStopPackageAsUser(String packageName, int userId);
     boolean uninstallPackageAsUser(String packageName, int userId);
+    boolean uninstallPackageKeepingDataAsUser(String packageName, int userId);
     boolean clearPackageDataAsUser(String packageName, int userId);
     boolean clearPackageCacheAsUser(String packageName, int userId);
     void setApplicationEnabledSetting(in String packageName, in int newState, int flags, int userId, String callingPackage);
@@ -50,4 +52,5 @@ interface IRemoteRootService {
     void setOpsMode(int code, int uid, String packageName, int mode);
 
     String calculateMD5(String src);
+    String calculateSHA256(String src);
 }

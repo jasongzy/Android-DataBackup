@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DirectoryDao {
+    @Query("SELECT COUNT(*) FROM DirectoryEntity")
+    suspend fun count(): Int
+
     @Upsert(entity = DirectoryEntity::class)
     suspend fun upsert(item: DirectoryEntity)
 

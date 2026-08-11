@@ -10,6 +10,7 @@ import com.xayah.core.datastore.ConstantUtil.DEFAULT_PATH_PARENT
 import com.xayah.core.datastore.readBackupSavePath
 import com.xayah.core.datastore.saveBackupSavePath
 import com.xayah.core.model.StorageType
+import com.xayah.core.model.OpType
 import com.xayah.core.model.database.DirectoryEntity
 import com.xayah.core.model.database.DirectoryUpsertEntity
 import com.xayah.core.rootservice.service.RemoteRootService
@@ -65,7 +66,7 @@ class DirectoryRepository @Inject constructor(
     }
 
     suspend fun selectDir(entity: DirectoryEntity) = run {
-        packageDao.delete(context.readBackupSavePath().first())
+        packageDao.delete(context.readBackupSavePath().first(), OpType.RESTORE)
         selectDir(entity.path, entity.id)
     }
 
@@ -76,8 +77,9 @@ class DirectoryRepository @Inject constructor(
         }
     }
 
-    suspend fun update() = updateMutex.withLock {
+    suspend fun update(): String? = updateMutex.withLock {
         withIOContext {
+            val hadDirectories = directoryDao.count() > 0
             directoryDao.deleteDuplicates()
             // Inactivate all directories
             directoryDao.updateActive(active = false)
@@ -162,9 +164,17 @@ class DirectoryRepository @Inject constructor(
             }
 
             val selectedDirectory = directoryDao.querySelectedByDirectoryType()
-            if (selectedDirectory == null || (selectedDirectory.storageType == StorageType.EXTERNAL && selectedDirectory.enabled.not()) || selectedDirectory.active.not()) {
+            var selectedExistingBackupPath: String? = null
+            val existingBackup = if (hadDirectories) null else {
+                directoryDao.queryActiveDirectories().firstOrNull { rootService.exists(it.path) }
+            }
+            if (existingBackup != null) {
+                selectDir(existingBackup.path, existingBackup.id)
+                selectedExistingBackupPath = existingBackup.path
+            } else if (selectedDirectory == null || (selectedDirectory.storageType == StorageType.EXTERNAL && selectedDirectory.enabled.not()) || selectedDirectory.active.not()) {
                 resetDir()
             }
+            selectedExistingBackupPath
         }
     }
 

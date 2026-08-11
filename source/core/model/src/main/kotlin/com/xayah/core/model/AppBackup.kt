@@ -8,10 +8,35 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.util.UUID
 
+const val BACKUP_MANIFEST_SCHEMA_VERSION = 1
+
 enum class BackupEngine {
     LEGACY,
     RUSTIC,
 }
+
+enum class BackupVerificationStatus {
+    NOT_VERIFIED,
+    VALID,
+    DAMAGED,
+}
+
+data class BackupManifest(
+    val schemaVersion: Int = BACKUP_MANIFEST_SCHEMA_VERSION,
+    val packageName: String,
+    val userId: Int,
+    val createdAt: Long,
+    val versionName: String,
+    val versionCode: Long,
+    val contentMask: Int,
+    val files: List<BackupManifestFile>?,
+)
+
+data class BackupManifestFile(
+    val name: String,
+    val sizeBytes: Long,
+    val sha256: String,
+)
 
 @Entity(
     tableName = "backup_apps",
@@ -66,4 +91,7 @@ data class AppBackupOverview(
     @Embedded val app: BackupAppEntity,
     val revisionCount: Int,
     val latestRevisionAt: Long?,
+    val hasApkBackup: Boolean,
+    val hasDataBackup: Boolean,
+    val latestApkVersionCode: Long?,
 )

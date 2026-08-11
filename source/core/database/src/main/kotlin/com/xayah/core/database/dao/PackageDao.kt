@@ -3,6 +3,7 @@ package com.xayah.core.database.dao
 import androidx.room.Dao
 import androidx.room.MapColumn
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.Upsert
 import com.xayah.core.model.CompressionType
@@ -14,6 +15,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PackageDao {
+    @Transaction
+    suspend fun replaceLocalRestoreIndex(backupDir: String, items: List<PackageEntity>) {
+        delete(backupDir, OpType.RESTORE)
+        upsert(items)
+    }
+
     @Upsert(entity = PackageEntity::class)
     suspend fun upsert(items: List<PackageEntity>)
 
@@ -238,6 +245,6 @@ interface PackageDao {
     @Query("DELETE FROM PackageEntity WHERE id = :id")
     suspend fun delete(id: Long)
 
-    @Query("DELETE FROM PackageEntity WHERE indexInfo_backupDir = :backupDir")
-    suspend fun delete(backupDir: String)
+    @Query("DELETE FROM PackageEntity WHERE indexInfo_backupDir = :backupDir AND indexInfo_opType = :opType")
+    suspend fun delete(backupDir: String, opType: OpType)
 }

@@ -61,6 +61,10 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
     private var activityManager: ActivityManagerHidden
     private var appOpsManager: AppOpsManagerHidden
 
+    private companion object {
+        val EMULATED_STORAGE_PATH = Regex("^/storage/emulated/(\\d+)(/.*)$")
+    }
+
     private fun getSystemContext(): Context = ActivityThread.systemMain().systemContext
 
     @TargetApi(Build.VERSION_CODES.O)
@@ -107,6 +111,14 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
         }
     }
 
+    override fun createHardLink(path: String, targetPath: String): Boolean = synchronized(lock) {
+        createHardLinkDirect(path, targetPath) || run {
+            val source = path.toMediaBackingPath()
+            val target = targetPath.toMediaBackingPath()
+            source != null && target != null && createHardLinkDirect(source, target)
+        }
+    }
+
     override fun renameTo(src: String, dst: String): Boolean = synchronized(lock) {
         runCatching { File(src).renameTo(File(dst)) }.getOrElse { false }
     }
@@ -117,6 +129,16 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
 
     override fun createNewFile(path: String): Boolean = synchronized(lock) {
         tryOn(block = { File(path).createNewFile() }, onException = { false })
+    }
+
+    private fun createHardLinkDirect(path: String, targetPath: String): Boolean = runCatching {
+        Files.createLink(Paths.get(targetPath), Paths.get(path))
+        true
+    }.getOrDefault(false)
+
+    private fun String.toMediaBackingPath(): String? {
+        val match = EMULATED_STORAGE_PATH.matchEntire(this) ?: return null
+        return "/data/media/${match.groupValues[1]}${match.groupValues[2]}"
     }
 
     override fun deleteRecursively(path: String): Boolean = synchronized(lock) {
@@ -478,6 +500,10 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
         ShellUtils.fastCmd("pm uninstall --user $userId $packageName").trim() == "Success"
     }
 
+    override fun uninstallPackageKeepingDataAsUser(packageName: String, userId: Int): Boolean = synchronized(lock) {
+        ShellUtils.fastCmd("pm uninstall -k --user $userId $packageName").trim() == "Success"
+    }
+
     override fun clearPackageDataAsUser(packageName: String, userId: Int): Boolean = synchronized(lock) {
         ShellUtils.fastCmd("pm clear --user $userId $packageName").trim() == "Success"
     }
@@ -534,4 +560,6 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
     }
 
     override fun calculateMD5(src: String): String = synchronized(lock) { HashUtil.calculateMD5(src) }
+
+    override fun calculateSHA256(src: String): String = synchronized(lock) { HashUtil.calculateSHA256(src) }
 }

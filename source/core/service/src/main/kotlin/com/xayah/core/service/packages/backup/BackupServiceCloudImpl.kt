@@ -83,12 +83,12 @@ internal class BackupServiceCloudImpl @Inject constructor() : AbstractBackupServ
         mClient.mkdirRecursively(getRemoteAppDir(archivesRelativeDir))
     }
 
-    override suspend fun backup(type: DataType, p: PackageEntity, r: PackageEntity?, t: TaskDetailPackageEntity, dstDir: String) {
+    override suspend fun backup(type: DataType, p: PackageEntity, previous: PackageEntity?, t: TaskDetailPackageEntity, dstDir: String) {
         val remoteAppDir = getRemoteAppDir(p.archivesRelativeDir)
         val result = if (type == DataType.PACKAGE_APK) {
-            mPackagesBackupUtil.backupApk(p = p, t = t, r = r, dstDir = dstDir)
+            mPackagesBackupUtil.backupApk(p, previous, null, t, dstDir)
         } else {
-            mPackagesBackupUtil.backupData(p = p, t = t, r = r, dataType = type, dstDir = dstDir)
+            mPackagesBackupUtil.backupData(p = p, t = t, r = previous, dataType = type, dstDir = dstDir)
         }
         if (result.isSuccess && t.get(type).state != OperationState.SKIP) {
             mPackagesBackupUtil.upload(client = mClient, p = p, t = t, dataType = type, srcDir = dstDir, dstDir = remoteAppDir)
@@ -97,8 +97,15 @@ internal class BackupServiceCloudImpl @Inject constructor() : AbstractBackupServ
         t.update(processingIndex = t.processingIndex + 1)
     }
 
-    override suspend fun onConfigSaved(path: String, archivesRelativeDir: String) {
-        mCloudRepo.upload(client = mClient, src = path, dstDir = getRemoteAppDir(archivesRelativeDir))
+    override suspend fun onConfigSaved(path: String, archivesRelativeDir: String) =
+        mCloudRepo.upload(client = mClient, src = path, dstDir = getRemoteAppDir(archivesRelativeDir)).isSuccess
+
+    override suspend fun onManifestSaved(path: String, archivesRelativeDir: String) =
+        mCloudRepo.upload(client = mClient, src = path, dstDir = getRemoteAppDir(archivesRelativeDir)).isSuccess
+
+    override suspend fun onBackupFailed(archivesRelativeDir: String) {
+        val dir = getRemoteAppDir(archivesRelativeDir)
+        if (mClient.exists(dir)) mClient.deleteRecursively(dir)
     }
 
     override suspend fun onItselfSaved(path: String, entity: ProcessingInfoEntity) {

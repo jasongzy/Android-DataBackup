@@ -18,4 +18,10 @@ object HashUtil {
 
     @TargetApi(Build.VERSION_CODES.O)
     private fun calculateMD5Api26(src: String) = DigestUtils.md5Hex(Files.newInputStream(Paths.get(src)))
+
+    fun calculateSHA256(src: String): String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Files.newInputStream(Paths.get(src)).use { DigestUtils.sha256Hex(it) }
+    } else {
+        FileInputStream(src).use { DigestUtils.sha256Hex(it) }
+    }
 }

@@ -16,6 +16,7 @@ val KeyLoadSystemApps = booleanPreferencesKey("load_system_apps")
 val KeyBackupConfigs = booleanPreferencesKey("backup_configs")
 val KeyRestorePermissions = booleanPreferencesKey("restore_permissions")
 val KeyRestoreSsaid = booleanPreferencesKey("restore_ssaid")
+val KeyFastSameVersionBackup = booleanPreferencesKey("fast_same_version_backup")
 
 // -----------------------------------------Read-----------------------------------------
 fun Context.readMonet() = readStoreBoolean(key = KeyMonet, defValue = true)
@@ -30,6 +31,7 @@ fun Context.readAutoScreenOff() = readStoreBoolean(key = KeyAutoScreenOff, defVa
 fun Context.readBackupConfigs() = readStoreBoolean(key = KeyBackupConfigs, defValue = true)
 fun Context.readRestorePermissions() = readStoreBoolean(key = KeyRestorePermissions, defValue = false)
 fun Context.readRestoreSsaid() = readStoreBoolean(key = KeyRestoreSsaid, defValue = true)
+fun Context.readFastSameVersionBackup() = readStoreBoolean(key = KeyFastSameVersionBackup, defValue = true)
 
 // -----------------------------------------Write-----------------------------------------
 suspend fun Context.saveMonet(value: Boolean) = saveStoreBoolean(key = KeyMonet, value = value)

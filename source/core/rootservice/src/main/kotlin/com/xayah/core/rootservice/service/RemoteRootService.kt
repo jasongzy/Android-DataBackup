@@ -168,6 +168,9 @@ class RemoteRootService(private val context: Context) {
     suspend fun copyTo(path: String, targetPath: String, overwrite: Boolean): Boolean =
         runCatching { getService().copyTo(path, targetPath, overwrite) }.onFailure(onFailure).getOrElse { false }
 
+    suspend fun createHardLink(path: String, targetPath: String): Boolean =
+        runCatching { getService().createHardLink(path, targetPath) }.onFailure(onFailure).getOrElse { false }
+
     suspend fun renameTo(src: String, dst: String): Boolean = runCatching { getService().renameTo(src, dst) }.onFailure(onFailure).getOrElse { false }
 
     suspend fun writeText(text: String, dst: String): Boolean = runCatching {
@@ -316,6 +319,9 @@ class RemoteRootService(private val context: Context) {
     suspend fun uninstallPackageAsUser(packageName: String, userId: Int): Boolean =
         runCatching { getService().uninstallPackageAsUser(packageName, userId) }.onFailure(onFailure).getOrDefault(false)
 
+    suspend fun uninstallPackageKeepingDataAsUser(packageName: String, userId: Int): Boolean =
+        runCatching { getService().uninstallPackageKeepingDataAsUser(packageName, userId) }.onFailure(onFailure).getOrDefault(false)
+
     suspend fun clearPackageDataAsUser(packageName: String, userId: Int): Boolean =
         runCatching { getService().clearPackageDataAsUser(packageName, userId) }.onFailure(onFailure).getOrDefault(false)
 
@@ -336,6 +342,9 @@ class RemoteRootService(private val context: Context) {
 
     suspend fun calculateMD5(src: String): String? =
         runCatching { getService().calculateMD5(src) }.onFailure(onFailure).getOrNull()
+
+    suspend fun calculateSHA256(src: String): String? =
+        runCatching { getService().calculateSHA256(src) }.onFailure(onFailure).getOrNull()
 
     suspend fun writeJson(data: Any, dst: String): ShellResult = runCatching {
         var isSuccess: Boolean
