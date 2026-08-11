@@ -1,6 +1,7 @@
 package com.xayah.feature.main.details
 
 import android.Manifest
+import android.app.AppOpsManager
 import android.content.Context
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -38,6 +39,7 @@ import com.xayah.core.model.database.LabelFileCrossRefEntity
 import com.xayah.core.model.database.MediaEntity
 import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.database.PackageEntity
+import com.xayah.core.model.database.PackagePermission
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.util.decodeURL
@@ -96,6 +98,10 @@ class DetailsViewModel @Inject constructor(
     private val refreshMutex = Mutex()
     private val _furtherOperations = MutableStateFlow<FurtherOperationsUiState>(FurtherOperationsUiState.Idle)
     val furtherOperations = _furtherOperations.asStateFlow()
+    private val _updatingPermission = MutableStateFlow<String?>(null)
+    val updatingPermission = _updatingPermission.asStateFlow()
+    private val _permissionStates = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val permissionStates = _permissionStates.asStateFlow()
 
     val uiState: StateFlow<DetailsUiState> = when (target) {
         Target.Apps -> {
@@ -307,6 +313,16 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
+    fun uninstallAppKeepingData() {
+        viewModelScope.launchOnDefault {
+            val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
+            if (rootService.uninstallPackageKeepingDataAsUser(app.packageName, app.userId)) {
+                appsRepo.removeUninstalledApp(app.packageName, app.userId)
+                showToast(R.string.app_uninstalled_data_kept)
+            }
+        }
+    }
+
     fun clearAppData() {
         viewModelScope.launchOnDefault {
             val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
@@ -338,6 +354,10 @@ class DetailsViewModel @Inject constructor(
     }
 
     fun copyDataPath(dataType: DataType) {
+        resolveDataPath(dataType, ::copyPath)
+    }
+
+    fun resolveDataPath(dataType: DataType, onResolved: (String) -> Unit) {
         viewModelScope.launchOnDefault {
             val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
             val path = if (dataType == DataType.PACKAGE_APK) {
@@ -345,11 +365,90 @@ class DetailsViewModel @Inject constructor(
             } else {
                 "${dataType.srcDir(app.userId)}/${app.packageName}"
             }
-            if (path == null) return@launchOnDefault
+            if (path == null) {
+                showToast(context.getString(R.string.path_does_not_exist, app.packageName))
+                return@launchOnDefault
+            }
+            if (rootService.exists(path).not()) {
+                showToast(context.getString(R.string.path_does_not_exist, path))
+                return@launchOnDefault
+            }
             withContext(Dispatchers.Main.immediate) {
-                context.getSystemService(ClipboardManager::class.java)
-                    .setPrimaryClip(ClipData.newPlainText(app.packageName, path))
-                Toast.makeText(context, context.getString(R.string.path_copied, path), Toast.LENGTH_SHORT).show()
+                onResolved(path)
+            }
+        }
+    }
+
+    fun copyPath(path: String) {
+        context.getSystemService(ClipboardManager::class.java)
+            .setPrimaryClip(ClipData.newPlainText(context.packageName, path))
+        Toast.makeText(context, context.getString(R.string.path_copied, path), Toast.LENGTH_SHORT).show()
+    }
+
+    fun openPath(path: String) {
+        allowFileUriExposure()
+        val file = File(path)
+        val mimeType = if (file.extension.equals("apk", ignoreCase = true)) APK_MIME_TYPE else "resource/folder"
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(android.net.Uri.fromFile(file), mimeType)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val chooser = Intent.createChooser(intent, context.getString(R.string.open_path)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (runCatching { context.startActivity(chooser) }.isFailure) {
+            viewModelScope.launch { showToast(R.string.external_action_failed) }
+        }
+    }
+
+    fun setPermission(permission: PackagePermission, granted: Boolean) {
+        if (_updatingPermission.value != null) return
+        viewModelScope.launchOnDefault {
+            val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
+            _updatingPermission.value = permission.name
+            try {
+                val user = rootService.getUserHandle(app.userId)
+                if (user == null) {
+                    showToast(R.string.permission_update_failed)
+                    return@launchOnDefault
+                }
+                if (granted) {
+                    rootService.grantRuntimePermission(app.packageName, permission.name, user)
+                } else {
+                    rootService.revokeRuntimePermission(app.packageName, permission.name, user)
+                }
+                if (permission.op != android.app.AppOpsManagerHidden.OP_NONE) {
+                    rootService.setOpsMode(
+                        permission.op,
+                        app.extraInfo.uid,
+                        app.packageName,
+                        if (granted) AppOpsManager.MODE_ALLOWED else AppOpsManager.MODE_IGNORED,
+                    )
+                }
+                appsRepo.updateApp(app, app.userId)
+                val packageInfo = rootService.getPackageInfoAsUser(
+                    app.packageName,
+                    PackageManager.GET_PERMISSIONS,
+                    app.userId,
+                )
+                val updated = if (packageInfo == null) {
+                    null
+                } else {
+                    rootService.getPermissions(packageInfo).firstOrNull { it.name == permission.name }
+                }
+                val applied = updated != null && (updated.isGranted || updated.isOpsAllowed) == granted
+                if (updated != null) {
+                    _permissionStates.value = _permissionStates.value +
+                        (permission.name to (updated.isGranted || updated.isOpsAllowed))
+                }
+                showToast(
+                    when {
+                        !applied -> R.string.permission_update_failed
+                        granted -> R.string.permission_granted
+                        else -> R.string.permission_revoked
+                    }
+                )
+            } finally {
+                _updatingPermission.value = null
             }
         }
     }
@@ -684,6 +783,10 @@ class DetailsViewModel @Inject constructor(
     }
 
     private suspend fun showToast(@StringRes message: Int) = withContext(Dispatchers.Main.immediate) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private suspend fun showToast(message: String) = withContext(Dispatchers.Main.immediate) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 

@@ -37,9 +37,8 @@ sealed class MainRoutes(val route: String) {
     }
     data object Settings : MainRoutes(route = "main_settings")
     data object Restore : MainRoutes(route = "main_restore")
-    data object Reload : MainRoutes(route = "main_reload/{$ARG_ACCOUNT_NAME}/{$ARG_ACCOUNT_REMOTE}") {
-        fun getRoute(name: String, remote: String) = "main_reload/${name}/${remote}"
-    }
+    data object Reload : MainRoutes(route = "main_reload")
+    data object BackupVerification : MainRoutes(route = "main_backup_verification")
     data object BackupSettings : MainRoutes(route = "main_backup_settings")
     data object RestoreSettings : MainRoutes(route = "main_restore_settings")
     data object LanguageSettings : MainRoutes(route = "main_language_settings")
@@ -60,6 +59,9 @@ sealed class MainRoutes(val route: String) {
     data object History : MainRoutes(route = "main_history")
     data object AppRevisions : MainRoutes(route = "main_app_revisions/{$ARG_PACKAGE_NAME}/{$ARG_USER_ID}") {
         fun getRoute(packageName: String, userId: Int) = "main_app_revisions/$packageName/$userId"
+    }
+    data object PermissionEditor : MainRoutes(route = "main_permission_editor/{$ARG_PACKAGE_NAME}/{$ARG_USER_ID}") {
+        fun getRoute(packageName: String, userId: Int) = "main_permission_editor/$packageName/$userId"
     }
 
     data object TaskDetails : MainRoutes(route = "main_task_details/{$ARG_ID}") {

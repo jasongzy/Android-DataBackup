@@ -8,6 +8,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -15,7 +16,9 @@ import com.xayah.core.ui.component.AnimatedNavHost
 import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.ui.theme.DataBackupTheme
 import com.xayah.core.ui.util.LocalNavController
+import com.xayah.core.util.ActivityUtil
 import com.xayah.core.util.command.BaseUtil
+import com.xayah.core.util.navigateSingle
 import com.xayah.feature.main.cloud.PageCloud
 import com.xayah.feature.main.cloud.add.PageCloudAddAccount
 import com.xayah.feature.main.cloud.add.PageFTPSetup
@@ -26,9 +29,8 @@ import com.xayah.feature.main.configurations.PageConfigurations
 import com.xayah.feature.main.dashboard.AppRevisionsRoute
 import com.xayah.feature.main.dashboard.PageDashboard
 import com.xayah.feature.main.details.DetailsRoute
+import com.xayah.feature.main.details.PermissionEditorRoute
 import com.xayah.feature.main.directory.PageDirectory
-import com.xayah.feature.main.history.HistoryRoute
-import com.xayah.feature.main.history.TaskDetailsRoute
 import com.xayah.feature.main.list.ListRoute
 import com.xayah.feature.main.processing.medium.backup.MediumBackupProcessingGraph
 import com.xayah.feature.main.processing.medium.restore.MediumRestoreProcessingGraph
@@ -43,6 +45,7 @@ import com.xayah.feature.main.settings.backup.PageBackupSettings
 import com.xayah.feature.main.settings.blacklist.PageBlackList
 import com.xayah.feature.main.settings.language.PageLanguageSelector
 import com.xayah.feature.main.settings.restore.PageRestoreSettings
+import com.xayah.feature.main.settings.verification.PageBackupVerification
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -67,6 +70,11 @@ class MainActivity : AppCompatActivity() {
         setContent {
             DataBackupTheme {
                 val navController = rememberNavController()
+                val requestedDestination = intent.getStringExtra(ActivityUtil.EXTRA_START_DESTINATION)
+                    ?.takeIf { it == MainRoutes.Reload.route }
+                LaunchedEffect(requestedDestination) {
+                    requestedDestination?.let { navController.navigateSingle(it) }
+                }
                 CompositionLocalProvider(
                     LocalNavController provides navController,
                     androidx.lifecycle.compose.LocalLifecycleOwner provides androidx.compose.ui.platform.LocalLifecycleOwner.current,
@@ -102,14 +110,11 @@ class MainActivity : AppCompatActivity() {
                         composable(MainRoutes.Details.route) {
                             DetailsRoute()
                         }
-                        composable(MainRoutes.History.route) {
-                            HistoryRoute()
-                        }
                         composable(MainRoutes.AppRevisions.route) {
                             AppRevisionsRoute()
                         }
-                        composable(MainRoutes.TaskDetails.route) {
-                            TaskDetailsRoute()
+                        composable(MainRoutes.PermissionEditor.route) {
+                            PermissionEditorRoute()
                         }
                         composable(MainRoutes.PackagesBackupProcessingGraph.route) {
                             PackagesBackupProcessingGraph()
@@ -125,6 +130,9 @@ class MainActivity : AppCompatActivity() {
                         }
                         composable(MainRoutes.Settings.route) {
                             PageSettings()
+                        }
+                        composable(MainRoutes.BackupVerification.route) {
+                            PageBackupVerification()
                         }
                         composable(MainRoutes.Restore.route) {
                             PageRestore()

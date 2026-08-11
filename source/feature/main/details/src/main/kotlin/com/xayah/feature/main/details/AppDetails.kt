@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.outlined.DeleteForever
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Api
 import androidx.compose.material.icons.rounded.RemoveRedEye
@@ -119,6 +121,10 @@ fun AppDetails(
     onUninstall: () -> Unit,
     onClearData: () -> Unit,
     onCopyDataPath: (DataType) -> Unit,
+    onResolveDataPath: (DataType, (String) -> Unit) -> Unit,
+    onCopyPath: (String) -> Unit,
+    onOpenPath: (String) -> Unit,
+    onEditPermissions: () -> Unit,
     onSaveAppIcon: () -> Unit,
     onShareApk: () -> Unit,
     furtherOperations: FurtherOperationsUiState,
@@ -131,6 +137,7 @@ fun AppDetails(
 ) {
     var isShow by remember { mutableStateOf(false) }
     var showFurtherOperations by remember { mutableStateOf(false) }
+    var selectedDataPath by remember { mutableStateOf<String?>(null) }
     var colorCandidate by remember { mutableStateOf<ColoredLabel?>(null) }
     val sheetState = rememberModalBottomSheetState()
     val onDismissRequest: () -> Unit = {
@@ -162,6 +169,20 @@ fun AppDetails(
                 onOpenFurtherOperation(operation)
             },
             uiState = furtherOperations,
+        )
+    }
+    selectedDataPath?.let { path ->
+        DataPathBottomSheet(
+            path = path,
+            onDismiss = { selectedDataPath = null },
+            onCopy = {
+                onCopyPath(path)
+                selectedDataPath = null
+            },
+            onOpen = {
+                onOpenPath(path)
+                selectedDataPath = null
+            },
         )
     }
 
@@ -208,11 +229,18 @@ fun AppDetails(
 
         Spacer(Modifier.height(SizeTokens.Level12))
 
-        BackupParts(app = app, isCalculating = uiState.isRefreshing, onSetDataStates = onSetDataStates, onCopyDataPath = onCopyDataPath)
+        BackupParts(
+            app = app,
+            isCalculating = uiState.isRefreshing,
+            onSetDataStates = onSetDataStates,
+            onShowDataPath = { dataType ->
+                onResolveDataPath(dataType) { selectedDataPath = it }
+            },
+        )
 
         Info(app = app, architecture = uiState.architecture, targetSdk = uiState.targetSdk)
 
-        Permissions(permissions = app.extraInfo.permissions)
+        Permissions(permissions = app.extraInfo.permissions, onClick = onEditPermissions)
     }
 
     colorCandidate?.let { label ->
@@ -224,6 +252,49 @@ fun AppDetails(
                 colorCandidate = null
             },
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DataPathBottomSheet(
+    path: String,
+    onDismiss: () -> Unit,
+    onCopy: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Title(stringResource(R.string.data_path))
+        SelectionContainer {
+            BodyMediumText(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .paddingHorizontal(SizeTokens.Level24)
+                    .paddingVertical(SizeTokens.Level12),
+                text = path,
+                color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .paddingHorizontal(SizeTokens.Level24),
+            horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8),
+        ) {
+            FilledTonalIconTextButton(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Rounded.ContentCopy,
+                text = stringResource(R.string.copy),
+                onClick = onCopy,
+            )
+            FilledTonalIconTextButton(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Rounded.FolderOpen,
+                text = stringResource(R.string.open_path),
+                onClick = onOpen,
+            )
+        }
+        Spacer(Modifier.height(SizeTokens.Level24))
     }
 }
 
@@ -257,6 +328,7 @@ private fun FurtherOperationsBottomSheet(
                 onClick = onCopyApkPath,
             )
         }
+        Spacer(Modifier.height(SizeTokens.Level12))
         when (uiState) {
             FurtherOperationsUiState.Idle,
             FurtherOperationsUiState.Loading -> Box(
@@ -660,14 +732,14 @@ private fun BackupParts(
     app: PackageEntity,
     isCalculating: Boolean,
     onSetDataStates: (Long, PackageDataStates) -> Unit,
-    onCopyDataPath: (DataType) -> Unit,
+    onShowDataPath: (DataType) -> Unit,
 ) {
     Title(title = stringResource(id = R.string.backup_parts)) {
         DataChips(
             selections = app.dataStates,
             displayStats = app.displayStats,
             isCalculating = isCalculating,
-            onItemLongClick = onCopyDataPath,
+            onItemLongClick = onShowDataPath,
         ) { type, selected -> onSetDataStates(app.id, type.setSelected(app.dataStates, selected.not())) }
         Spacer(Modifier.height(SizeTokens.Level12))
     }
@@ -746,7 +818,7 @@ private fun Info(app: PackageEntity, architecture: String, targetSdk: Int) {
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-private fun Permissions(permissions: List<PackagePermission>) {
+private fun Permissions(permissions: List<PackagePermission>, onClick: () -> Unit) {
     val granted by remember(permissions) { mutableStateOf(permissions.filter { it.isGranted || it.isOpsAllowed }.map { it.name }) }
     val denied by remember(permissions) { mutableStateOf(permissions.filter { it.isGranted.not() && it.isOpsAllowed.not() }.map { it.name }) }
     if (granted.isNotEmpty() || denied.isNotEmpty()) {
@@ -755,12 +827,14 @@ private fun Permissions(permissions: List<PackagePermission>) {
                 Clickable(
                     title = stringResource(R.string.granted),
                     value = granted.toLineString(),
+                    onClick = onClick,
                 )
             }
             if (denied.isNotEmpty()) {
                 Clickable(
                     title = stringResource(R.string.denied),
                     value = denied.toLineString(),
+                    onClick = onClick,
                 )
             }
         }

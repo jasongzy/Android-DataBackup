@@ -19,6 +19,7 @@
     <item name="clear_cache" type="string" />
     <item name="confirm_clear_data" type="string" />
     <item name="path_copied" type="string" />
+    <item name="path_does_not_exist" type="string" />
     <item name="save_app_icon" type="string" />
     <item name="confirm_save_app_icon" type="string" />
     <item name="app_icon_saved" type="string" />
@@ -28,6 +29,7 @@
     <item name="app_unfrozen" type="string" />
     <item name="app_frozen" type="string" />
     <item name="app_uninstalled" type="string" />
+    <item name="app_uninstalled_data_kept" type="string" />
     <item name="app_data_cleared" type="string" />
     <item name="app_cache_cleared" type="string" />
     <item name="backup_protected" type="string" />
@@ -62,6 +64,13 @@
     <item name="share" type="string" />
     <item name="further_operations" type="string" />
     <item name="copy_apk_path" type="string" />
+    <item name="data_path" type="string" />
+    <item name="copy" type="string" />
+    <item name="open_path" type="string" />
+    <item name="permission_editor" type="string" />
+    <item name="permission_granted" type="string" />
+    <item name="permission_revoked" type="string" />
+    <item name="permission_update_failed" type="string" />
     <item name="share_apk_failed" type="string" />
     <item name="external_action_failed" type="string" />
     <item name="no_external_actions" type="string" />

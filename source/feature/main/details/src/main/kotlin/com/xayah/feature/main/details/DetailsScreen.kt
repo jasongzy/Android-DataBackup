@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.ui.component.InnerBottomSpacer
 import com.xayah.core.ui.component.InnerTopSpacer
 import com.xayah.core.ui.component.SecondaryLargeTopBar
+import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.ui.util.LocalNavController
 import com.xayah.core.util.maybePopBackStack
 
@@ -42,6 +43,7 @@ fun DetailsRoute(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AppDetailsScreen(uiState: DetailsUiState, viewModel: DetailsViewModel) {
+    val navController = LocalNavController.current!!
     val furtherOperations by viewModel.furtherOperations.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     Scaffold(
@@ -69,6 +71,17 @@ internal fun AppDetailsScreen(uiState: DetailsUiState, viewModel: DetailsViewMod
                                 onUninstall = viewModel::uninstallApp,
                                 onClearData = viewModel::clearAppData,
                                 onCopyDataPath = viewModel::copyDataPath,
+                                onResolveDataPath = viewModel::resolveDataPath,
+                                onCopyPath = viewModel::copyPath,
+                                onOpenPath = viewModel::openPath,
+                                onEditPermissions = {
+                                    navController.navigate(
+                                        MainRoutes.PermissionEditor.getRoute(
+                                            uiState.app.packageName,
+                                            uiState.app.userId,
+                                        )
+                                    )
+                                },
                                 onSaveAppIcon = viewModel::saveAppIcon,
                                 onShareApk = viewModel::shareApk,
                                 furtherOperations = furtherOperations,
