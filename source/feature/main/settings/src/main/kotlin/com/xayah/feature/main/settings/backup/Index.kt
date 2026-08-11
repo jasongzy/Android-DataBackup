@@ -27,6 +27,7 @@ import com.xayah.core.datastore.KeyBackupItself
 import com.xayah.core.datastore.KeyCheckKeystore
 import com.xayah.core.datastore.KeyCompressionTest
 import com.xayah.core.datastore.KeyFollowSymlinks
+import com.xayah.core.datastore.KeyFastSameVersionBackup
 import com.xayah.core.datastore.readCompressionLevel
 import com.xayah.core.datastore.readKillAppOption
 import com.xayah.core.datastore.saveCompressionLevel
@@ -113,6 +114,12 @@ fun PageBackupSettings() {
                     }
                 }
 
+                Switchable(
+                    key = KeyFastSameVersionBackup,
+                    defValue = true,
+                    title = stringResource(id = R.string.fast_same_version_backup),
+                    checkedText = stringResource(id = R.string.fast_same_version_backup_desc),
+                )
                 Switchable(
                     key = KeyCheckKeystore,
                     defValue = true,

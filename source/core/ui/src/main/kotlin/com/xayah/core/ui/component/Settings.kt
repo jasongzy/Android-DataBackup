@@ -382,7 +382,7 @@ fun Checkable(
     checked: Boolean,
     icon: ImageVector? = null,
     title: String,
-    value: String,
+    value: String? = null,
     desc: String? = null,
     onCheckedChange: (Boolean) -> Unit = {}
 ) {

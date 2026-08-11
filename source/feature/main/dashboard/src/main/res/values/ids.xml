@@ -21,7 +21,23 @@
     <item name="changelog" type="string" />
     <item name="args_update_from" type="string" />
     <item name="history" type="string" />
+    <item name="verify" type="string" />
+    <item name="not_verified" type="string" />
+    <item name="backup_valid" type="string" />
+    <item name="backup_damaged" type="string" />
+    <item name="verification_manifest_missing" type="string" />
+    <item name="verification_manifest_invalid" type="string" />
+    <item name="verification_metadata_mismatch" type="string" />
+    <item name="verification_file_missing" type="string" />
+    <item name="verification_file_size_mismatch" type="string" />
+    <item name="verification_file_checksum_mismatch" type="string" />
+    <item name="verification_not_local" type="string" />
+    <item name="backup_damaged_restore_warning" type="string" />
+    <item name="restore_anyway" type="string" />
     <item name="share" type="string" />
+    <item name="uninstall_keep_data" type="string" />
+    <item name="confirm_uninstall_keep_data" type="string" />
+    <item name="uninstall" type="string" />
 
     <item name="ic_rounded_package_2" type="drawable" />
     <item name="ic_rounded_folder_open" type="drawable" />

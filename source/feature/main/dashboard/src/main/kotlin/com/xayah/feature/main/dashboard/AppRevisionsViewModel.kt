@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import com.xayah.core.model.BackupRevisionEntity
+import com.xayah.core.model.BackupVerificationStatus
 import com.xayah.core.data.repository.AppBackupRepository
 import com.xayah.core.data.repository.AppsRepo
 import com.xayah.core.data.repository.BackupRequestStore
@@ -19,6 +20,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,6 +35,11 @@ class AppRevisionsViewModel @Inject constructor(
     private val backupRequestStore: BackupRequestStore,
     private val directoryRepository: DirectoryRepository,
 ) : ViewModel() {
+    data class RestoreRequest(
+        val revision: BackupRevisionEntity,
+        val dataStates: PackageDataStates,
+    )
+
     private val packageName = checkNotNull(savedStateHandle.get<String>(MainRoutes.ARG_PACKAGE_NAME))
     private val userId = checkNotNull(savedStateHandle.get<String>(MainRoutes.ARG_USER_ID)).toInt()
 
@@ -52,6 +60,11 @@ class AppRevisionsViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = null,
     )
+
+    private val _verificationResults = MutableStateFlow<Map<String, AppBackupRepository.VerificationResult>>(emptyMap())
+    val verificationResults = _verificationResults.asStateFlow()
+    private val _damagedRestoreRequest = MutableStateFlow<RestoreRequest?>(null)
+    val damagedRestoreRequest = _damagedRestoreRequest.asStateFlow()
 
     fun startBackup(dataStates: PackageDataStates, navController: NavHostController) {
         val appId = installedApp.value?.id ?: return
@@ -78,8 +91,35 @@ class AppRevisionsViewModel @Inject constructor(
         }
     }
 
-    fun startRestore(revision: BackupRevisionEntity, dataStates: PackageDataStates, navController: NavHostController) {
+    fun verifyRevision(revision: BackupRevisionEntity) {
         viewModelScope.launch {
+            val result = repository.inspectRevision(revision)
+            _verificationResults.value += revision.id to result
+            Toast.makeText(
+                context,
+                when (result.status) {
+                    BackupVerificationStatus.NOT_VERIFIED -> R.string.not_verified
+                    BackupVerificationStatus.VALID -> R.string.backup_valid
+                    BackupVerificationStatus.DAMAGED -> R.string.backup_damaged
+                },
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    fun startRestore(
+        revision: BackupRevisionEntity,
+        dataStates: PackageDataStates,
+        navController: NavHostController,
+        allowDamaged: Boolean = false,
+    ) {
+        viewModelScope.launch {
+            val result = repository.inspectRevision(revision)
+            _verificationResults.value += revision.id to result
+            if (result.status == BackupVerificationStatus.DAMAGED && !allowDamaged) {
+                _damagedRestoreRequest.value = RestoreRequest(revision, dataStates)
+                return@launch
+            }
             val selection = repository.selectRevisionForRestore(revision, dataStates) ?: return@launch
             navController.navigateSingle(
                 MainRoutes.PackagesRestoreProcessingGraph.getRoute(
@@ -88,5 +128,9 @@ class AppRevisionsViewModel @Inject constructor(
                 )
             )
         }
+    }
+
+    fun dismissDamagedRestoreWarning() {
+        _damagedRestoreRequest.value = null
     }
 }

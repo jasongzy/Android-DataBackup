@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
@@ -43,6 +44,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.model.BackupRevisionEntity
 import com.xayah.core.model.BackupEngine
+import com.xayah.core.model.BackupVerificationStatus
+import com.xayah.core.data.repository.AppBackupRepository
 import com.xayah.core.model.DataState
 import com.xayah.core.util.DateUtil
 import com.xayah.core.model.database.PackageDataStates
@@ -51,6 +54,7 @@ import com.xayah.core.model.database.PackageDataStates.Companion.getSelected
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.ui.component.DataChips
 import com.xayah.core.ui.component.TooltipIconButton
+import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.ui.theme.ThemedColorSchemeKeyTokens
 import com.xayah.core.ui.theme.value
 import com.xayah.core.ui.util.LocalNavController
@@ -67,6 +71,8 @@ fun AppRevisionsRoute(
     val app by viewModel.app.collectAsStateWithLifecycle()
     val revisions by viewModel.revisions.collectAsStateWithLifecycle()
     val installedApp by viewModel.installedApp.collectAsStateWithLifecycle()
+    val verificationResults by viewModel.verificationResults.collectAsStateWithLifecycle()
+    val damagedRestoreRequest by viewModel.damagedRestoreRequest.collectAsStateWithLifecycle()
     val detailsState by detailsViewModel.uiState.collectAsStateWithLifecycle()
     val furtherOperations by detailsViewModel.furtherOperations.collectAsStateWithLifecycle()
     val navController = LocalNavController.current!!
@@ -76,6 +82,7 @@ fun AppRevisionsRoute(
     var backupCandidate by remember { mutableStateOf<PackageEntity?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
     var blacklistConfirmation by remember { mutableStateOf<Boolean?>(null) }
+    var uninstallKeepingDataConfirmation by remember { mutableStateOf(false) }
     val appDetails = detailsState as? DetailsUiState.Success.App
 
     LaunchedEffect(Unit) {
@@ -115,6 +122,14 @@ fun AppRevisionsRoute(
                                     onClick = {
                                         menuExpanded = false
                                         detailsViewModel.openAppSettings()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.uninstall_keep_data)) },
+                                    leadingIcon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        uninstallKeepingDataConfirmation = true
                                     },
                                 )
                                 DropdownMenuItem(
@@ -172,14 +187,19 @@ fun AppRevisionsRoute(
                 }
             } else {
                 items(revisions, key = BackupRevisionEntity::id) { revision ->
-                    RevisionItem(revision, onClick = { selectedRevision = revision })
+                    RevisionItem(
+                        revision = revision,
+                        verificationStatus = verificationResults[revision.id]?.status ?: BackupVerificationStatus.NOT_VERIFIED,
+                        onClick = { selectedRevision = revision },
+                    )
                 }
             }
 
             if (detailsState is DetailsUiState.Success.App) {
+                val currentDetails = detailsState as DetailsUiState.Success.App
                 item {
                     AppDetails(
-                        uiState = detailsState as DetailsUiState.Success.App,
+                        uiState = currentDetails,
                         onSetDataStates = detailsViewModel::setDataStates,
                         onAddLabel = detailsViewModel::addLabel,
                         onDeleteLabel = detailsViewModel::deleteLabel,
@@ -188,6 +208,17 @@ fun AppRevisionsRoute(
                         onUninstall = detailsViewModel::uninstallApp,
                         onClearData = detailsViewModel::clearAppData,
                         onCopyDataPath = detailsViewModel::copyDataPath,
+                        onResolveDataPath = detailsViewModel::resolveDataPath,
+                        onCopyPath = detailsViewModel::copyPath,
+                        onOpenPath = detailsViewModel::openPath,
+                        onEditPermissions = {
+                            navController.navigate(
+                                MainRoutes.PermissionEditor.getRoute(
+                                    currentDetails.app.packageName,
+                                    currentDetails.app.userId,
+                                )
+                            )
+                        },
                         onSaveAppIcon = detailsViewModel::saveAppIcon,
                         onShareApk = detailsViewModel::shareApk,
                         furtherOperations = furtherOperations,
@@ -228,9 +259,33 @@ fun AppRevisionsRoute(
         )
     }
 
+    if (uninstallKeepingDataConfirmation) {
+        AlertDialog(
+            onDismissRequest = { uninstallKeepingDataConfirmation = false },
+            title = { Text(stringResource(R.string.uninstall_keep_data)) },
+            text = { Text(stringResource(R.string.confirm_uninstall_keep_data)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        uninstallKeepingDataConfirmation = false
+                        detailsViewModel.uninstallAppKeepingData()
+                    },
+                ) {
+                    Text(stringResource(R.string.uninstall))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { uninstallKeepingDataConfirmation = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     selectedRevision?.let { revision ->
         RevisionDetailsDialog(
             revision = revision,
+            verificationResult = verificationResults[revision.id],
             onDismiss = { selectedRevision = null },
             onRestore = {
                 selectedRevision = null
@@ -240,6 +295,7 @@ fun AppRevisionsRoute(
                 selectedRevision = null
                 deleteCandidate = revision
             },
+            onVerify = { viewModel.verifyRevision(revision) },
         )
     }
 
@@ -287,6 +343,29 @@ fun AppRevisionsRoute(
             },
         )
     }
+
+    damagedRestoreRequest?.let { request ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissDamagedRestoreWarning,
+            title = { Text(stringResource(R.string.backup_damaged)) },
+            text = { Text(stringResource(R.string.backup_damaged_restore_warning)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        viewModel.dismissDamagedRestoreWarning()
+                        viewModel.startRestore(request.revision, request.dataStates, navController, allowDamaged = true)
+                    },
+                ) {
+                    Text(stringResource(R.string.restore_anyway))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = viewModel::dismissDamagedRestoreWarning) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -305,7 +384,11 @@ private fun BackupScopeDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.backup_scope)) },
         text = {
-            DataChips(selections = selections, displayStats = app.displayStats) { type, selected ->
+            DataChips(
+                selections = selections,
+                displayStats = app.displayStats,
+                maxItemsInEachRow = 1,
+            ) { type, selected ->
                 selections = type.setSelected(selections, selected.not())
             }
         },
@@ -344,6 +427,7 @@ private fun RestoreScopeDialog(
         text = {
             DataChips(
                 selections = selections,
+                maxItemsInEachRow = 1,
                 isEnabled = { type -> type.getSelected(available) },
             ) { type, selected ->
                 selections = type.setSelected(selections, !selected)
@@ -373,7 +457,11 @@ private fun Int.toDataStates() = PackageDataStates(
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun RevisionItem(revision: BackupRevisionEntity, onClick: () -> Unit) {
+private fun RevisionItem(
+    revision: BackupRevisionEntity,
+    verificationStatus: BackupVerificationStatus,
+    onClick: () -> Unit,
+) {
     val contents = buildList {
         if (revision.contentMask and 1 != 0) add(stringResource(R.string.apk))
         if (revision.contentMask and 62 != 0) add(stringResource(R.string.app_data))
@@ -405,6 +493,15 @@ private fun RevisionItem(revision: BackupRevisionEntity, onClick: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
             )
+            Text(
+                text = stringResource(verificationStatus.stringRes()),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (verificationStatus == BackupVerificationStatus.DAMAGED) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    ThemedColorSchemeKeyTokens.OnSurfaceVariant.value
+                },
+            )
         }
     }
 }
@@ -412,9 +509,11 @@ private fun RevisionItem(revision: BackupRevisionEntity, onClick: () -> Unit) {
 @Composable
 private fun RevisionDetailsDialog(
     revision: BackupRevisionEntity,
+    verificationResult: AppBackupRepository.VerificationResult?,
     onDismiss: () -> Unit,
     onRestore: () -> Unit,
     onDelete: () -> Unit,
+    onVerify: () -> Unit,
 ) {
     val context = LocalContext.current
     val contents = buildList {
@@ -422,6 +521,7 @@ private fun RevisionDetailsDialog(
         if (revision.contentMask and 62 != 0) add(stringResource(R.string.app_data))
     }.joinToString()
     val size = Formatter.formatFileSize(context, revision.sizeBytes)
+    val verificationStatus = verificationResult?.status ?: BackupVerificationStatus.NOT_VERIFIED
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -432,10 +532,24 @@ private fun RevisionDetailsDialog(
                 Text(stringResource(R.string.created_at, DateUtil.formatTimestamp(revision.createdAt, DateUtil.PATTERN_YMD_HMS)))
                 Text(stringResource(R.string.revision_details, revision.engine.name.lowercase(), contents))
                 Text(size)
+                Text(stringResource(verificationStatus.stringRes()))
+                verificationResult?.issues?.forEach { issue ->
+                    Text(
+                        text = issue.description(),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         },
         confirmButton = {
             androidx.compose.foundation.layout.Row {
+                androidx.compose.material3.TextButton(
+                    enabled = revision.engine == BackupEngine.LEGACY,
+                    onClick = onVerify,
+                ) {
+                    Text(stringResource(R.string.verify))
+                }
                 androidx.compose.material3.TextButton(
                     enabled = revision.engine == BackupEngine.LEGACY,
                     onClick = onRestore,
@@ -456,4 +570,26 @@ private fun RevisionDetailsDialog(
             }
         },
     )
+}
+
+private fun BackupVerificationStatus.stringRes() = when (this) {
+    BackupVerificationStatus.NOT_VERIFIED -> R.string.not_verified
+    BackupVerificationStatus.VALID -> R.string.backup_valid
+    BackupVerificationStatus.DAMAGED -> R.string.backup_damaged
+}
+
+@Composable
+private fun AppBackupRepository.VerificationIssue.description(): String {
+    val message = stringResource(
+        when (type) {
+            AppBackupRepository.VerificationIssueType.MANIFEST_MISSING -> R.string.verification_manifest_missing
+            AppBackupRepository.VerificationIssueType.MANIFEST_INVALID -> R.string.verification_manifest_invalid
+            AppBackupRepository.VerificationIssueType.METADATA_MISMATCH -> R.string.verification_metadata_mismatch
+            AppBackupRepository.VerificationIssueType.FILE_MISSING -> R.string.verification_file_missing
+            AppBackupRepository.VerificationIssueType.FILE_SIZE_MISMATCH -> R.string.verification_file_size_mismatch
+            AppBackupRepository.VerificationIssueType.FILE_CHECKSUM_MISMATCH -> R.string.verification_file_checksum_mismatch
+            AppBackupRepository.VerificationIssueType.NOT_LOCAL -> R.string.verification_not_local
+        }
+    )
+    return fileName?.let { "$it: $message" } ?: message
 }

@@ -463,6 +463,7 @@ fun DataChips(
     selections: PackageDataStates,
     displayStats: PackageDataStats? = null,
     isCalculating: Boolean = false,
+    maxItemsInEachRow: Int = 2,
     isEnabled: (DataType) -> Boolean = { true },
     onItemLongClick: (DataType) -> Unit = {},
     onItemClick: (DataType, Boolean) -> Unit,
@@ -473,7 +474,7 @@ fun DataChips(
             .paddingHorizontal(SizeTokens.Level24),
         horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8),
         verticalArrangement = Arrangement.spacedBy(SizeTokens.Level8),
-        maxItemsInEachRow = 2
+        maxItemsInEachRow = maxItemsInEachRow,
     ) {
         val items = remember {
             listOf(

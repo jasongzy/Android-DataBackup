@@ -21,11 +21,45 @@
     <item name="delete" type="string" />
     <item name="select_all" type="string" />
     <item name="backup_settings" type="string" />
+    <item name="verify_all_backups" type="string" />
+    <item name="verify_all_backups_desc" type="string" />
+    <item name="verification_summary" type="string" />
+    <item name="verification_results" type="string" />
+    <item name="verification_progress" type="string" />
+    <item name="verification_finished" type="string" />
+    <item name="verification_manifest_missing" type="string" />
+    <item name="verification_manifest_invalid" type="string" />
+    <item name="verification_metadata_mismatch" type="string" />
+    <item name="verification_file_missing" type="string" />
+    <item name="verification_file_size_mismatch" type="string" />
+    <item name="verification_file_checksum_mismatch" type="string" />
+    <item name="verification_not_local" type="string" />
+    <item name="verification_item_details" type="string" />
+    <item name="all_backups_verified" type="string" />
+    <item name="verify_again" type="string" />
+    <item name="clean_failed_backups" type="string" />
+    <item name="confirm_clean_failed_backups" type="string" />
+    <item name="cleanup_progress" type="string" />
+    <item name="cleanup_failed" type="string" />
+    <item name="cleanup_result" type="string" />
+    <item name="no_backups_to_verify" type="string" />
+    <item name="verification_backup_details" type="string" />
+    <item name="view_app_backups" type="string" />
+    <item name="close" type="string" />
+    <item name="cancel" type="string" />
+    <item name="backup_valid" type="string" />
+    <item name="backup_damaged" type="string" />
+    <item name="not_verified" type="string" />
+    <item name="reload" type="string" />
+    <item name="reload_desc" type="string" />
+    <item name="fast_same_version_backup" type="string" />
+    <item name="fast_same_version_backup_desc" type="string" />
     <item name="restore_settings" type="string" />
     <item name="setup" type="string" />
     <item name="enter_the_setup_page_again" type="string" />
     <item name="manage_backups" type="string" />
     <item name="cloud" type="string" />
+    <item name="cloud_accounts" type="string" />
     <item name="cloud_accounts_desc" type="string" />
     <item name="backup_dir" type="string" />
     <item name="appearance" type="string" />
@@ -47,6 +81,9 @@
     <item name="auto_screen_off_desc" type="string" />
     <item name="configurations" type="string" />
     <item name="configurations_desc" type="string" />
+    <item name="clear_cache" type="string" />
+    <item name="clear_cache_desc" type="string" />
+    <item name="cache_cleared_amount" type="string" />
     <item name="files" type="string" />
     <item name="about" type="string" />
     <item name="about_app" type="string" />
