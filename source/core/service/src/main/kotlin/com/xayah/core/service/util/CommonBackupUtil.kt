@@ -8,6 +8,7 @@ import com.xayah.core.data.repository.LabelsRepo
 import com.xayah.core.data.repository.MediaRepository
 import com.xayah.core.data.repository.PackageRepository
 import com.xayah.core.datastore.readCompressionTest
+import com.xayah.core.datastore.readConfigurationSettings
 import com.xayah.core.model.BlacklistAppItem
 import com.xayah.core.model.BlacklistFileItem
 import com.xayah.core.model.CompressionType
@@ -117,6 +118,7 @@ class CommonBackupUtil @Inject constructor(
         includeBlacklist: Boolean = true,
         includeCloud: Boolean = true,
         includeLabels: Boolean = true,
+        includeSettings: Boolean = true,
     ): ShellResult = run {
         log { "Backing up configs..." }
 
@@ -127,6 +129,7 @@ class CommonBackupUtil @Inject constructor(
             labelColors = emptyMap(),
             labelAppRefs = listOf(),
             labelFileRefs = listOf(),
+            settings = null,
         )
 
 
@@ -145,6 +148,7 @@ class CommonBackupUtil @Inject constructor(
             config.labelAppRefs = labelsRepo.getAppRefs()
             config.labelFileRefs = labelsRepo.getFileRefs()
         }
+        if (includeSettings) config.settings = context.readConfigurationSettings()
         val dst = getConfigsDst(dstDir)
         var isSuccess: Boolean
         val out = mutableListOf<String>()

@@ -2,6 +2,8 @@
     <item name="configurations" type="string" />
     <item name="configurations_desc" type="string" />
     <item name="cloud" type="string" />
+    <item name="cloud_accounts" type="string" />
+    <item name="other_settings" type="string" />
     <item name="export" type="string" />
     <item name="_import" type="string" />
     <item name="failed" type="string" />

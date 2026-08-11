@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedButton
@@ -43,7 +44,10 @@ fun PageConfigurations() {
         scrollBehavior = scrollBehavior, snackbarHostState = viewModel.snackbarHostState,
         title = stringResource(id = R.string.configurations), actions = {
             OutlinedButton(
-                enabled = blockedPackagesState.size + blockedFilesState.size + accounts.size + labels.size + labelAppRefs.size + labelFileRefs.size != 0 && uiState.selectedCount != 0,
+                enabled = uiState.selectedCount != 0 && (
+                    uiState.settingsSelected ||
+                        blockedPackagesState.size + blockedFilesState.size + accounts.size + labels.size + labelAppRefs.size + labelFileRefs.size != 0
+                    ),
                 onClick = {
                 viewModel.emitIntentOnIO(IndexUiIntent.Export)
             }) {
@@ -71,7 +75,7 @@ fun PageConfigurations() {
         }
         Checkable(
             icon = Icons.Outlined.Cloud,
-            title = stringResource(id = R.string.cloud),
+            title = stringResource(id = R.string.cloud_accounts),
             value = accounts.size.toString(),
             checked = uiState.cloudSelected,
         ) {
@@ -84,6 +88,13 @@ fun PageConfigurations() {
             checked = uiState.labelSelected,
         ) {
             viewModel.emitStateOnMain(uiState.copy(selectedCount = if (it) uiState.selectedCount - 1 else uiState.selectedCount + 1, labelSelected = it.not()))
+        }
+        Checkable(
+            icon = Icons.Outlined.Settings,
+            title = stringResource(id = R.string.other_settings),
+            checked = uiState.settingsSelected,
+        ) {
+            viewModel.emitStateOnMain(uiState.copy(selectedCount = if (it) uiState.selectedCount - 1 else uiState.selectedCount + 1, settingsSelected = it.not()))
         }
     }
 }

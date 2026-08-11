@@ -7,6 +7,7 @@ import com.xayah.core.data.repository.LabelsRepo
 import com.xayah.core.data.repository.MediaRepository
 import com.xayah.core.data.repository.PackageRepository
 import com.xayah.core.datastore.ConstantUtil
+import com.xayah.core.datastore.saveConfigurationSettings
 import com.xayah.core.model.CompressionType
 import com.xayah.core.model.Configurations
 import com.xayah.core.model.OpType
@@ -51,6 +52,7 @@ data class IndexUiState(
     val blacklistSelected: Boolean,
     val cloudSelected: Boolean,
     val labelSelected: Boolean,
+    val settingsSelected: Boolean,
 ) : UiState
 
 sealed class IndexUiIntent : UiIntent {
@@ -71,10 +73,11 @@ class IndexViewModel @Inject constructor(
     private val pathUtil: PathUtil,
 ) : BaseViewModel<IndexUiState, IndexUiIntent, IndexUiEffect>(
     IndexUiState(
-        selectedCount = 3,
+        selectedCount = 4,
         blacklistSelected = true,
         cloudSelected = true,
         labelSelected = true,
+        settingsSelected = true,
     )
 ) {
     override suspend fun onEvent(state: IndexUiState, intent: IndexUiIntent) {
@@ -86,6 +89,7 @@ class IndexViewModel @Inject constructor(
                     includeBlacklist = state.blacklistSelected,
                     includeCloud = state.cloudSelected,
                     includeLabels = state.labelSelected,
+                    includeSettings = state.settingsSelected,
                 )
                 emitEffect(IndexUiEffect.DismissSnackbar)
                 emitEffect(IndexUiEffect.ShowSnackbar(type = if (result.isSuccess) SnackbarType.Success else SnackbarType.Error, message = result.outString, duration = SnackbarDuration.Short))
@@ -112,12 +116,20 @@ class IndexViewModel @Inject constructor(
                                 )
                             }
                         }.withLog()
+                        config.settings?.let {
+                            items.add(
+                                DialogCheckBoxItem(
+                                    enum = ConstantUtil.CONFIGURATIONS_KEY_SETTINGS,
+                                    title = context.getString(R.string.other_settings),
+                                )
+                            )
+                        }
                         runCatching {
                             if (config.cloud.isNotEmpty()) {
                                 items.add(
                                     DialogCheckBoxItem(
                                         enum = ConstantUtil.CONFIGURATIONS_KEY_CLOUD,
-                                        title = joinOf(context.getString(R.string.cloud), " (${config.cloud.size})")
+                                        title = joinOf(context.getString(R.string.cloud_accounts), " (${config.cloud.size})")
                                     )
                                 )
                             }
@@ -250,6 +262,10 @@ class IndexViewModel @Inject constructor(
                                             if (config?.labelFileRefs != null) {
                                                 labelsRepo.addLabelFileCrossRefs(config.labelFileRefs)
                                             }
+                                        }
+
+                                        ConstantUtil.CONFIGURATIONS_KEY_SETTINGS -> {
+                                            config?.settings?.let { context.saveConfigurationSettings(it) }
                                         }
                                     }
                                 }

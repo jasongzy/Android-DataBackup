@@ -30,6 +30,26 @@ data class Configurations(
     var labelColors: Map<String, Long>,
     var labelAppRefs: List<LabelAppCrossRefEntity>,
     var labelFileRefs: List<LabelFileCrossRefEntity>,
+    var settings: ConfigurationSettings?,
+)
+
+data class ConfigurationSettings(
+    val monet: Boolean,
+    val themeType: String,
+    val language: String,
+    val autoScreenOff: Boolean,
+    val loadSystemApps: Boolean,
+    val checkKeystore: Boolean,
+    val compressionLevel: Int,
+    val killAppOption: String,
+    val fastSameVersionBackup: Boolean,
+    val backupItself: Boolean,
+    val backupConfigs: Boolean,
+    val compressionTest: Boolean,
+    val followSymlinks: Boolean,
+    val cleanRestoring: Boolean,
+    val restorePermissions: Boolean,
+    val restoreSsaid: Boolean,
 )
 
 data class ContributorItem(
