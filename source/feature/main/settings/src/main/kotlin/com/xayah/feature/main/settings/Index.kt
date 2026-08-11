@@ -11,7 +11,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
@@ -103,7 +105,7 @@ fun PageSettings() {
             Title(title = stringResource(id = R.string.manage_backups)) {
                 Clickable(
                     icon = Icons.Outlined.Cloud,
-                    title = stringResource(id = R.string.cloud),
+                    title = stringResource(id = R.string.cloud_accounts),
                     value = stringResource(id = R.string.cloud_accounts_desc),
                 ) {
                     navController.navigateSingle(MainRoutes.Cloud.route)
@@ -121,6 +123,20 @@ fun PageSettings() {
                     value = if (directoryState == null) null else stringResource(id = directoryState!!.titleResId),
                 ) {
                     navController.navigateSingle(MainRoutes.Directory.route)
+                }
+                Clickable(
+                    icon = Icons.Outlined.CheckCircle,
+                    title = stringResource(id = R.string.verify_all_backups),
+                    value = stringResource(id = R.string.verify_all_backups_desc),
+                ) {
+                    navController.navigateSingle(MainRoutes.BackupVerification.route)
+                }
+                Clickable(
+                    icon = Icons.Outlined.Refresh,
+                    title = stringResource(id = R.string.reload),
+                    value = stringResource(id = R.string.reload_desc),
+                ) {
+                    navController.navigateSingle(MainRoutes.Reload.route)
                 }
             }
             Title(title = stringResource(id = R.string.advanced)) {

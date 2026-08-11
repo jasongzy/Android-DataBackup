@@ -34,4 +34,6 @@
     <item name="restart_to_take_effect" type="string" />
     <item name="configurations" type="string" />
     <item name="configurations_desc" type="string" />
+    <item name="rebuild_backup_index" type="string" />
+    <item name="rebuild_backup_index_prompt" type="string" />
 </resources>

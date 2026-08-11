@@ -14,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.ManageSearch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -179,16 +178,6 @@ fun PageRestore() {
                 interactionSource = filesInteractionSource,
             ) {
                 viewModel.emitIntentOnIO(IndexUiIntent.ToFileList(navController))
-            }
-
-            Title(title = stringResource(id = R.string.advanced)) {
-                Clickable(
-                    title = stringResource(id = R.string.reload),
-                    value = stringResource(id = R.string.reload_desc),
-                    leadingIcon = Icons.Rounded.ManageSearch,
-                ) {
-                    viewModel.emitIntentOnIO(IndexUiIntent.ToReload(navController))
-                }
             }
         }
     }

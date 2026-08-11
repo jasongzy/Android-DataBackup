@@ -71,7 +71,7 @@
     <string name="restoring">恢复中</string>
     <string name="prompt">提示</string>
     <string name="processing_exit_confirmation">确定退出吗？这将会中断操作。</string>
-    <string name="reload">重载</string>
+    <string name="reload">重建备份索引</string>
     <string name="databases_reload_failed">数据库重载失败</string>
     <string name="icon_reload_failed">图标重载失败</string>
     <string name="restart_failed">重启失败, 请手动重启本应用。</string>
@@ -262,7 +262,7 @@
     <string name="args_apps_backed_up">已备份%1$s个应用</string>
     <string name="args_apps_restored">已恢复%1$s个应用</string>
     <string name="advanced">高级</string>
-    <string name="reload_desc">从本地或云端重新加载备份</string>
+    <string name="reload_desc">扫描当前本地备份目录并重建数据库索引</string>
     <string name="backed_up_apps">已备份应用</string>
     <string name="no_backups_found_warning">没有找到备份，也许你可以返回并尝试重载</string>
     <string name="args_restore">恢复 %1$s</string>

@@ -74,7 +74,7 @@
     <string name="restoring">Restoring</string>
     <string name="prompt">Prompt</string>
     <string name="processing_exit_confirmation">Exit the app and interrupt ongoing operation\?</string>
-    <string name="reload">Reload</string>
+    <string name="reload">Rebuild backup index</string>
     <string name="databases_reload_failed">Could not reload databases</string>
     <string name="icon_reload_failed">Could not reload icon</string>
     <string name="restart_failed">Could not restart the app. Please restart it manually.</string>
@@ -270,7 +270,7 @@
     <string name="args_apps_backed_up">%1$s apps backed up</string>
     <string name="args_apps_restored">%1$s apps restored</string>
     <string name="advanced">Advanced</string>
-    <string name="reload_desc">Reload backups from local or cloud</string>
+    <string name="reload_desc">Scan the current local backup directory and rebuild the database index</string>
     <string name="backed_up_apps">Backed up apps</string>
     <string name="no_backups_found_warning">No backups found, maybe you can go back and try reloading</string>
     <string name="args_restore">Restore %1$s</string>

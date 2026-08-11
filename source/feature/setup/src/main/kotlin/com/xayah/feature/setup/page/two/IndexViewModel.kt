@@ -14,26 +14,34 @@ import com.xayah.core.work.WorkManagerInitializer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
-data object IndexUiState : UiState
+data class IndexUiState(
+    val detectedBackupPath: String? = null,
+) : UiState
 
 sealed class IndexUiIntent : UiIntent {
     data object PrepareDirectory : IndexUiIntent()
-    data class ToMain(val context: Activity) : IndexUiIntent()
+    data class ToMain(val context: Activity, val startDestination: String? = null) : IndexUiIntent()
 }
 
 @ExperimentalMaterial3Api
 @HiltViewModel
 class IndexViewModel @Inject constructor(
     private val directoryRepository: DirectoryRepository,
-) : BaseViewModel<IndexUiState, IndexUiIntent, IndexUiEffect>(IndexUiState) {
+) : BaseViewModel<IndexUiState, IndexUiIntent, IndexUiEffect>(IndexUiState()) {
     override suspend fun onEvent(state: IndexUiState, intent: IndexUiIntent) {
         when (intent) {
-            IndexUiIntent.PrepareDirectory -> directoryRepository.update()
+            IndexUiIntent.PrepareDirectory -> {
+                emitState(state.copy(detectedBackupPath = directoryRepository.update()))
+            }
             is IndexUiIntent.ToMain -> {
                 val context = intent.context
                 WorkManagerInitializer.fullInitialize(context)
                 context.saveAppVersionName()
-                context.startActivity(Intent(context, ActivityUtil.classMainActivity))
+                context.startActivity(
+                    Intent(context, ActivityUtil.classMainActivity).apply {
+                        intent.startDestination?.let { putExtra(ActivityUtil.EXTRA_START_DESTINATION, it) }
+                    }
+                )
                 context.finish()
             }
         }

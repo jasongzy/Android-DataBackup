@@ -49,6 +49,7 @@ import com.xayah.core.util.DateUtil
 fun RestoreScaffold(
     scrollBehavior: TopAppBarScrollBehavior,
     title: String,
+    topActions: @Composable (RowScope.() -> Unit)? = null,
     actions: @Composable (RowScope.() -> Unit)? = null,
     content: @Composable (BoxScope.() -> Unit)
 ) {
@@ -58,6 +59,7 @@ fun RestoreScaffold(
             SecondaryLargeTopBar(
                 scrollBehavior = scrollBehavior,
                 title = title,
+                actions = topActions ?: {},
             )
         },
     ) { innerPadding ->

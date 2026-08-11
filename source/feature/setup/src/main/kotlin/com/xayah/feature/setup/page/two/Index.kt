@@ -28,6 +28,7 @@ import com.xayah.core.ui.component.SecondaryLargeTopBar
 import com.xayah.core.ui.component.Switchable
 import com.xayah.core.ui.component.Title
 import com.xayah.core.ui.component.confirm
+import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.ui.token.SizeTokens
 import com.xayah.core.ui.util.LocalNavController
 import com.xayah.core.util.getActivity
@@ -45,6 +46,7 @@ fun PageTwo() {
     val dialogState = LocalSlotScope.current!!.dialogSlot
     val context = LocalContext.current
     val viewModel = hiltViewModel<IndexViewModel>()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val backupSavePathSaved by context.readBackupSavePathSaved().collectAsStateWithLifecycle(initialValue = false)
     val backupSavePath by context.readBackupSavePath().collectAsStateWithLifecycle(initialValue = "")
 
@@ -76,7 +78,18 @@ fun PageTwo() {
             Button(
                 enabled = backupSavePathSaved,
                 onClick = {
-                    viewModel.emitIntentOnIO(IndexUiIntent.ToMain(context = context.getActivity()))
+                    viewModel.launchOnIO {
+                        val rebuild = uiState.detectedBackupPath == backupSavePath && dialogState.confirm(
+                            title = context.getString(R.string.rebuild_backup_index),
+                            text = context.getString(R.string.rebuild_backup_index_prompt),
+                        )
+                        viewModel.emitIntent(
+                            IndexUiIntent.ToMain(
+                                context = context.getActivity(),
+                                startDestination = MainRoutes.Reload.route.takeIf { rebuild },
+                            )
+                        )
+                    }
                 }
             ) {
                 Text(text = stringResource(id = R.string.finish))
