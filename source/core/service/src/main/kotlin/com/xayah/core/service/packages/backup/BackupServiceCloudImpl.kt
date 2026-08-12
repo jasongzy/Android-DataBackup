@@ -103,6 +103,9 @@ internal class BackupServiceCloudImpl @Inject constructor() : AbstractBackupServ
     override suspend fun onManifestSaved(path: String, archivesRelativeDir: String) =
         mCloudRepo.upload(client = mClient, src = path, dstDir = getRemoteAppDir(archivesRelativeDir)).isSuccess
 
+    override suspend fun onAppIconSaved(path: String, packageName: String) =
+        mCloudRepo.upload(client = mClient, src = path, dstDir = "$mRemoteAppsDir/$packageName").isSuccess
+
     override suspend fun onBackupFailed(archivesRelativeDir: String) {
         val dir = getRemoteAppDir(archivesRelativeDir)
         if (mClient.exists(dir)) mClient.deleteRecursively(dir)
@@ -121,24 +124,6 @@ internal class BackupServiceCloudImpl @Inject constructor() : AbstractBackupServ
             }
         }
         mCloudRepo.upload(client = mClient, src = path, dstDir = mRemotePath, onUploading = { read, total -> progress = read.toFloat() / total }).apply {
-            entity.update(state = if (isSuccess) OperationState.DONE else OperationState.ERROR, log = if (isSuccess) null else outString, content = "100%")
-        }
-        flag = false
-    }
-
-    override suspend fun onIconsSaved(path: String, entity: ProcessingInfoEntity) {
-        entity.update(state = OperationState.UPLOADING)
-        var flag = true
-        var progress = 0f
-        with(CoroutineScope(coroutineContext)) {
-            launch {
-                while (flag) {
-                    entity.update(content = "${(progress * 100).toInt()}%")
-                    delay(500)
-                }
-            }
-        }
-        mCloudRepo.upload(client = mClient, src = path, dstDir = mRemoteConfigsDir, onUploading = { read, total -> progress = read.toFloat() / total }).apply {
             entity.update(state = if (isSuccess) OperationState.DONE else OperationState.ERROR, log = if (isSuccess) null else outString, content = "100%")
         }
         flag = false

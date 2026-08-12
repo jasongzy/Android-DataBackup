@@ -5,13 +5,9 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
-import android.graphics.drawable.AdaptiveIconDrawable
-import android.graphics.drawable.Drawable
-import android.graphics.drawable.LayerDrawable
 import android.os.Build
 import android.os.UserHandle
 import android.widget.Toast
-import androidx.appcompat.content.res.AppCompatResources
 import com.xayah.core.data.R
 import com.xayah.core.data.util.srcDir
 import com.xayah.core.database.dao.PackageDao
@@ -19,8 +15,6 @@ import com.xayah.core.datastore.di.DbDispatchers.Default
 import com.xayah.core.datastore.di.Dispatcher
 import com.xayah.core.datastore.readCustomSUFile
 import com.xayah.core.datastore.readLoadSystemApps
-import com.xayah.core.datastore.readLoadedIconMD5
-import com.xayah.core.datastore.saveLoadedIconMD5
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.App
 import com.xayah.core.model.CompressionType
@@ -45,13 +39,8 @@ import com.xayah.core.rootservice.parcelables.PathParcelable
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.ConfigsPackageRestoreName
 import com.xayah.core.util.DateUtil
-import com.xayah.core.util.IconRelativeDir
 import com.xayah.core.util.PathUtil
-import com.xayah.core.util.command.BaseUtil
 import com.xayah.core.util.command.PackageUtil
-import com.xayah.core.util.command.Tar
-import com.xayah.core.util.filesDir
-import com.xayah.core.util.iconDir
 import com.xayah.core.util.localBackupSaveDir
 import com.xayah.core.util.withLog
 import com.xayah.core.util.withMainContext
@@ -360,7 +349,6 @@ class AppsRepo @Inject constructor(
     suspend fun fullUpdate(onUpdate: suspend (cur: Int, max: Int, content: String) -> Unit) {
         val pm = context.packageManager
         val userInfoList = rootService.getUsers()
-        BaseUtil.mkdirs(context.iconDir())
         for (userInfo in userInfoList) {
             val userId = userInfo.id
             val userHandle = rootService.getUserHandle(userId)
@@ -383,7 +371,6 @@ class AppsRepo @Inject constructor(
         val pm = context.packageManager
         val apps = appsDao.queryFirstUpdatedApps(opType = OpType.BACKUP, firstUpdated = false)
         val updateList = mutableListOf<PackageUpdateEntity>()
-        BaseUtil.mkdirs(context.iconDir())
         apps.forEachIndexed { index, pkg ->
             onUpdate(index, apps.size, pkg.packageName)
             val userId = pkg.userId
@@ -424,22 +411,6 @@ class AppsRepo @Inject constructor(
         val info = rootService.getPackageInfoAsUser(pkg.packageName, PackageManager.GET_PERMISSIONS, userId)
         val updateEntity = PackageUpdateEntity(pkg.id, pkg.packageInfo, pkg.extraInfo, pkg.storageStats)
         if (info != null) {
-            runCatching {
-                val iconPath: String
-                val icon: Drawable?
-                val iconDrawable = runCatching { context.packageManager.getApplicationIcon(pkg.packageName) }.getOrElse { AppCompatResources.getDrawable(context, android.R.drawable.sym_def_app_icon) }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && iconDrawable is AdaptiveIconDrawable) {
-                    iconPath = pathUtil.getPackageIconPath(info.packageName, true)
-                    icon = LayerDrawable(arrayOf(iconDrawable.background, iconDrawable.foreground))
-                } else {
-                    iconPath = pathUtil.getPackageIconPath(info.packageName, false)
-                    icon = iconDrawable
-                }
-                if (icon != null) {
-                    BaseUtil.writeIcon(icon = icon, dst = iconPath)
-                }
-            }.withLog()
-
             updateEntity.packageInfo.label = info.applicationInfo?.loadLabel(pm).toString()
             updateEntity.packageInfo.versionName = info.versionName ?: ""
             updateEntity.packageInfo.versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -484,45 +455,12 @@ class AppsRepo @Inject constructor(
     suspend fun load(cloudName: String?, onLoad: suspend (cur: Int, max: Int, content: String) -> Unit) {
         if (cloudName.isNullOrEmpty().not()) {
             cloudName?.apply {
-                loadCloudIcons(this)
                 loadCloudApps(this, onLoad)
             }
         } else {
-            loadLocalIcons()
             loadLocalApps(onLoad)
         }
     }
-
-    private suspend fun loadLocalIcons() {
-        val archivePath = "${pathUtil.getLocalBackupConfigsDir()}/$IconRelativeDir.${CompressionType.TAR.suffix}"
-        if (rootService.exists(archivePath)) {
-            val loadedIconMD5 = context.readLoadedIconMD5().first()
-            val iconMD5 = rootService.calculateMD5(archivePath) ?: ""
-            if (loadedIconMD5 != iconMD5) {
-                Tar.decompress(src = archivePath, dst = context.filesDir(), extra = CompressionType.TAR.decompressPara)
-                PathUtil.setFilesDirSELinux(context)
-                context.saveLoadedIconMD5(iconMD5)
-            }
-        }
-    }
-
-    private suspend fun loadCloudIcons(cloudName: String) = runCatching {
-        cloudRepo.withClient(cloudName) { client, entity ->
-            val archivePath = "${pathUtil.getCloudRemoteConfigsDir(entity.remote)}/$IconRelativeDir.${CompressionType.TAR.suffix}"
-            if (client.exists(archivePath)) {
-                val tmpDir = pathUtil.getCloudTmpDir()
-                cloudRepo.download(client = client, src = archivePath, dstDir = tmpDir) { path ->
-                    val loadedIconMD5 = context.readLoadedIconMD5().first()
-                    val iconMD5 = rootService.calculateMD5(path) ?: ""
-                    if (loadedIconMD5 != iconMD5) {
-                        Tar.decompress(src = path, dst = context.filesDir(), extra = CompressionType.TAR.decompressPara)
-                        PathUtil.setFilesDirSELinux(context)
-                        context.saveLoadedIconMD5(iconMD5)
-                    }
-                }
-            }
-        }
-    }.withLog()
 
     private fun parsePreserveAndUserId(pathParcelable: PathParcelable): Pair<Long, Int>? {
         runCatching {

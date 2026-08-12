@@ -55,14 +55,6 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
             })
             add(ProcessingInfoEntity(
                 taskId = mTaskEntity.id,
-                title = mContext.getString(R.string.save_icons),
-                type = ProcessingType.POST_PROCESSING,
-                infoType = ProcessingInfoType.SAVE_ICONS
-            ).apply {
-                id = mTaskDao.upsert(this)
-            })
-            add(ProcessingInfoEntity(
-                taskId = mTaskEntity.id,
                 title = mContext.getString(R.string.necessary_remaining_data_processing),
                 type = ProcessingType.POST_PROCESSING,
                 infoType = ProcessingInfoType.NECESSARY_REMAINING_DATA_PROCESSING
@@ -103,10 +95,10 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
     abstract suspend fun backup(type: DataType, p: PackageEntity, previous: PackageEntity?, t: TaskDetailPackageEntity, dstDir: String)
     protected open suspend fun onConfigSaved(path: String, archivesRelativeDir: String): Boolean = true
     protected open suspend fun onManifestSaved(path: String, archivesRelativeDir: String): Boolean = true
+    protected open suspend fun onAppIconSaved(path: String, packageName: String): Boolean = true
     protected open suspend fun onBackupFailed(archivesRelativeDir: String) {}
     protected open suspend fun onItselfSaved(path: String, entity: ProcessingInfoEntity) {}
     protected open suspend fun onConfigsSaved(path: String, entity: ProcessingInfoEntity) {}
-    protected open suspend fun onIconsSaved(path: String, entity: ProcessingInfoEntity) {}
     protected open suspend fun clear() {}
 
     protected abstract val mPackagesBackupUtil: PackagesBackupUtil
@@ -217,6 +209,9 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                                 archivesRelativeDir = revisionApp.archivesRelativeDir,
                             )
                         ) {
+                            mAppBackupRepository.saveBackupIcon(revisionApp.packageName, mAppsDir, dstDir)?.let { iconPath ->
+                                onAppIconSaved(iconPath, revisionApp.packageName)
+                            }
                             mPackageDao.upsert(restoreEntity)
                             installedApp.extraInfo.lastBackupTime = revisionCreatedAt
                             mPackageDao.upsert(installedApp)
@@ -277,22 +272,6 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                 } else {
                     entity.update(progress = 1f, state = OperationState.SKIP)
                 }
-            }
-
-            ProcessingInfoType.SAVE_ICONS -> {
-                NotificationUtil.notify(
-                    mContext,
-                    mNotificationBuilder,
-                    mContext.getString(R.string.backing_up),
-                    mContext.getString(R.string.save_icons)
-                )
-                mPackagesBackupUtil.backupIcons(dstDir = mConfigsDir).apply {
-                    entity.set(state = if (isSuccess) OperationState.DONE else OperationState.ERROR, log = outString)
-                    if (isSuccess) {
-                        onIconsSaved(path = mPackagesBackupUtil.getIconsDst(mConfigsDir), entity = entity)
-                    }
-                }
-                entity.update(progress = 1f)
             }
 
             ProcessingInfoType.NECESSARY_REMAINING_DATA_PROCESSING -> {

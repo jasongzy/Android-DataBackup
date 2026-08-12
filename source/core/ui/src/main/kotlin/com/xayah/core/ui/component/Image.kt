@@ -20,7 +20,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +34,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.core.graphics.drawable.toBitmap
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.xayah.core.ui.R
@@ -42,47 +42,46 @@ import com.xayah.core.ui.theme.ThemedColorSchemeKeyTokens
 import com.xayah.core.ui.theme.value
 import com.xayah.core.ui.theme.withState
 import com.xayah.core.ui.token.SizeTokens
-import com.xayah.core.util.PathUtil
-import com.xayah.core.util.command.BaseUtil
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.sqrt
 
 @ExperimentalFoundationApi
 @Composable
-fun PackageIconImage(icon: ImageVector? = null, packageName: String, shape: Shape? = null, inCircleShape: Boolean = false, size: Dp = SizeTokens.Level32) {
+fun PackageIconImage(
+    icon: ImageVector? = null,
+    packageName: String,
+    shape: Shape? = null,
+    inCircleShape: Boolean = false,
+    size: Dp = SizeTokens.Level32,
+    refreshKey: Any? = null,
+    viewModel: PackageIconViewModel = hiltViewModel(),
+) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var iconForeground by remember(packageName, icon) { mutableStateOf<Drawable?>(null) }
     var iconBackground by remember(packageName, icon) { mutableStateOf<Drawable?>(null) }
     val sizeForeground by remember(size, inCircleShape) { mutableStateOf(if (inCircleShape) size.div(sqrt(2.2F)) else size) }
-    LaunchedEffect(packageName, icon) {
+    LaunchedEffect(packageName, icon, refreshKey) {
         if (icon == null) {
-            scope.launch(Dispatchers.IO) {
-                val iconDrawable = runCatching { context.packageManager.getApplicationIcon(packageName) }.getOrNull()
+            val (foreground, background) = withContext(Dispatchers.IO) {
+                val iconDrawable = viewModel.load(packageName, refreshKey != null)
                 if (iconDrawable != null) {
                     if (inCircleShape) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && iconDrawable is AdaptiveIconDrawable) {
-                            iconBackground = LayerDrawable(arrayOf(iconDrawable.background, iconDrawable.foreground))
+                            null to LayerDrawable(arrayOf(iconDrawable.background, iconDrawable.foreground))
                         } else {
-                            iconBackground = null
-                            iconForeground = iconDrawable
+                            iconDrawable to null
                         }
                     } else {
-                        iconForeground = iconDrawable
+                        iconDrawable to null
                     }
-                } else {
-                    var localDrawable = BaseUtil.readIcon(context, PathUtil.getPackageIconPath(context, packageName, true))
-                    if (localDrawable != null) {
-                        iconBackground = localDrawable
-                    } else {
-                        localDrawable = BaseUtil.readIcon(context, PathUtil.getPackageIconPath(context, packageName, false))
-                        iconForeground = localDrawable
-                    }
-                }
-                if (iconForeground == null && iconBackground == null) {
-                    iconForeground = AppCompatResources.getDrawable(context, android.R.drawable.sym_def_app_icon)
-                }
+                } else null to null
+            }
+            iconBackground = background
+            iconForeground = foreground ?: if (background == null) {
+                AppCompatResources.getDrawable(context, android.R.drawable.sym_def_app_icon)
+            } else {
+                null
             }
         }
     }

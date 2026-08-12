@@ -27,9 +27,7 @@ import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.DateUtil
 import com.xayah.core.util.LogUtil
 import com.xayah.core.util.PathUtil
-import com.xayah.core.util.command.BaseUtil
 import com.xayah.core.util.command.Tar
-import com.xayah.core.util.iconDir
 import com.xayah.core.util.localBackupSaveDir
 import com.xayah.core.util.withLog
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -248,7 +246,6 @@ class PackageRepository @Inject constructor(
         val backupDir = "${context.localBackupSaveDir()}/backup"
         val dstDir = pathUtil.getLocalBackupAppsDir()
         var serialTimestamp: Long
-        BaseUtil.mkdirs(context.iconDir())
 
         rootService.listFilePaths(backupDir).forEach { userPath ->
             // Timestamp serial for "Cover".
@@ -332,7 +329,6 @@ class PackageRepository @Inject constructor(
                 val backupDir = "${entity.remote}/backup"
                 val dstDir = pathUtil.getCloudRemoteAppsDir(entity.remote)
                 var serialTimestamp: Long
-                BaseUtil.mkdirs(context.iconDir())
 
                 client.listFiles(backupDir).directories.forEach { fileParcelable ->
                     val userPath = "${backupDir}/${fileParcelable.name}"
@@ -427,7 +423,6 @@ class PackageRepository @Inject constructor(
         val dstDir = pathUtil.getLocalBackupAppsDir()
         val serialTimestamp: Long = DateUtil.getTimestamp()
         val userId = 0
-        BaseUtil.mkdirs(context.iconDir())
 
         rootService.listFilePaths(packagesDir).forEach { pkgPath ->
             rootService.listFilePaths(pkgPath).forEach { path ->
@@ -487,7 +482,6 @@ class PackageRepository @Inject constructor(
                 val dstDir = pathUtil.getCloudRemoteAppsDir(entity.remote)
                 val serialTimestamp: Long = DateUtil.getTimestamp()
                 val userId = 0
-                BaseUtil.mkdirs(context.iconDir())
 
                 client.listFiles(packagesDir).directories.forEach { pkg ->
                     val pkgPath = "${packagesDir}/${pkg.name}"
@@ -554,7 +548,6 @@ class PackageRepository @Inject constructor(
         val appsDir = pathUtil.getLocalBackupAppsDir()
         val pathList = rootService.walkFileTree(appsDir)
         val typedPathSet = mutableSetOf<String>()
-        BaseUtil.mkdirs(context.iconDir())
         log { "Total paths count: ${pathList.size}" }
 
         // Classify the paths
@@ -691,17 +684,7 @@ class PackageRepository @Inject constructor(
                                                         versionCode.toLong()
                                                     }
                                                     packageEntity.packageInfo.flags = applicationInfo?.flags ?: 0
-                                                    val iconPath = pathUtil.getPackageIconPath(packageName, false)
-                                                    val iconExists = rootService.exists(iconPath)
-                                                    if (iconExists.not()) {
-                                                        val icon = applicationInfo?.loadIcon(packageManager)
-                                                        if (icon != null) {
-                                                            BaseUtil.writeIcon(icon = icon, dst = iconPath)
-                                                        } else {
-                                                            log { "Failed to get icon." }
-                                                        }
-                                                    }
-                                                    log { "Icon and config updated." }
+                                                    log { "Config updated." }
                                                 }
                                             } else {
                                                 log { "Archive is empty." }
@@ -892,7 +875,6 @@ class PackageRepository @Inject constructor(
                 val appsDir = pathUtil.getCloudRemoteAppsDir(cloudEntity.remote)
                 val pathList = client.walkFileTree(appsDir)
                 val typedPathSet = mutableSetOf<String>()
-                BaseUtil.mkdirs(context.iconDir())
                 log { "Total paths count: ${pathList.size}" }
 
                 // Classify the paths
@@ -1035,17 +1017,7 @@ class PackageRepository @Inject constructor(
                                                                     versionCode.toLong()
                                                                 }
                                                                 packageEntity.packageInfo.flags = applicationInfo?.flags ?: 0
-                                                                val iconPath = pathUtil.getPackageIconPath(packageName, false)
-                                                                val iconExists = rootService.exists(iconPath)
-                                                                if (iconExists.not()) {
-                                                                    val icon = applicationInfo?.loadIcon(packageManager)
-                                                                    if (icon != null) {
-                                                                        BaseUtil.writeIcon(icon = icon, dst = iconPath)
-                                                                    } else {
-                                                                        log { "Failed to get icon." }
-                                                                    }
-                                                                }
-                                                                log { "Icon and config updated." }
+                                                                log { "Config updated." }
                                                             }
                                                         } else {
                                                             log { "Archive is empty." }
