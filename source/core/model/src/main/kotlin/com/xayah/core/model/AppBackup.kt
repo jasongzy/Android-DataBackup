@@ -29,6 +29,7 @@ data class BackupManifest(
     val versionName: String,
     val versionCode: Long,
     val contentMask: Int,
+    val note: String? = null,
     val files: List<BackupManifestFile>?,
 )
 
@@ -53,6 +54,8 @@ data class BackupAppEntity(
     val lastUpdateTime: Long,
     val isSystem: Boolean,
     val isInstalled: Boolean,
+    @ColumnInfo(defaultValue = "''")
+    val note: String = "",
 )
 
 @Entity(
@@ -82,6 +85,8 @@ data class BackupRevisionEntity(
     val artifactId: String,
     val contentMask: Int,
     val sizeBytes: Long = 0,
+    @ColumnInfo(defaultValue = "''")
+    val note: String = "",
     @PrimaryKey
     @ColumnInfo(name = "revisionId")
     val id: String = UUID.randomUUID().toString(),
@@ -94,4 +99,5 @@ data class AppBackupOverview(
     val hasApkBackup: Boolean,
     val hasDataBackup: Boolean,
     val latestApkVersionCode: Long?,
+    val revisionNotes: String,
 )

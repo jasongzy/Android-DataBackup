@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import com.xayah.core.common.util.BuildConfigUtil
 import com.xayah.core.data.repository.CloudRepository
+import com.xayah.core.data.repository.AppBackupRepository
 import com.xayah.core.data.repository.LabelsRepo
 import com.xayah.core.data.repository.MediaRepository
 import com.xayah.core.data.repository.PackageRepository
@@ -31,6 +32,7 @@ class CommonBackupUtil @Inject constructor(
     private val fileRepo: MediaRepository,
     private val cloudRepo: CloudRepository,
     private val labelsRepo: LabelsRepo,
+    private val appBackupRepository: AppBackupRepository,
     private val pathUtil: PathUtil,
     private val rootService: RemoteRootService,
 ) {
@@ -118,6 +120,7 @@ class CommonBackupUtil @Inject constructor(
         includeBlacklist: Boolean = true,
         includeCloud: Boolean = true,
         includeLabels: Boolean = true,
+        includeAppNotes: Boolean = true,
         includeSettings: Boolean = true,
     ): ShellResult = run {
         log { "Backing up configs..." }
@@ -129,6 +132,7 @@ class CommonBackupUtil @Inject constructor(
             labelColors = emptyMap(),
             labelAppRefs = listOf(),
             labelFileRefs = listOf(),
+            appNotes = listOf(),
             settings = null,
         )
 
@@ -148,6 +152,7 @@ class CommonBackupUtil @Inject constructor(
             config.labelAppRefs = labelsRepo.getAppRefs()
             config.labelFileRefs = labelsRepo.getFileRefs()
         }
+        if (includeAppNotes) config.appNotes = appBackupRepository.getAppNotes()
         if (includeSettings) config.settings = context.readConfigurationSettings()
         val dst = getConfigsDst(dstDir)
         var isSuccess: Boolean

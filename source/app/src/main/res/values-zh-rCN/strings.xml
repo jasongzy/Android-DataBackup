@@ -272,6 +272,9 @@
     <string name="system_app">系统应用</string>
     <string name="non_system_apps">非系统应用</string>
     <string name="updated">已更新</string>
+    <string name="frozen">已冻结</string>
+    <string name="frozen_apps">已冻结</string>
+    <string name="unfrozen_apps">未冻结</string>
     <string name="updated_at">更新时间：%1$s</string>
     <string name="installed_at">安装时间：%1$s</string>
     <string name="app_data_size">数据大小：%1$s</string>
@@ -282,6 +285,7 @@
     <string name="verification_summary">校验通过：%1$d；可能损坏：%2$d</string>
     <string name="verification_results">校验结果</string>
     <string name="verification_progress">正在校验第 %1$d/%2$d 个备份</string>
+    <string name="backups_ready_for_verification">共有 %1$d 个备份可校验</string>
     <string name="verification_finished">校验完成：%1$d 个正常，%2$d 个可能损坏</string>
     <string name="verification_manifest_missing">缺少备份清单</string>
     <string name="verification_manifest_invalid">备份清单无法读取</string>
@@ -348,7 +352,12 @@
     <string name="auto_screen_off_desc">备份或恢复应用/文件时自动关闭屏幕，完成后自动开启屏幕</string>
     <string name="args_screen_off_in_seconds">屏幕将在%1$s秒后关闭</string>
     <string name="configurations">配置备份</string>
-    <string name="configurations_desc">黑名单、云端账户、标签及其他设置</string>
+    <string name="configurations_desc">导入与导出</string>
+    <string name="app_notes">应用备注</string>
+    <string name="note">备注</string>
+    <string name="no_note">无备注</string>
+    <string name="edit_note">编辑备注</string>
+    <string name="note_saved">备注已保存</string>
     <string name="other_settings">其他设置</string>
     <string name="_import">导入</string>
     <string name="exported">已导出</string>
@@ -458,6 +467,11 @@
     <string name="labels">标签</string>
     <string name="label">标签</string>
     <string name="add_label">添加标签</string>
+    <string name="modify_labels">修改标签</string>
+    <string name="label_name">标签名称</string>
+    <string name="hex_color">十六进制颜色</string>
+    <string name="rename_label">重命名标签</string>
+    <string name="confirm_rename_label">将所有应用的“%1$s”标签重命名为“%2$s”吗？</string>
     <string name="freeze">冻结</string>
     <string name="unfreeze">解冻</string>
     <string name="confirm_freeze">冻结此应用?</string>
@@ -473,6 +487,7 @@
     <string name="args_files_restored_and_failed">已恢复%1$s个文件，%2$s个文件恢复失败</string>
     <string name="history">历史</string>
     <string name="verify">校验</string>
+    <string name="verifying">校验中…</string>
     <string name="not_verified">尚未校验</string>
     <string name="backup_valid">备份校验通过</string>
     <string name="backup_damaged">备份可能已损坏</string>

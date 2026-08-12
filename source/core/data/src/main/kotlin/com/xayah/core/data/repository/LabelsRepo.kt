@@ -8,6 +8,7 @@ import com.xayah.core.datastore.readLabelColors
 import com.xayah.core.datastore.saveLabelColor
 import com.xayah.core.datastore.saveLabelColors
 import com.xayah.core.datastore.deleteLabelColor
+import com.xayah.core.datastore.renameLabelColor
 import com.xayah.core.model.LabelPalette
 import com.xayah.core.model.ColoredLabel
 import com.xayah.core.model.database.LabelAppCrossRefEntity
@@ -74,6 +75,13 @@ class LabelsRepo @Inject constructor(
     suspend fun deleteLabel(label: String) {
         labelDao.deleteCompletely(label)
         context.deleteLabelColor(label)
+    }
+
+    suspend fun renameLabel(oldLabel: String, newLabel: String) {
+        val normalized = newLabel.trim()
+        require(normalized.isNotEmpty())
+        labelDao.rename(oldLabel, normalized)
+        context.renameLabelColor(oldLabel, normalized)
     }
 
     suspend fun deleteLabelAppCrossRef(item: LabelAppCrossRefEntity) {

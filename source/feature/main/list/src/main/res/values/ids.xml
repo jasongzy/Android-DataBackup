@@ -8,6 +8,9 @@
     <item name="system_apps" type="string" />
     <item name="non_system_apps" type="string" />
     <item name="updated" type="string" />
+    <item name="frozen" type="string" />
+    <item name="frozen_apps" type="string" />
+    <item name="unfrozen_apps" type="string" />
     <item name="updated_at" type="string" />
     <item name="installed_at" type="string" />
     <item name="app_data_size" type="string" />
@@ -47,11 +50,8 @@
     <item name="new_label" type="string" />
     <item name="confirm_add_labels" type="string" />
     <item name="confirm_remove_labels" type="string" />
-    <item name="delete_label" type="string" />
-    <item name="confirm_delete_label" type="string" />
     <item name="label_created" type="string" />
     <item name="labels_updated" type="string" />
-    <item name="label_deleted" type="string" />
     <item name="items_added_to_blacklist" type="string" />
     <item name="items_deleted" type="string" />
     <item name="cancel" type="string" />

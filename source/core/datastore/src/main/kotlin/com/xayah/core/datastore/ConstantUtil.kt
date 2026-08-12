@@ -11,6 +11,7 @@ object ConstantUtil {
     const val CONFIGURATIONS_KEY_BLACKLIST = "blacklist"
     const val CONFIGURATIONS_KEY_CLOUD = "cloud"
     const val CONFIGURATIONS_KEY_LABEL = "label"
+    const val CONFIGURATIONS_KEY_APP_NOTES = "app_notes"
     const val CONFIGURATIONS_KEY_SETTINGS = "settings"
     const val FTP_ANONYMOUS_USERNAME = "anonymous" // https://www.rfc-editor.org/rfc/rfc1635
     const val FTP_ANONYMOUS_PASSWORD = "guest"

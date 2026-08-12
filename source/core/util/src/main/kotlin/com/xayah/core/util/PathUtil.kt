@@ -19,6 +19,7 @@ const val FilesRelativeDir = "files"
 const val ConfigsRelativeDir = "configs"
 const val ConfigsPackageRestoreName = "package_restore_config.json"
 const val BackupManifestName = "backup_manifest.json"
+const val AppIconName = "icon.bin"
 const val ConfigsMediaRestoreName = "media_restore_config.json"
 const val ConfigsConfigurationsName = "configurations.json"
 const val BinArchiveName = "bin.zip"
@@ -69,6 +70,7 @@ class PathUtil @Inject constructor(
 
         fun getAppsRelativeDir(): String = AppsRelativeDir
         fun getFilesRelativeDir(): String = FilesRelativeDir
+        fun getAppIconPath(appsDir: String, packageName: String): String = "$appsDir/$packageName/$AppIconName"
 
 
         fun getPackageRestoreConfigDst(dstDir: String): String = "${dstDir}/$ConfigsPackageRestoreName"
@@ -97,6 +99,7 @@ class PathUtil @Inject constructor(
     private fun getAppsDir(parent: String): String = "${parent}/${getAppsRelativeDir()}"
     private fun getFilesDir(parent: String): String = "${parent}/${getFilesRelativeDir()}"
     fun getLocalBackupAppsDir(): String = getAppsDir(parent = context.localBackupSaveDir())
+    fun getLocalBackupAppIconPath(packageName: String): String = getAppIconPath(getLocalBackupAppsDir(), packageName)
     fun getCloudTmpAppsDir(): String = getAppsDir(parent = context.cloudTmpAbsoluteDir())
     fun getCloudRemoteAppsDir(remote: String): String = getAppsDir(parent = remote)
     fun getLocalBackupFilesDir(): String = getFilesDir(parent = context.localBackupSaveDir())

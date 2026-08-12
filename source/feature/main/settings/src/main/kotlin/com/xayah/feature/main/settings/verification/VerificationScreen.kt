@@ -45,6 +45,8 @@ import com.xayah.core.ui.component.IconButton
 import com.xayah.core.ui.component.PackageIconImage
 import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.ui.token.SizeTokens
+import com.xayah.core.ui.theme.ThemedColorSchemeKeyTokens
+import com.xayah.core.ui.theme.value
 import com.xayah.core.ui.util.LocalNavController
 import com.xayah.core.util.DateUtil
 import com.xayah.core.util.navigateSingle
@@ -104,7 +106,7 @@ fun PageBackupVerification(
                 enabled = !uiState.isRunning && !uiState.isCleaning,
                 onClick = viewModel::verify,
             ) {
-                Text(stringResource(R.string.verify_again))
+                Text(stringResource(if (uiState.isComplete) R.string.verify_again else R.string.verify_all_backups))
             }
         }
     }
@@ -152,7 +154,7 @@ fun PageBackupVerification(
                     Text(
                         text = stringResource(result.status.stringRes()),
                         color = if (result.status == BackupVerificationStatus.VALID) {
-                            MaterialTheme.colorScheme.primary
+                            ThemedColorSchemeKeyTokens.GreenPrimary.value
                         } else {
                             MaterialTheme.colorScheme.error
                         },
@@ -232,6 +234,13 @@ private fun VerificationSummary(uiState: VerificationUiState) {
                     )
                 }
             }
+
+            else -> {
+                Text(
+                    text = stringResource(R.string.backups_ready_for_verification, uiState.total),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
         }
     }
 }
@@ -262,7 +271,11 @@ private fun VerificationItem(
             containerColor = if (valid) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.errorContainer,
         ),
         leadingContent = {
-            PackageIconImage(packageName = revision.packageName, size = SizeTokens.Level48)
+            PackageIconImage(
+                packageName = revision.packageName,
+                size = SizeTokens.Level48,
+                refreshKey = result,
+            )
         },
         headlineContent = { Text(result.appLabel) },
         supportingContent = {
@@ -278,7 +291,7 @@ private fun VerificationItem(
                 )
                 Text(
                     text = stringResource(result.status.stringRes()),
-                    color = if (valid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    color = if (valid) ThemedColorSchemeKeyTokens.GreenPrimary.value else MaterialTheme.colorScheme.error,
                 )
             }
         },
@@ -286,7 +299,7 @@ private fun VerificationItem(
             Icon(
                 imageVector = if (valid) Icons.Outlined.CheckCircle else Icons.Outlined.ErrorOutline,
                 contentDescription = stringResource(result.status.stringRes()),
-                tint = if (valid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                tint = if (valid) ThemedColorSchemeKeyTokens.GreenPrimary.value else MaterialTheme.colorScheme.error,
             )
         },
     )

@@ -282,6 +282,7 @@ fun PackageEntity.asExternalModel() = App(
     preserveId = preserveId,
     isSystemApp = isSystemApp,
     isUpdatedSystemApp = isUpdatedSystemApp,
+    isFrozen = extraInfo.enabled.not(),
     isInstalled = indexInfo.opType == OpType.BACKUP,
     firstInstallTime = packageInfo.firstInstallTime,
     lastUpdateTime = packageInfo.lastUpdateTime,

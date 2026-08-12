@@ -10,6 +10,7 @@ data class App(
     val preserveId: Long,
     val isSystemApp: Boolean,
     val isUpdatedSystemApp: Boolean,
+    val isFrozen: Boolean,
     val isInstalled: Boolean,
     val firstInstallTime: Long,
     val lastUpdateTime: Long,

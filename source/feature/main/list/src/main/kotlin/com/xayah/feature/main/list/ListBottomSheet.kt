@@ -1,9 +1,6 @@
 package com.xayah.feature.main.list
 
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -16,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -80,7 +76,7 @@ internal fun ListBottomSheet(
     uiState: ListBottomSheetUiState.Success,
     viewModel: ListBottomSheetViewModel,
 ) {
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val onDismissRequest: () -> Unit = {
         coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
             if (!sheetState.isVisible) {
@@ -100,7 +96,6 @@ internal fun ListBottomSheet(
                 labelEntities = uiState.labelEntities,
                 labelFilters = uiState.labelFilters,
                 onClickLabel = viewModel::cycleLabelFilter,
-                onDeleteLabel = viewModel::deleteLabel,
                 setFilters = viewModel::setFilters,
                 onDismissRequest = onDismissRequest,
             )
@@ -197,61 +192,44 @@ private fun SourceChips(clouds: List<CloudEntity>, onChanged: (cloud: String, ba
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LabelsFlow(
     labelEntities: List<ColoredLabel>,
     labelFilters: Map<String, LabelFilterMode>,
     onClick: (String) -> Unit,
-    onLongClick: ((String) -> Unit)? = null,
 ) {
     FlowRow(
         modifier = Modifier
             .fillMaxWidth()
             .paddingHorizontal(SizeTokens.Level24),
         horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8),
-        verticalArrangement = Arrangement.spacedBy(-SizeTokens.Level8)
+        verticalArrangement = Arrangement.spacedBy(SizeTokens.Level4)
     ) {
         labelEntities.forEach { item ->
             val mode = labelFilters[item.label]
-            val interactionSource = remember { MutableInteractionSource() }
-            Box {
-                FilterChip(
-                    onClick = {},
-                    label = {
-                        Text(
-                            when (mode) {
-                                LabelFilterMode.INCLUDE -> "+ ${item.label}"
-                                LabelFilterMode.EXCLUDE -> "− ${item.label}"
-                                null -> item.label
-                            }
-                        )
-                    },
-                    selected = mode != null,
-                    leadingIcon = if (mode != null) {
-                        {
-                            Icon(
-                                imageVector = Icons.Filled.Done,
-                                contentDescription = null,
-                                modifier = Modifier.size(FilterChipDefaults.IconSize)
-                            )
+            FilterChip(
+                onClick = { onClick(item.label) },
+                label = {
+                    Text(
+                        when (mode) {
+                            LabelFilterMode.INCLUDE -> "+ ${item.label}"
+                            LabelFilterMode.EXCLUDE -> "− ${item.label}"
+                            null -> item.label
                         }
-                    } else {
-                        null
-                    },
-                    interactionSource = interactionSource,
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .combinedClickable(
-                            interactionSource = interactionSource,
-                            indication = null,
-                            onClick = { onClick(item.label) },
-                            onLongClick = { onLongClick?.invoke(item.label) },
+                    )
+                },
+                selected = mode != null,
+                leadingIcon = if (mode != null) {
+                    {
+                        Icon(
+                            imageVector = Icons.Filled.Done,
+                            contentDescription = null,
+                            modifier = Modifier.size(FilterChipDefaults.IconSize)
                         )
-                )
-            }
+                    }
+                } else null,
+            )
         }
     }
 }
@@ -262,7 +240,7 @@ private fun CompactOptions(content: @Composable () -> Unit) {
     FlowRow(
         modifier = Modifier.fillMaxWidth().paddingHorizontal(SizeTokens.Level24),
         horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8),
-        verticalArrangement = Arrangement.spacedBy(-SizeTokens.Level8),
+        verticalArrangement = Arrangement.spacedBy(SizeTokens.Level4),
     ) { content() }
 }
 
@@ -291,11 +269,9 @@ internal fun AppsFilterSheet(
     labelEntities: List<ColoredLabel>,
     labelFilters: Map<String, LabelFilterMode>,
     onClickLabel: (String) -> Unit,
-    onDeleteLabel: (String) -> Unit,
     setFilters: (Filters) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
-    var deleteCandidate by remember { mutableStateOf<String?>(null) }
     val loadSystemApps by LocalContext.current.readLoadSystemApps().collectAsStateWithLifecycle(initialValue = filters.systemApps)
     LaunchedEffect(loadSystemApps) {
         if (filters.systemApps != loadSystemApps || !filters.nonSystemApps) {
@@ -326,6 +302,14 @@ internal fun AppsFilterSheet(
                 }
                 CompactOption(stringResource(R.string.not_installed), filters.notInstalledApps) {
                     setFilters(filters.copy(notInstalledApps = filters.notInstalledApps.not()))
+                }
+            }
+            CompactOptions {
+                CompactOption(stringResource(R.string.frozen_apps), filters.frozenApps) {
+                    setFilters(filters.copy(frozenApps = filters.frozenApps.not()))
+                }
+                CompactOption(stringResource(R.string.unfrozen_apps), filters.unfrozenApps) {
+                    setFilters(filters.copy(unfrozenApps = filters.unfrozenApps.not()))
                 }
             }
             if (opType == OpType.BACKUP) {
@@ -364,28 +348,9 @@ internal fun AppsFilterSheet(
                     labelEntities = labelEntities,
                     labelFilters = labelFilters,
                     onClick = onClickLabel,
-                    onLongClick = { deleteCandidate = it },
                 )
             }
         }
-    }
-    deleteCandidate?.let { label ->
-        AlertDialog(
-            onDismissRequest = { deleteCandidate = null },
-            title = { Text(stringResource(R.string.delete_label)) },
-            text = { Text(stringResource(R.string.confirm_delete_label, label)) },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    onDeleteLabel(label)
-                    deleteCandidate = null
-                }) { Text(stringResource(R.string.delete)) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { deleteCandidate = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
     }
 }
 

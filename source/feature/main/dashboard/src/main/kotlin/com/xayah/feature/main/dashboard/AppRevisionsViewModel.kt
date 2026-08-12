@@ -19,9 +19,9 @@ import com.xayah.core.util.navigateSingle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -61,8 +61,9 @@ class AppRevisionsViewModel @Inject constructor(
         initialValue = null,
     )
 
-    private val _verificationResults = MutableStateFlow<Map<String, AppBackupRepository.VerificationResult>>(emptyMap())
-    val verificationResults = _verificationResults.asStateFlow()
+    val verificationResults = repository.verificationResults
+    private val _verifyingRevisionIds = MutableStateFlow<Set<String>>(emptySet())
+    val verifyingRevisionIds = _verifyingRevisionIds.asStateFlow()
     private val _damagedRestoreRequest = MutableStateFlow<RestoreRequest?>(null)
     val damagedRestoreRequest = _damagedRestoreRequest.asStateFlow()
 
@@ -92,18 +93,32 @@ class AppRevisionsViewModel @Inject constructor(
     }
 
     fun verifyRevision(revision: BackupRevisionEntity) {
+        if (revision.id in _verifyingRevisionIds.value) return
         viewModelScope.launch {
-            val result = repository.inspectRevision(revision)
-            _verificationResults.value += revision.id to result
-            Toast.makeText(
-                context,
-                when (result.status) {
-                    BackupVerificationStatus.NOT_VERIFIED -> R.string.not_verified
-                    BackupVerificationStatus.VALID -> R.string.backup_valid
-                    BackupVerificationStatus.DAMAGED -> R.string.backup_damaged
-                },
-                Toast.LENGTH_SHORT,
-            ).show()
+            _verifyingRevisionIds.value += revision.id
+            try {
+                val result = repository.inspectRevision(revision)
+                repository.rememberVerification(result)
+                Toast.makeText(
+                    context,
+                    when (result.status) {
+                        BackupVerificationStatus.NOT_VERIFIED -> R.string.not_verified
+                        BackupVerificationStatus.VALID -> R.string.backup_valid
+                        BackupVerificationStatus.DAMAGED -> R.string.backup_damaged
+                    },
+                    Toast.LENGTH_SHORT,
+                ).show()
+            } finally {
+                _verifyingRevisionIds.value -= revision.id
+            }
+        }
+    }
+
+    fun updateRevisionNote(revision: BackupRevisionEntity, note: String) {
+        viewModelScope.launch {
+            if (repository.updateRevisionNote(revision, note)) {
+                Toast.makeText(context, R.string.note_saved, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -115,7 +130,7 @@ class AppRevisionsViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val result = repository.inspectRevision(revision)
-            _verificationResults.value += revision.id to result
+            repository.rememberVerification(result)
             if (result.status == BackupVerificationStatus.DAMAGED && !allowDamaged) {
                 _damagedRestoreRequest.value = RestoreRequest(revision, dataStates)
                 return@launch

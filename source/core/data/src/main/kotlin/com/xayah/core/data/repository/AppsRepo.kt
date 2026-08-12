@@ -126,9 +126,11 @@ class AppsRepo @Inject constructor(
         val included = filters.filterValues { it == LabelFilterMode.INCLUDE }.keys
         val excluded = filters.filterValues { it == LabelFilterMode.EXCLUDE }.keys
         apps.asSequence()
-            .filter(packageRepo.getKeyPredicateNew(key = data.searchQuery))
             .filter { app ->
                 if (app.isSystemApp) data.filters.systemApps else data.filters.nonSystemApps
+            }
+            .filter { app ->
+                if (app.extraInfo.enabled) data.filters.unfrozenApps else data.filters.frozenApps
             }
             .filter(packageRepo.getHasBackupsPredicate(value = data.filters.hasBackups, pkgUserSet = pSet))
             .filter(packageRepo.getHasNoBackupsPredicate(value = data.filters.hasNoBackups, pkgUserSet = pSet))

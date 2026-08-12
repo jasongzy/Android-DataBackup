@@ -46,3 +46,14 @@ suspend fun Context.deleteLabelColor(label: String) {
         preferences[KeyLabelColors] = Gson().toJson(colors)
     }
 }
+
+suspend fun Context.renameLabelColor(oldLabel: String, newLabel: String) {
+    dataStore.edit { preferences ->
+        val colors = preferences[KeyLabelColors]
+            ?.let { Gson().fromJson<Map<String, Long>>(it, LabelColorsType) }
+            .orEmpty()
+            .toMutableMap()
+        colors.remove(oldLabel)?.let { colors[newLabel] = it }
+        preferences[KeyLabelColors] = Gson().toJson(colors)
+    }
+}

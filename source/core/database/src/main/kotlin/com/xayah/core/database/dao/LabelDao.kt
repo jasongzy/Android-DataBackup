@@ -70,6 +70,15 @@ interface LabelDao {
         delete(label)
     }
 
+    @Transaction
+    suspend fun rename(oldLabel: String, newLabel: String) {
+        if (oldLabel == newLabel) return
+        upsert(LabelEntity(newLabel))
+        upsertAppRefs(queryAppRefs(setOf(oldLabel)).map { it.copy(label = newLabel) })
+        upsertFileRefs(queryFileRefs(setOf(oldLabel)).map { it.copy(label = newLabel) })
+        deleteCompletely(oldLabel)
+    }
+
     @Delete(entity = LabelAppCrossRefEntity::class)
     suspend fun deleteAppRef(item: LabelAppCrossRefEntity)
 

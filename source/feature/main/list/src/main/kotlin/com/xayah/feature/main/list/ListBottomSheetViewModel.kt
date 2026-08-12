@@ -1,7 +1,5 @@
 package com.xayah.feature.main.list
 
-import android.content.Context
-import android.widget.Toast
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,9 +26,6 @@ import com.xayah.core.util.launchOnDefault
 import com.xayah.feature.main.list.ListBottomSheetUiState.Loading
 import com.xayah.feature.main.list.ListBottomSheetUiState.Success
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -39,7 +34,6 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ListBottomSheetViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
     private val listDataRepo: ListDataRepo,
     private val appsRepo: AppsRepo,
@@ -114,6 +108,12 @@ class ListBottomSheetViewModel @Inject constructor(
                 if (filters.nonSystemApps.not()) {
                     listDataRepo.unselectApps(state.appList.filterNot { it.isSystemApp }.map { it.id })
                 }
+                if (filters.frozenApps.not()) {
+                    listDataRepo.unselectApps(state.appList.filter { it.isFrozen }.map { it.id })
+                }
+                if (filters.unfrozenApps.not()) {
+                    listDataRepo.unselectApps(state.appList.filterNot { it.isFrozen }.map { it.id })
+                }
             }
         }
     }
@@ -121,15 +121,6 @@ class ListBottomSheetViewModel @Inject constructor(
     fun cycleLabelFilter(label: String) {
         viewModelScope.launchOnDefault {
             listDataRepo.cycleLabelFilter(label)
-        }
-    }
-
-    fun deleteLabel(label: String) {
-        viewModelScope.launchOnDefault {
-            labelsRepo.deleteLabel(label)
-            withContext(Dispatchers.Main.immediate) {
-                Toast.makeText(context, R.string.label_deleted, Toast.LENGTH_SHORT).show()
-            }
         }
     }
 

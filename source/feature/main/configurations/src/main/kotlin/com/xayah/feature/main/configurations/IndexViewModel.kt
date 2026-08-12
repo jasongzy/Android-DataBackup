@@ -3,6 +3,7 @@ package com.xayah.feature.main.configurations
 import android.content.Context
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.xayah.core.data.repository.CloudRepository
+import com.xayah.core.data.repository.AppBackupRepository
 import com.xayah.core.data.repository.LabelsRepo
 import com.xayah.core.data.repository.MediaRepository
 import com.xayah.core.data.repository.PackageRepository
@@ -45,6 +46,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 data class IndexUiState(
@@ -52,6 +54,7 @@ data class IndexUiState(
     val blacklistSelected: Boolean,
     val cloudSelected: Boolean,
     val labelSelected: Boolean,
+    val appNotesSelected: Boolean,
     val settingsSelected: Boolean,
 ) : UiState
 
@@ -69,14 +72,16 @@ class IndexViewModel @Inject constructor(
     private val cloudRepo: CloudRepository,
     private val mediaRepo: MediaRepository,
     private val labelsRepo: LabelsRepo,
+    private val appBackupRepository: AppBackupRepository,
     private val commonBackupUtil: CommonBackupUtil,
     private val pathUtil: PathUtil,
 ) : BaseViewModel<IndexUiState, IndexUiIntent, IndexUiEffect>(
     IndexUiState(
-        selectedCount = 4,
+        selectedCount = 5,
         blacklistSelected = true,
         cloudSelected = true,
         labelSelected = true,
+        appNotesSelected = true,
         settingsSelected = true,
     )
 ) {
@@ -89,6 +94,7 @@ class IndexViewModel @Inject constructor(
                     includeBlacklist = state.blacklistSelected,
                     includeCloud = state.cloudSelected,
                     includeLabels = state.labelSelected,
+                    includeAppNotes = state.appNotesSelected,
                     includeSettings = state.settingsSelected,
                 )
                 emitEffect(IndexUiEffect.DismissSnackbar)
@@ -145,7 +151,6 @@ class IndexViewModel @Inject constructor(
                             if (config.labelFileRefs.isNotEmpty()) {
                                 size += config.labelFileRefs.size
                             }
-
                             if (size != 0) {
                                 items.add(
                                     DialogCheckBoxItem(
@@ -158,6 +163,14 @@ class IndexViewModel @Inject constructor(
                                 )
                             }
                         }.withLog()
+                        config.appNotes.orEmpty().takeIf { it.isNotEmpty() }?.let { notes ->
+                            items.add(
+                                DialogCheckBoxItem(
+                                    enum = ConstantUtil.CONFIGURATIONS_KEY_APP_NOTES,
+                                    title = joinOf(context.getString(R.string.app_notes), " (${notes.size})"),
+                                )
+                            )
+                        }
                     }
 
                     if (items.isEmpty()) {
@@ -264,6 +277,10 @@ class IndexViewModel @Inject constructor(
                                             }
                                         }
 
+                                        ConstantUtil.CONFIGURATIONS_KEY_APP_NOTES -> {
+                                            config?.appNotes?.let { appBackupRepository.importAppNotes(it) }
+                                        }
+
                                         ConstantUtil.CONFIGURATIONS_KEY_SETTINGS -> {
                                             config?.settings?.let { context.saveConfigurationSettings(it) }
                                         }
@@ -298,4 +315,8 @@ class IndexViewModel @Inject constructor(
     val labels: StateFlow<List<LabelEntity>> = _labels.stateInScope(listOf())
     val labelAppRefs: StateFlow<List<LabelAppCrossRefEntity>> = _labelAppRefs.stateInScope(listOf())
     val labelFileRefs: StateFlow<List<LabelFileCrossRefEntity>> = _labelFileRefs.stateInScope(listOf())
+    val appNotesCount: StateFlow<Int> = appBackupRepository.observeApps()
+        .map { apps -> apps.count { it.app.note.isNotEmpty() } }
+        .flowOnIO()
+        .stateInScope(0)
 }

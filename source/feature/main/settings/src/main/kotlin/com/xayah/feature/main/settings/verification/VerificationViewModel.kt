@@ -43,12 +43,14 @@ class VerificationViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     init {
-        verify()
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.value = _uiState.value.copy(total = repository.getLocalRevisionCount())
+        }
     }
 
     fun verify() {
         if (_uiState.value.isRunning) return
-        _uiState.value = VerificationUiState(isRunning = true)
+        _uiState.value = VerificationUiState(isRunning = true, total = _uiState.value.total)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val report = repository.verifyAllLocal { completed, total ->

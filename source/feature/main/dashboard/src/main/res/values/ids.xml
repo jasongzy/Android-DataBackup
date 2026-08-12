@@ -22,6 +22,7 @@
     <item name="args_update_from" type="string" />
     <item name="history" type="string" />
     <item name="verify" type="string" />
+    <item name="verifying" type="string" />
     <item name="not_verified" type="string" />
     <item name="backup_valid" type="string" />
     <item name="backup_damaged" type="string" />
@@ -38,6 +39,10 @@
     <item name="uninstall_keep_data" type="string" />
     <item name="confirm_uninstall_keep_data" type="string" />
     <item name="uninstall" type="string" />
+    <item name="note" type="string" />
+    <item name="no_note" type="string" />
+    <item name="edit_note" type="string" />
+    <item name="note_saved" type="string" />
 
     <item name="ic_rounded_package_2" type="drawable" />
     <item name="ic_rounded_folder_open" type="drawable" />

@@ -78,15 +78,27 @@ class ListItemsViewModel @Inject constructor(
                     hasDataBackup = overview?.hasDataBackup == true,
                     latestApkVersionCode = overview?.latestApkVersionCode,
                     labels = labelsByApp[app.packageName to app.userId].orEmpty(),
+                    notes = listOf(overview?.app?.note, overview?.revisionNotes).filterNotNull().joinToString("\n"),
                 )
             }
             val installedKeys = uniqueInstalledApps.mapTo(mutableSetOf()) { it.packageName to it.userId }
             val selectedUserId = listData.userList.getOrNull(listData.userIndex)?.id
             val archivedItems = overviews.asSequence()
-                .filter { !it.app.isInstalled && it.revisionCount > 0 }
+                .filter { !it.app.isInstalled }
+                .filter { overview ->
+                    overview.revisionCount > 0 ||
+                        overview.app.note.isNotEmpty() ||
+                        labelsByApp[overview.app.packageName to overview.app.userId].isNullOrEmpty().not()
+                }
                 .filter { selectedUserId == null || it.app.userId == selectedUserId }
                 .filter { it.app.packageName to it.app.userId !in installedKeys }
-                .filter { listData.filters.notInstalledApps && listData.filters.hasBackups }
+                .filter { overview ->
+                    listData.filters.notInstalledApps && if (overview.revisionCount > 0) {
+                        listData.filters.hasBackups
+                    } else {
+                        listData.filters.hasNoBackups
+                    }
+                }
                 .filter { overview ->
                     if (overview.app.isSystem) listData.filters.systemApps else listData.filters.nonSystemApps
                 }
@@ -95,10 +107,6 @@ class ListItemsViewModel @Inject constructor(
                     val included = listData.labelFilters.filterValues { it == LabelFilterMode.INCLUDE }.keys
                     val excluded = listData.labelFilters.filterValues { it == LabelFilterMode.EXCLUDE }.keys
                     (included.isEmpty() || appLabels.any(included::contains)) && appLabels.none(excluded::contains)
-                }
-                .filter {
-                    it.app.label.contains(listData.searchQuery, ignoreCase = true) ||
-                        it.app.packageName.contains(listData.searchQuery, ignoreCase = true)
                 }
                 .map { overview ->
                     AppListItem(
@@ -112,6 +120,7 @@ class ListItemsViewModel @Inject constructor(
                             preserveId = 0,
                             isSystemApp = overview.app.isSystem,
                             isUpdatedSystemApp = false,
+                            isFrozen = false,
                             isInstalled = false,
                             firstInstallTime = overview.app.firstInstallTime,
                             lastUpdateTime = overview.app.lastUpdateTime,
@@ -126,11 +135,18 @@ class ListItemsViewModel @Inject constructor(
                         hasDataBackup = overview.hasDataBackup,
                         latestApkVersionCode = overview.latestApkVersionCode,
                         labels = labelsByApp[overview.app.packageName to overview.app.userId].orEmpty(),
+                        notes = listOf(overview.app.note, overview.revisionNotes).joinToString("\n"),
                     )
                 }
                 .toList()
 
             val filteredItems = (installedItems + archivedItems).asSequence()
+                .filter { item ->
+                    item.app.label.contains(listData.searchQuery, ignoreCase = true) ||
+                        item.app.packageName.contains(listData.searchQuery, ignoreCase = true) ||
+                        item.notes.contains(listData.searchQuery, ignoreCase = true)
+                }
+                .filter { if (it.app.isFrozen) listData.filters.frozenApps else listData.filters.unfrozenApps }
                 .filter { opType != OpType.BACKUP || !listData.filters.hasApkBackup || it.hasApkBackup }
                 .filter { opType != OpType.BACKUP || !listData.filters.hasNoApkBackup || !it.hasApkBackup }
                 .filter { opType != OpType.BACKUP || !listData.filters.hasDataBackup || it.hasDataBackup }
@@ -272,4 +288,5 @@ data class AppListItem(
     val hasDataBackup: Boolean,
     val latestApkVersionCode: Long?,
     val labels: List<ColoredLabel>,
+    val notes: String,
 )

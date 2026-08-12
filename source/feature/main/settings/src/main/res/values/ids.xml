@@ -28,6 +28,7 @@
     <item name="verification_summary" type="string" />
     <item name="verification_results" type="string" />
     <item name="verification_progress" type="string" />
+    <item name="backups_ready_for_verification" type="string" />
     <item name="verification_finished" type="string" />
     <item name="verification_manifest_missing" type="string" />
     <item name="verification_manifest_invalid" type="string" />
@@ -46,6 +47,33 @@
     <item name="cleanup_result" type="string" />
     <item name="no_backups_to_verify" type="string" />
     <item name="verification_backup_details" type="string" />
+    <item name="import_from_titanium" type="string" />
+    <item name="import_from_titanium_desc" type="string" />
+    <item name="titanium_backups" type="string" />
+    <item name="titanium_labels" type="string" />
+    <item name="select_source" type="string" />
+    <item name="source_not_found" type="string" />
+    <item name="titanium_import_progress" type="string" />
+    <item name="titanium_scan_progress" type="string" />
+    <item name="titanium_label_apps" type="string" />
+    <item name="titanium_backup_versions" type="string" />
+    <item name="titanium_data" type="string" />
+    <item name="scan_source" type="string" />
+    <item name="import_selected" type="string" />
+    <item name="selected_count" type="string" />
+    <item name="unselect_all" type="string" />
+    <item name="already_imported" type="string" />
+    <item name="ready_to_import" type="string" />
+    <item name="missing_files" type="string" />
+    <item name="import_backups" type="string" />
+    <item name="import_labels" type="string" />
+    <item name="titanium_imported" type="string" />
+    <item name="titanium_skipped" type="string" />
+    <item name="titanium_failed" type="string" />
+    <item name="cancel_import" type="string" />
+    <item name="confirm_cancel_import" type="string" />
+    <item name="cancelling" type="string" />
+    <item name="confirm" type="string" />
     <item name="view_app_backups" type="string" />
     <item name="close" type="string" />
     <item name="cancel" type="string" />

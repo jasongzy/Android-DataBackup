@@ -3,6 +3,7 @@ package com.xayah.core.data.repository
 import android.content.Context
 import com.xayah.core.database.dao.AppBackupDao
 import com.xayah.core.model.AppBackupOverview
+import com.xayah.core.model.AppNoteItem
 import com.xayah.core.model.BACKUP_MANIFEST_SCHEMA_VERSION
 import com.xayah.core.model.BackupAppEntity
 import com.xayah.core.model.BackupEngine
@@ -19,6 +20,8 @@ import com.xayah.core.util.PathUtil
 import com.xayah.core.util.localBackupSaveDir
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,9 +30,13 @@ class AppBackupRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dao: AppBackupDao,
     private val packageRepository: PackageRepository,
+    private val appIconRepository: AppIconRepository,
     private val rootService: RemoteRootService,
     private val pathUtil: PathUtil,
 ) {
+    private val _verificationResults = MutableStateFlow<Map<String, VerificationResult>>(emptyMap())
+    val verificationResults = _verificationResults.asStateFlow()
+
     data class RestoreSelection(val cloudName: String, val backupDir: String)
     data class VerificationReport(
         val results: List<VerificationResult>,
@@ -39,6 +46,7 @@ class AppBackupRepository @Inject constructor(
         val appLabel: String,
         val status: BackupVerificationStatus,
         val issues: List<VerificationIssue>,
+        val iconRepaired: Boolean = false,
     )
     data class VerificationIssue(
         val type: VerificationIssueType,
@@ -74,8 +82,62 @@ class AppBackupRepository @Inject constructor(
     fun observeRevisions(packageName: String, userId: Int): Flow<List<BackupRevisionEntity>> =
         dao.observeRevisions(packageName, userId)
 
+    suspend fun upsertImportedApps(apps: List<BackupAppEntity>) {
+        val merged = apps.map { imported ->
+            dao.getApp(imported.packageName, imported.userId)
+                ?: imported
+        }
+        dao.upsertApps(merged)
+    }
+
     suspend fun syncInstalledApps(userId: Int, apps: List<PackageEntity>) {
-        removeUnusedIcons(dao.replaceInstalledApps(userId, apps.map { it.toBackupApp() }))
+        val indexedApps = apps.map { app ->
+            app.toBackupApp(note = dao.getApp(app.packageName, app.userId)?.note.orEmpty())
+        }
+        dao.replaceInstalledApps(userId, indexedApps)
+    }
+
+    suspend fun updateAppNote(packageName: String, userId: Int, note: String) {
+        dao.updateAppNote(packageName, userId, note.trim())
+        removeUnusedApps(userId)
+    }
+
+    suspend fun getAppNotes(): List<AppNoteItem> = dao.getAppsWithNotes().map {
+        AppNoteItem(it.packageName, it.userId, it.note)
+    }
+
+    suspend fun importAppNotes(notes: List<AppNoteItem>) {
+        notes.forEach { item ->
+            val app = dao.getApp(item.packageName, item.userId)
+            if (app != null) {
+                dao.updateAppNote(item.packageName, item.userId, item.note.trim())
+            } else if (item.note.isNotBlank()) {
+                dao.upsertApps(
+                    listOf(
+                        BackupAppEntity(
+                            packageName = item.packageName,
+                            userId = item.userId,
+                            label = item.packageName,
+                            versionName = "",
+                            versionCode = 0,
+                            firstInstallTime = 0,
+                            lastUpdateTime = 0,
+                            isSystem = false,
+                            isInstalled = false,
+                            note = item.note.trim(),
+                        )
+                    )
+                )
+            }
+        }
+    }
+
+    suspend fun removeUnusedApps(userId: Int) {
+        dao.deleteUninstalledAppsWithoutRevisions(userId)
+    }
+
+    suspend fun removeUnusedApps() {
+        dao.deleteUninstalledAppsWithoutRevisions()
     }
 
     suspend fun recordLegacyRevision(
@@ -85,7 +147,7 @@ class AppBackupRepository @Inject constructor(
         contentMask: Int,
         sizeBytes: Long,
     ) {
-        dao.upsertApps(listOf(app.toBackupApp()))
+        dao.upsertApps(listOf(app.toBackupApp(note = dao.getApp(app.packageName, app.userId)?.note.orEmpty())))
         dao.upsertRevision(
             BackupRevisionEntity(
                 packageName = app.packageName,
@@ -108,7 +170,7 @@ class AppBackupRepository @Inject constructor(
         return findLegacyRevision(revision)
     }
 
-    suspend fun writeManifest(app: PackageEntity, createdAt: Long, revisionDir: String): BackupManifest? {
+    suspend fun writeManifest(app: PackageEntity, createdAt: Long, revisionDir: String, note: String = ""): BackupManifest? {
         val manifestPath = PathUtil.getBackupManifestDst(revisionDir)
         val files = rootService.listFilePaths(revisionDir, listFiles = true, listDirs = false)
             .filterNot { it == manifestPath }
@@ -140,6 +202,7 @@ class AppBackupRepository @Inject constructor(
             versionName = app.packageInfo.versionName,
             versionCode = app.packageInfo.versionCode,
             contentMask = contentMask,
+            note = note.trim(),
             files = files,
         )
         return manifest.takeIf { rootService.writeJson(data = it, dst = manifestPath).isSuccess }
@@ -148,7 +211,32 @@ class AppBackupRepository @Inject constructor(
     suspend fun verifyRevision(revision: BackupRevisionEntity): BackupVerificationStatus =
         inspectRevision(revision).status
 
+    fun rememberVerification(result: VerificationResult) {
+        if (result.status != BackupVerificationStatus.NOT_VERIFIED) {
+            _verificationResults.value += result.revision.id to result
+        }
+    }
+
+    suspend fun saveBackupIcon(packageName: String, appsDir: String, revisionDir: String): String? {
+        appIconRepository.saveInstalledIcon(packageName, appsDir)?.let { return it }
+        appIconRepository.repairFromBackup(revisionDir, appsDir, packageName, overwrite = true)
+        return PathUtil.getAppIconPath(appsDir, packageName).takeIf { rootService.exists(it) }
+    }
+
     suspend fun inspectRevision(revision: BackupRevisionEntity): VerificationResult {
+        val result = inspectRevisionFiles(revision)
+        val revisionDir = getLocalRevisionDir(revision)
+        val iconRepaired = if (revisionDir != null) {
+            appIconRepository.repairFromBackup(
+                revisionDir = revisionDir,
+                appsDir = PathUtil.getParentPath(PathUtil.getParentPath(revisionDir)),
+                packageName = revision.packageName,
+            )
+        } else false
+        return result.copy(iconRepaired = iconRepaired)
+    }
+
+    private suspend fun inspectRevisionFiles(revision: BackupRevisionEntity): VerificationResult {
         val appLabel = dao.getApp(revision.packageName, revision.userId)?.label ?: revision.packageName
         val revisionDir = getLocalRevisionDir(revision) ?: return VerificationResult(
             revision = revision,
@@ -180,6 +268,7 @@ class AppBackupRepository @Inject constructor(
             manifest.versionName != revision.appVersionName ||
             manifest.versionCode != revision.appVersionCode ||
             manifest.contentMask != revision.contentMask ||
+            manifest.note.orEmpty() != revision.note ||
             manifest.files.isNullOrEmpty()
         ) issues += VerificationIssue(VerificationIssueType.METADATA_MISMATCH)
         manifest.files.orEmpty().forEach { file ->
@@ -206,6 +295,7 @@ class AppBackupRepository @Inject constructor(
         onProgress(0, revisions.size)
         revisions.forEachIndexed { index, revision ->
             results += inspectRevision(revision)
+            rememberVerification(results.last())
             onProgress(index + 1, revisions.size)
         }
         return VerificationReport(results)
@@ -266,20 +356,22 @@ class AppBackupRepository @Inject constructor(
         val apps = rebuilt
             .distinctBy { (app, _) -> app.packageName to app.userId }
             .map { (app, _) ->
-                dao.getApp(app.packageName, app.userId)?.takeIf(BackupAppEntity::isInstalled)
-                    ?: app.toBackupApp(isInstalled = false)
+                val existing = dao.getApp(app.packageName, app.userId)
+                app.toBackupApp(
+                    isInstalled = existing?.isInstalled == true,
+                    note = existing?.note.orEmpty(),
+                )
             }
         val revisions = rebuilt.map { (app, manifest) ->
             app.toRevision(
                 repositoryId = repositoryId,
                 contentMask = manifest.contentMask,
                 sizeBytes = manifest.files.orEmpty().sumOf(BackupManifestFile::sizeBytes),
+                note = manifest.note.orEmpty(),
             )
         }
         dao.replaceRepositoryIndex(repositoryId, apps, revisions)
-        val removedPackages = dao.getUninstalledAppsWithoutRevisions()
         dao.deleteUninstalledAppsWithoutRevisions()
-        removeUnusedIcons(removedPackages)
         return RebuildReport(
             scannedCount = revisionDirs.size,
             results = rebuilt.zip(revisions) { (app, _), revision ->
@@ -299,28 +391,31 @@ class AppBackupRepository @Inject constructor(
         }
         if (!deleted) return false
         dao.deleteRevision(revision.id)
+        _verificationResults.value -= revision.id
         getLocalRevisionDir(revision)?.let { revisionDir ->
             val packageDir = PathUtil.getParentPath(revisionDir)
-            if (rootService.exists(packageDir) && rootService.listFilePaths(packageDir).isEmpty()) {
+            val remaining = rootService.listFilePaths(packageDir)
+            if (
+                rootService.exists(packageDir) &&
+                remaining.none { it != PathUtil.getAppIconPath(PathUtil.getParentPath(packageDir), revision.packageName) }
+            ) {
                 rootService.deleteRecursively(packageDir)
             }
         }
-        val removedPackages = dao.getUninstalledAppsWithoutRevisions(revision.userId)
         dao.deleteUninstalledAppsWithoutRevisions(revision.userId)
-        removeUnusedIcons(removedPackages)
         return true
     }
 
-    private suspend fun removeUnusedIcons(packageNames: Collection<String>) {
-        packageNames.distinct().forEach { packageName ->
-            if (dao.containsPackage(packageName)) return@forEach
-            listOf(
-                pathUtil.getPackageIconPath(packageName, adaptive = false),
-                pathUtil.getPackageIconPath(packageName, adaptive = true),
-            ).forEach { path ->
-                if (rootService.exists(path)) rootService.deleteRecursively(path)
-            }
-        }
+    suspend fun getLocalRevisionCount(): Int = dao.getRevisions(":${context.localBackupSaveDir()}").size
+
+    suspend fun updateRevisionNote(revision: BackupRevisionEntity, note: String): Boolean {
+        val normalized = note.trim()
+        val revisionDir = getLocalRevisionDir(revision) ?: return false
+        val manifestPath = PathUtil.getBackupManifestDst(revisionDir)
+        val manifest = rootService.readJson<BackupManifest>(manifestPath) ?: return false
+        if (!rootService.writeJson(manifest.copy(note = normalized), manifestPath).isSuccess) return false
+        dao.updateRevisionNote(revision.id, normalized)
+        return true
     }
 
     suspend fun selectRevisionForRestore(revision: BackupRevisionEntity, dataStates: PackageDataStates): RestoreSelection? {
@@ -348,7 +443,7 @@ class AppBackupRepository @Inject constructor(
         return "$backupDir/${PathUtil.getAppsRelativeDir()}/${revision.artifactId}"
     }
 
-    private fun PackageEntity.toBackupApp(isInstalled: Boolean = true) = BackupAppEntity(
+    private fun PackageEntity.toBackupApp(isInstalled: Boolean = true, note: String = "") = BackupAppEntity(
         packageName = packageName,
         userId = userId,
         label = packageInfo.label,
@@ -358,12 +453,14 @@ class AppBackupRepository @Inject constructor(
         lastUpdateTime = packageInfo.lastUpdateTime,
         isSystem = isSystemApp,
         isInstalled = isInstalled,
+        note = note,
     )
 
     private fun PackageEntity.toRevision(
         repositoryId: String,
         contentMask: Int,
         sizeBytes: Long,
+        note: String = "",
     ) = BackupRevisionEntity(
         packageName = packageName,
         userId = userId,
@@ -375,5 +472,6 @@ class AppBackupRepository @Inject constructor(
         artifactId = archivesRelativeDir,
         contentMask = contentMask,
         sizeBytes = sizeBytes,
+        note = note,
     )
 }

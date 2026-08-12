@@ -5,6 +5,14 @@
     <item name="labels" type="string" />
     <item name="label" type="string" />
     <item name="add_label" type="string" />
+    <item name="modify_labels" type="string" />
+    <item name="modify" type="string" />
+    <item name="delete_label" type="string" />
+    <item name="confirm_delete_label" type="string" />
+    <item name="label_name" type="string" />
+    <item name="hex_color" type="string" />
+    <item name="rename_label" type="string" />
+    <item name="confirm_rename_label" type="string" />
     <item name="confirm" type="string" />
     <item name="failed" type="string" />
     <item name="delete" type="string" />
@@ -24,6 +32,11 @@
     <item name="confirm_save_app_icon" type="string" />
     <item name="app_icon_saved" type="string" />
     <item name="app_icon_save_failed" type="string" />
+    <item name="note" type="string" />
+    <item name="no_note" type="string" />
+    <item name="edit_note" type="string" />
+    <item name="note_saved" type="string" />
+    <item name="save" type="string" />
     <item name="removed_from_blacklist" type="string" />
     <item name="added_to_blacklist" type="string" />
     <item name="app_unfrozen" type="string" />
@@ -35,6 +48,7 @@
     <item name="backup_protected" type="string" />
     <item name="deleted_successfully" type="string" />
     <item name="disabled" type="string" />
+    <item name="frozen" type="string" />
     <item name="keystore" type="string" />
     <item name="ssaid" type="string" />
     <item name="system_app" type="string" />

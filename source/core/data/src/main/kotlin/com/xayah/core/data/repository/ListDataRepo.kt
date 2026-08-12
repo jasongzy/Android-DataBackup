@@ -89,6 +89,8 @@ class ListDataRepo @Inject constructor(
                         backupDir = backupDir,
                         systemApps = runBlocking { appsRepo.getLoadSystemApps() },
                         nonSystemApps = true,
+                        frozenApps = true,
+                        unfrozenApps = true,
                         hasBackups = true,
                         hasNoBackups = true,
                         installedApps = true,
@@ -265,6 +267,18 @@ class ListDataRepo @Inject constructor(
         labelFilters.emit(filters)
     }
 
+    suspend fun removeLabelFilter(label: String) {
+        if (!::labelFilters.isInitialized) return
+        labelFilters.emit(labelFilters.value - label)
+    }
+
+    suspend fun renameLabelFilter(oldLabel: String, newLabel: String) {
+        if (!::labelFilters.isInitialized || oldLabel == newLabel) return
+        val mode = labelFilters.value[oldLabel]
+        val filters = labelFilters.value - oldLabel
+        labelFilters.emit(if (mode == null) filters else filters + (newLabel to mode))
+    }
+
     private suspend fun saveAppSortPreference() {
         if (target != Target.Apps) return
         context.saveDashboardSortPreference(
@@ -295,6 +309,8 @@ data class Filters(
     val backupDir: String,
     val systemApps: Boolean,
     val nonSystemApps: Boolean,
+    val frozenApps: Boolean,
+    val unfrozenApps: Boolean,
     val hasBackups: Boolean,
     val hasNoBackups: Boolean,
     val installedApps: Boolean,

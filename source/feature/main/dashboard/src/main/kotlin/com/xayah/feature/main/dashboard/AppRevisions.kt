@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
@@ -61,6 +62,7 @@ import com.xayah.core.ui.util.LocalNavController
 import com.xayah.feature.main.details.AppDetails
 import com.xayah.feature.main.details.DetailsUiState
 import com.xayah.feature.main.details.DetailsViewModel
+import com.xayah.feature.main.details.NoteEditorDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +74,7 @@ fun AppRevisionsRoute(
     val revisions by viewModel.revisions.collectAsStateWithLifecycle()
     val installedApp by viewModel.installedApp.collectAsStateWithLifecycle()
     val verificationResults by viewModel.verificationResults.collectAsStateWithLifecycle()
+    val verifyingRevisionIds by viewModel.verifyingRevisionIds.collectAsStateWithLifecycle()
     val damagedRestoreRequest by viewModel.damagedRestoreRequest.collectAsStateWithLifecycle()
     val detailsState by detailsViewModel.uiState.collectAsStateWithLifecycle()
     val furtherOperations by detailsViewModel.furtherOperations.collectAsStateWithLifecycle()
@@ -79,6 +82,7 @@ fun AppRevisionsRoute(
     var selectedRevision by remember { mutableStateOf<BackupRevisionEntity?>(null) }
     var restoreCandidate by remember { mutableStateOf<BackupRevisionEntity?>(null) }
     var deleteCandidate by remember { mutableStateOf<BackupRevisionEntity?>(null) }
+    var noteCandidate by remember { mutableStateOf<BackupRevisionEntity?>(null) }
     var backupCandidate by remember { mutableStateOf<PackageEntity?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
     var blacklistConfirmation by remember { mutableStateOf<Boolean?>(null) }
@@ -189,7 +193,7 @@ fun AppRevisionsRoute(
                 items(revisions, key = BackupRevisionEntity::id) { revision ->
                     RevisionItem(
                         revision = revision,
-                        verificationStatus = verificationResults[revision.id]?.status ?: BackupVerificationStatus.NOT_VERIFIED,
+                        verificationStatus = verificationResults[revision.id]?.status,
                         onClick = { selectedRevision = revision },
                     )
                 }
@@ -203,8 +207,9 @@ fun AppRevisionsRoute(
                         onSetDataStates = detailsViewModel::setDataStates,
                         onAddLabel = detailsViewModel::addLabel,
                         onDeleteLabel = detailsViewModel::deleteLabel,
-                        onSetLabelColor = detailsViewModel::setLabelColor,
+                        onUpdateLabel = detailsViewModel::updateLabel,
                         onSelectLabel = detailsViewModel::selectAppLabel,
+                        onUpdateAppNote = detailsViewModel::updateAppNote,
                         onUninstall = detailsViewModel::uninstallApp,
                         onClearData = detailsViewModel::clearAppData,
                         onCopyDataPath = detailsViewModel::copyDataPath,
@@ -228,6 +233,7 @@ fun AppRevisionsRoute(
                         onLaunch = detailsViewModel::launchApp,
                         onProtect = detailsViewModel::protect,
                         onDelete = detailsViewModel::delete,
+                        iconRefreshKey = verificationResults,
                     )
                 }
             }
@@ -286,6 +292,7 @@ fun AppRevisionsRoute(
         RevisionDetailsDialog(
             revision = revision,
             verificationResult = verificationResults[revision.id],
+            isVerifying = revision.id in verifyingRevisionIds,
             onDismiss = { selectedRevision = null },
             onRestore = {
                 selectedRevision = null
@@ -296,6 +303,21 @@ fun AppRevisionsRoute(
                 deleteCandidate = revision
             },
             onVerify = { viewModel.verifyRevision(revision) },
+            onEditNote = {
+                selectedRevision = null
+                noteCandidate = revision
+            },
+        )
+    }
+
+    noteCandidate?.let { revision ->
+        NoteEditorDialog(
+            note = revision.note,
+            onDismiss = { noteCandidate = null },
+            onConfirm = {
+                viewModel.updateRevisionNote(revision, it)
+                noteCandidate = null
+            },
         )
     }
 
@@ -459,13 +481,14 @@ private fun Int.toDataStates() = PackageDataStates(
 @Composable
 private fun RevisionItem(
     revision: BackupRevisionEntity,
-    verificationStatus: BackupVerificationStatus,
+    verificationStatus: BackupVerificationStatus?,
     onClick: () -> Unit,
 ) {
     val contents = buildList {
         if (revision.contentMask and 1 != 0) add(stringResource(R.string.apk))
         if (revision.contentMask and 62 != 0) add(stringResource(R.string.app_data))
     }.joinToString()
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier
@@ -494,14 +517,29 @@ private fun RevisionItem(
                 color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
             )
             Text(
-                text = stringResource(verificationStatus.stringRes()),
+                text = Formatter.formatFileSize(context, revision.sizeBytes),
                 style = MaterialTheme.typography.bodySmall,
-                color = if (verificationStatus == BackupVerificationStatus.DAMAGED) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    ThemedColorSchemeKeyTokens.OnSurfaceVariant.value
-                },
+                color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
             )
+            if (revision.note.isNotEmpty()) {
+                Text(
+                    text = revision.note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
+                    maxLines = 2,
+                )
+            }
+            verificationStatus?.let { status ->
+                Text(
+                    text = stringResource(status.stringRes()),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (status == BackupVerificationStatus.VALID) {
+                        ThemedColorSchemeKeyTokens.GreenPrimary.value
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+            }
         }
     }
 }
@@ -510,19 +548,23 @@ private fun RevisionItem(
 private fun RevisionDetailsDialog(
     revision: BackupRevisionEntity,
     verificationResult: AppBackupRepository.VerificationResult?,
+    isVerifying: Boolean,
     onDismiss: () -> Unit,
     onRestore: () -> Unit,
     onDelete: () -> Unit,
     onVerify: () -> Unit,
+    onEditNote: () -> Unit,
 ) {
     val context = LocalContext.current
     val contents = buildList {
         if (revision.contentMask and 1 != 0) add(stringResource(R.string.apk))
-        if (revision.contentMask and 62 != 0) add(stringResource(R.string.app_data))
+        if (revision.contentMask and 2 != 0) add("USER")
+        if (revision.contentMask and 4 != 0) add("USER_DE")
+        if (revision.contentMask and 8 != 0) add("DATA")
+        if (revision.contentMask and 16 != 0) add("OBB")
+        if (revision.contentMask and 32 != 0) add("MEDIA")
     }.joinToString()
     val size = Formatter.formatFileSize(context, revision.sizeBytes)
-    val verificationStatus = verificationResult?.status ?: BackupVerificationStatus.NOT_VERIFIED
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.revision_info)) },
@@ -532,7 +574,28 @@ private fun RevisionDetailsDialog(
                 Text(stringResource(R.string.created_at, DateUtil.formatTimestamp(revision.createdAt, DateUtil.PATTERN_YMD_HMS)))
                 Text(stringResource(R.string.revision_details, revision.engine.name.lowercase(), contents))
                 Text(size)
-                Text(stringResource(verificationStatus.stringRes()))
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text(
+                        modifier = Modifier.weight(1f),
+                        text = revision.note.ifEmpty { stringResource(R.string.no_note) },
+                        color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
+                    )
+                    TooltipIconButton(tooltip = stringResource(R.string.edit_note), onClick = onEditNote) {
+                        Icon(Icons.Rounded.Edit, contentDescription = null)
+                    }
+                }
+                verificationResult?.let { result ->
+                    Text(
+                        text = stringResource(result.status.stringRes()),
+                        color = if (result.status == BackupVerificationStatus.VALID) {
+                            ThemedColorSchemeKeyTokens.GreenPrimary.value
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                    )
+                }
                 verificationResult?.issues?.forEach { issue ->
                     Text(
                         text = issue.description(),
@@ -540,15 +603,21 @@ private fun RevisionDetailsDialog(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
+                if (isVerifying) {
+                    Text(
+                        text = stringResource(R.string.verifying),
+                        color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
+                    )
+                }
             }
         },
         confirmButton = {
             androidx.compose.foundation.layout.Row {
                 androidx.compose.material3.TextButton(
-                    enabled = revision.engine == BackupEngine.LEGACY,
+                    enabled = revision.engine == BackupEngine.LEGACY && !isVerifying,
                     onClick = onVerify,
                 ) {
-                    Text(stringResource(R.string.verify))
+                    Text(stringResource(if (isVerifying) R.string.verifying else R.string.verify))
                 }
                 androidx.compose.material3.TextButton(
                     enabled = revision.engine == BackupEngine.LEGACY,

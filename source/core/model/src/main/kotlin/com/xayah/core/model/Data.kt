@@ -23,6 +23,12 @@ data class ConfigurationsBlacklist(
     var files: List<BlacklistFileItem>,
 )
 
+data class AppNoteItem(
+    val packageName: String,
+    val userId: Int,
+    val note: String,
+)
+
 data class Configurations(
     val blacklist: ConfigurationsBlacklist,
     var cloud: List<CloudEntity>,
@@ -30,6 +36,7 @@ data class Configurations(
     var labelColors: Map<String, Long>,
     var labelAppRefs: List<LabelAppCrossRefEntity>,
     var labelFileRefs: List<LabelFileCrossRefEntity>,
+    var appNotes: List<AppNoteItem>? = null,
     var settings: ConfigurationSettings?,
 )
 

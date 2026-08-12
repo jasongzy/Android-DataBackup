@@ -8,6 +8,7 @@ import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedButton
@@ -39,6 +40,7 @@ fun PageConfigurations() {
     val labels by viewModel.labels.collectAsStateWithLifecycle()
     val labelAppRefs by viewModel.labelAppRefs.collectAsStateWithLifecycle()
     val labelFileRefs by viewModel.labelFileRefs.collectAsStateWithLifecycle()
+    val appNotesCount by viewModel.appNotesCount.collectAsStateWithLifecycle()
 
     ConfigurationsScaffold(
         scrollBehavior = scrollBehavior, snackbarHostState = viewModel.snackbarHostState,
@@ -46,7 +48,7 @@ fun PageConfigurations() {
             OutlinedButton(
                 enabled = uiState.selectedCount != 0 && (
                     uiState.settingsSelected ||
-                        blockedPackagesState.size + blockedFilesState.size + accounts.size + labels.size + labelAppRefs.size + labelFileRefs.size != 0
+                        blockedPackagesState.size + blockedFilesState.size + accounts.size + labels.size + labelAppRefs.size + labelFileRefs.size + appNotesCount != 0
                     ),
                 onClick = {
                 viewModel.emitIntentOnIO(IndexUiIntent.Export)
@@ -88,6 +90,14 @@ fun PageConfigurations() {
             checked = uiState.labelSelected,
         ) {
             viewModel.emitStateOnMain(uiState.copy(selectedCount = if (it) uiState.selectedCount - 1 else uiState.selectedCount + 1, labelSelected = it.not()))
+        }
+        Checkable(
+            icon = Icons.AutoMirrored.Outlined.Notes,
+            title = stringResource(id = R.string.app_notes),
+            value = appNotesCount.toString(),
+            checked = uiState.appNotesSelected,
+        ) {
+            viewModel.emitStateOnMain(uiState.copy(selectedCount = if (it) uiState.selectedCount - 1 else uiState.selectedCount + 1, appNotesSelected = it.not()))
         }
         Checkable(
             icon = Icons.Outlined.Settings,

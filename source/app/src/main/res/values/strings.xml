@@ -280,6 +280,9 @@
     <string name="system_app">System app</string>
     <string name="non_system_apps">Non-system apps</string>
     <string name="updated">Updated</string>
+    <string name="frozen">Frozen</string>
+    <string name="frozen_apps">Frozen</string>
+    <string name="unfrozen_apps">Not frozen</string>
     <string name="updated_at">Updated: %1$s</string>
     <string name="installed_at">Installed: %1$s</string>
     <string name="app_data_size">Data size: %1$s</string>
@@ -290,6 +293,7 @@
     <string name="verification_summary">Verified: %1$d; possibly damaged: %2$d</string>
     <string name="verification_results">Verification results</string>
     <string name="verification_progress">Checking %1$d of %2$d</string>
+    <string name="backups_ready_for_verification">%1$d backups available for verification</string>
     <string name="verification_finished">Verification complete: %1$d valid, %2$d possibly damaged</string>
     <string name="verification_manifest_missing">Manifest is missing</string>
     <string name="verification_manifest_invalid">Manifest cannot be read</string>
@@ -356,7 +360,12 @@
     <string name="auto_screen_off_desc">Automatically turn off the screen during backing up or restoring apps/files, then turn it on after completion</string>
     <string name="args_screen_off_in_seconds">The screen will turn off in %1$s seconds</string>
     <string name="configurations">Configuration backup</string>
-    <string name="configurations_desc">Blacklist, cloud accounts, labels, and other settings</string>
+    <string name="configurations_desc">Import and export</string>
+    <string name="app_notes">App notes</string>
+    <string name="note">Note</string>
+    <string name="no_note">No note</string>
+    <string name="edit_note">Edit note</string>
+    <string name="note_saved">Note saved</string>
     <string name="other_settings">Other settings</string>
     <string name="_import">Import</string>
     <string name="exported">Exported</string>
@@ -469,6 +478,11 @@
     <string name="labels">Labels</string>
     <string name="label">Label</string>
     <string name="add_label">Add label</string>
+    <string name="modify_labels">Modify labels</string>
+    <string name="label_name">Label name</string>
+    <string name="hex_color">Hex color</string>
+    <string name="rename_label">Rename label</string>
+    <string name="confirm_rename_label">Rename “%1$s” to “%2$s” for every app?</string>
     <string name="freeze">Freeze</string>
     <string name="unfreeze">Unfreeze</string>
     <string name="confirm_freeze">Freeze this app?</string>
@@ -484,6 +498,7 @@
     <string name="args_files_restored_and_failed">%1$s files restored, %2$s failed</string>
     <string name="history">History</string>
     <string name="verify">Verify</string>
+    <string name="verifying">Verifying…</string>
     <string name="not_verified">Not verified</string>
     <string name="backup_valid">Backup verified</string>
     <string name="backup_damaged">Backup may be damaged</string>

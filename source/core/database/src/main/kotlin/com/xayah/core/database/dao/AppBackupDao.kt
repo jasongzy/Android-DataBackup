@@ -12,16 +12,20 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface AppBackupDao {
     @Transaction
-    suspend fun replaceInstalledApps(userId: Int, apps: List<BackupAppEntity>): List<String> {
+    suspend fun replaceInstalledApps(userId: Int, apps: List<BackupAppEntity>) {
         markUserAppsUninstalled(userId)
         upsertApps(apps)
-        val removedPackages = getUninstalledAppsWithoutRevisions(userId)
         deleteUninstalledAppsWithoutRevisions(userId)
-        return removedPackages
     }
 
     @Upsert
     suspend fun upsertApps(apps: List<BackupAppEntity>)
+
+    @Query("UPDATE backup_apps SET note = :note WHERE packageName = :packageName AND userId = :userId")
+    suspend fun updateAppNote(packageName: String, userId: Int, note: String)
+
+    @Query("SELECT * FROM backup_apps WHERE note != ''")
+    suspend fun getAppsWithNotes(): List<BackupAppEntity>
 
     @Query("UPDATE backup_apps SET isInstalled = 0 WHERE userId = :userId")
     suspend fun markUserAppsUninstalled(userId: Int)
@@ -29,7 +33,7 @@ interface AppBackupDao {
     @Query(
         """
         DELETE FROM backup_apps
-        WHERE userId = :userId AND isInstalled = 0
+        WHERE userId = :userId AND isInstalled = 0 AND note = ''
             AND NOT EXISTS (
                 SELECT 1 FROM backup_revisions
                 WHERE backup_revisions.packageName = backup_apps.packageName
@@ -45,30 +49,14 @@ interface AppBackupDao {
     )
     suspend fun deleteUninstalledAppsWithoutRevisions(userId: Int)
 
-    @Query(
-        """
-        SELECT packageName FROM backup_apps
-        WHERE userId = :userId AND isInstalled = 0
-            AND NOT EXISTS (
-                SELECT 1 FROM backup_revisions
-                WHERE backup_revisions.packageName = backup_apps.packageName
-                    AND backup_revisions.userId = backup_apps.userId
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM LabelAppCrossRefEntity
-                WHERE LabelAppCrossRefEntity.packageName = backup_apps.packageName
-                    AND LabelAppCrossRefEntity.userId = backup_apps.userId
-                    AND LabelAppCrossRefEntity.preserveId = 0
-            )
-        """
-    )
-    suspend fun getUninstalledAppsWithoutRevisions(userId: Int): List<String>
-
     @Upsert
     suspend fun upsertRevision(revision: BackupRevisionEntity)
 
     @Upsert
     suspend fun upsertRevisions(revisions: List<BackupRevisionEntity>)
+
+    @Query("UPDATE backup_revisions SET note = :note WHERE revisionId = :revisionId")
+    suspend fun updateRevisionNote(revisionId: String, note: String)
 
     @Transaction
     suspend fun replaceRepositoryIndex(
@@ -96,7 +84,7 @@ interface AppBackupDao {
     @Query(
         """
         DELETE FROM backup_apps
-        WHERE isInstalled = 0
+        WHERE isInstalled = 0 AND note = ''
             AND NOT EXISTS (
                 SELECT 1 FROM backup_revisions
                 WHERE backup_revisions.packageName = backup_apps.packageName
@@ -114,33 +102,12 @@ interface AppBackupDao {
 
     @Query(
         """
-        SELECT packageName FROM backup_apps
-        WHERE isInstalled = 0
-            AND NOT EXISTS (
-                SELECT 1 FROM backup_revisions
-                WHERE backup_revisions.packageName = backup_apps.packageName
-                    AND backup_revisions.userId = backup_apps.userId
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM LabelAppCrossRefEntity
-                WHERE LabelAppCrossRefEntity.packageName = backup_apps.packageName
-                    AND LabelAppCrossRefEntity.userId = backup_apps.userId
-                    AND LabelAppCrossRefEntity.preserveId = 0
-            )
-        """
-    )
-    suspend fun getUninstalledAppsWithoutRevisions(): List<String>
-
-    @Query("SELECT EXISTS(SELECT 1 FROM backup_apps WHERE packageName = :packageName)")
-    suspend fun containsPackage(packageName: String): Boolean
-
-    @Query(
-        """
         SELECT backup_apps.*, COUNT(backup_revisions.revisionId) AS revisionCount,
             MAX(backup_revisions.createdAt) AS latestRevisionAt,
             MAX(CASE WHEN (backup_revisions.contentMask & 1) != 0 THEN 1 ELSE 0 END) AS hasApkBackup,
             MAX(CASE WHEN (backup_revisions.contentMask & 62) != 0 THEN 1 ELSE 0 END) AS hasDataBackup,
-            MAX(CASE WHEN (backup_revisions.contentMask & 1) != 0 THEN backup_revisions.appVersionCode END) AS latestApkVersionCode
+            MAX(CASE WHEN (backup_revisions.contentMask & 1) != 0 THEN backup_revisions.appVersionCode END) AS latestApkVersionCode,
+            COALESCE(GROUP_CONCAT(backup_revisions.note, char(10)), '') AS revisionNotes
         FROM backup_apps
         LEFT JOIN backup_revisions
             ON backup_apps.packageName = backup_revisions.packageName

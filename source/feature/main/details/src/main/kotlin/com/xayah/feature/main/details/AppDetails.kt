@@ -22,11 +22,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.rounded.AcUnit
-import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.rounded.RemoveRedEye
 import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Update
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material.icons.rounded._123
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
@@ -49,6 +51,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SingleChoiceSegmentedButtonRowScope
@@ -116,8 +119,9 @@ fun AppDetails(
     onSetDataStates: (Long, PackageDataStates) -> Unit,
     onAddLabel: (String) -> Unit,
     onDeleteLabel: (String) -> Unit,
-    onSetLabelColor: (String, Long) -> Unit,
+    onUpdateLabel: (String, String, Long) -> Unit,
     onSelectLabel: (Boolean, LabelAppCrossRefEntity?) -> Unit,
+    onUpdateAppNote: (String) -> Unit,
     onUninstall: () -> Unit,
     onClearData: () -> Unit,
     onCopyDataPath: (DataType) -> Unit,
@@ -133,12 +137,14 @@ fun AppDetails(
     onFreeze: (Boolean) -> Unit,
     onLaunch: () -> Unit,
     onProtect: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    iconRefreshKey: Any? = null,
 ) {
     var isShow by remember { mutableStateOf(false) }
     var showFurtherOperations by remember { mutableStateOf(false) }
     var selectedDataPath by remember { mutableStateOf<String?>(null) }
     var colorCandidate by remember { mutableStateOf<ColoredLabel?>(null) }
+    var editNote by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val onDismissRequest: () -> Unit = {
         coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
@@ -152,7 +158,18 @@ fun AppDetails(
     val context = LocalContext.current
     val dialogState = LocalSlotScope.current!!.dialogSlot
 
-    LabelsBottomSheet(isShow, sheetState, onDismissRequest, app, uiState.refs, uiState.labels, onAddLabel, onDeleteLabel, onSelectLabel)
+    LabelsBottomSheet(
+        isShow,
+        sheetState,
+        onDismissRequest,
+        app,
+        uiState.refs,
+        uiState.labels,
+        onAddLabel,
+        onDeleteLabel,
+        onSelectLabel,
+        onEditLabel = { colorCandidate = it },
+    )
     if (showFurtherOperations) {
         FurtherOperationsBottomSheet(
             onDismiss = { showFurtherOperations = false },
@@ -206,50 +223,70 @@ fun AppDetails(
                 },
             )
         ) {
-            PackageIconImage(packageName = app.packageName, size = SizeTokens.Level100)
+            PackageIconImage(
+                packageName = app.packageName,
+                size = SizeTokens.Level100,
+                refreshKey = iconRefreshKey,
+            )
         }
 
         Spacer(Modifier.height(SizeTokens.Level12))
 
         TitleLargeText(text = app.packageInfo.label, color = ThemedColorSchemeKeyTokens.OnSurface.value)
         BodyMediumText(text = app.packageName, color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value)
-        BodyMediumText(text = app.packageInfo.versionName, color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value)
+        if (app.packageInfo.versionName.isNotEmpty()) {
+            BodyMediumText(text = app.packageInfo.versionName, color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value)
+        }
         LabelsFlow(
             opType = opType,
             app = app,
             refs = uiState.refs,
             labels = uiState.labels,
             onEditColor = { colorCandidate = it },
+            onRemove = { ref -> onSelectLabel(true, ref) },
             onAdd = { isShow = true },
         )
+        NoteRow(note = uiState.note, onEdit = { editNote = true })
 
-        Spacer(Modifier.height(SizeTokens.Level12))
+        if (uiState.isInstalled) {
+            Spacer(Modifier.height(SizeTokens.Level12))
 
-        ActionsRow(opType = opType, frozen = app.extraInfo.enabled.not(), protected = app.preserveId != 0L, onUninstall = onUninstall, onClearData = onClearData, onFreeze = onFreeze, onLaunch = onLaunch, onProtect = onProtect, onDelete = onDelete)
+            ActionsRow(opType = opType, frozen = app.extraInfo.enabled.not(), protected = app.preserveId != 0L, onUninstall = onUninstall, onClearData = onClearData, onFreeze = onFreeze, onLaunch = onLaunch, onProtect = onProtect, onDelete = onDelete)
 
-        Spacer(Modifier.height(SizeTokens.Level12))
+            Spacer(Modifier.height(SizeTokens.Level12))
 
-        BackupParts(
-            app = app,
-            isCalculating = uiState.isRefreshing,
-            onSetDataStates = onSetDataStates,
-            onShowDataPath = { dataType ->
-                onResolveDataPath(dataType) { selectedDataPath = it }
-            },
-        )
+            BackupParts(
+                app = app,
+                isCalculating = uiState.isRefreshing,
+                onSetDataStates = onSetDataStates,
+                onShowDataPath = { dataType ->
+                    onResolveDataPath(dataType) { selectedDataPath = it }
+                },
+            )
 
-        Info(app = app, architecture = uiState.architecture, targetSdk = uiState.targetSdk)
+            Info(app = app, architecture = uiState.architecture, targetSdk = uiState.targetSdk)
 
-        Permissions(permissions = app.extraInfo.permissions, onClick = onEditPermissions)
+            Permissions(permissions = app.extraInfo.permissions, onClick = onEditPermissions)
+        }
     }
 
     colorCandidate?.let { label ->
         LabelColorDialog(
             label = label,
             onDismiss = { colorCandidate = null },
-            onSelect = { color ->
-                onSetLabelColor(label.label, color)
+            onConfirm = { name, color ->
+                onUpdateLabel(label.label, name, color)
                 colorCandidate = null
+            },
+        )
+    }
+    if (editNote) {
+        NoteEditorDialog(
+            note = uiState.note,
+            onDismiss = { editNote = false },
+            onConfirm = {
+                onUpdateAppNote(it)
+                editNote = false
             },
         )
     }
@@ -384,7 +421,7 @@ private fun FurtherOperationsBottomSheet(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun LabelsFlow(
     opType: OpType,
@@ -392,6 +429,7 @@ private fun LabelsFlow(
     refs: List<LabelAppCrossRefEntity>,
     labels: List<ColoredLabel>,
     onEditColor: (ColoredLabel) -> Unit,
+    onRemove: (LabelAppCrossRefEntity) -> Unit,
     onAdd: () -> Unit,
 ) {
     FlowRow(
@@ -399,7 +437,7 @@ private fun LabelsFlow(
             .fillMaxWidth()
             .paddingHorizontal(SizeTokens.Level24),
         horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8, Alignment.CenterHorizontally),
-        verticalArrangement = Arrangement.spacedBy(-SizeTokens.Level8)
+        verticalArrangement = Arrangement.spacedBy(SizeTokens.Level4)
     ) {
         if (app.isSystemApp) {
             FilterChip(
@@ -423,8 +461,8 @@ private fun LabelsFlow(
                     FilterChip(
                         onClick = { },
                         selected = true,
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = ThemedColorSchemeKeyTokens.ErrorContainer.value, selectedLabelColor = ThemedColorSchemeKeyTokens.OnErrorContainer.value),
-                        label = { Text(stringResource(R.string.disabled)) },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = ThemedColorSchemeKeyTokens.BluePrimaryContainer.value, selectedLabelColor = ThemedColorSchemeKeyTokens.BlueOnPrimaryContainer.value),
+                        label = { Text(stringResource(R.string.frozen)) },
                     )
                 }
                 if (app.extraInfo.blocked) {
@@ -470,22 +508,52 @@ private fun LabelsFlow(
         refs.forEach { item ->
             labelsByName[item.label]?.let { label ->
                 val color = Color(label.colorArgb)
-                androidx.compose.material3.Surface(
-                    onClick = { onEditColor(label) },
-                    color = Color.Transparent,
-                    contentColor = color,
-                    shape = androidx.compose.material3.MaterialTheme.shapes.small,
-                    border = BorderStroke(SizeTokens.Level1, color),
-                ) {
-                    Text(
-                        modifier = Modifier.paddingHorizontal(SizeTokens.Level8).paddingVertical(SizeTokens.Level4),
-                        text = label.label,
-                    )
+                var expanded by remember(label.label) { mutableStateOf(false) }
+                Box {
+                    val interactionSource = remember { MutableInteractionSource() }
+                    Box {
+                        FilterChip(
+                            onClick = {},
+                            selected = false,
+                            label = { Text(label.label) },
+                            colors = FilterChipDefaults.filterChipColors(labelColor = color),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = false,
+                                borderColor = color,
+                            ),
+                            interactionSource = interactionSource,
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .combinedClickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = { onEditColor(label) },
+                                    onLongClick = { expanded = true },
+                                ),
+                        )
+                    }
+                    AnimatedModalDropdownMenu(
+                        targetState = null,
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = stringResource(R.string.delete),
+                            leadingIcon = Icons.Rounded.DeleteForever,
+                            onClick = {
+                                expanded = false
+                                onRemove(item)
+                            },
+                        )
+                    }
                 }
             }
         }
-        TooltipIconButton(tooltip = stringResource(R.string.add_label), onClick = onAdd) {
-            Icon(Icons.Rounded.Add, contentDescription = null)
+        TooltipIconButton(tooltip = stringResource(R.string.modify_labels), onClick = onAdd) {
+            Icon(Icons.Rounded.Edit, contentDescription = null)
         }
     }
 }
@@ -502,10 +570,12 @@ private fun LabelsBottomSheet(
     onAddLabel: (String) -> Unit,
     onDeleteLabel: (String) -> Unit,
     onSelectLabel: (Boolean, LabelAppCrossRefEntity?) -> Unit,
+    onEditLabel: (ColoredLabel) -> Unit,
 ) {
     val context = LocalContext.current
     val dialogState = LocalSlotScope.current!!.dialogSlot
     if (isShow) {
+        var deleteCandidate by remember { mutableStateOf<String?>(null) }
         ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState) {
             val selectedLabels by remember(refs) { mutableStateOf(refs.map { it.label }) }
 
@@ -568,9 +638,20 @@ private fun LabelsBottomSheet(
                                 onDismissRequest = { expanded = false }
                             ) {
                                 DropdownMenuItem(
+                                    text = stringResource(id = R.string.modify),
+                                    leadingIcon = Icons.Rounded.Edit,
+                                    onClick = {
+                                        expanded = false
+                                        onEditLabel(item)
+                                    },
+                                )
+                                DropdownMenuItem(
                                     text = stringResource(id = R.string.delete),
                                     leadingIcon = Icons.Rounded.DeleteForever,
-                                    onClick = { onDeleteLabel(item.label) },
+                                    onClick = {
+                                        expanded = false
+                                        deleteCandidate = item.label
+                                    },
                                 )
                             }
                         }
@@ -581,6 +662,24 @@ private fun LabelsBottomSheet(
             BottomButton(text = stringResource(id = R.string.add_label)) {
                 dialogState.edit(context.getString(R.string.add_label), label = context.getString(R.string.label), onConfirm = onAddLabel)
             }
+        }
+        deleteCandidate?.let { label ->
+            AlertDialog(
+                onDismissRequest = { deleteCandidate = null },
+                title = { Text(stringResource(R.string.delete_label)) },
+                text = { Text(stringResource(R.string.confirm_delete_label, label)) },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        onDeleteLabel(label)
+                        deleteCandidate = null
+                    }) { Text(stringResource(R.string.delete)) }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { deleteCandidate = null }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
         }
     }
 }
@@ -685,7 +784,7 @@ private fun SingleChoiceSegmentedButtonRowScope.BackupActions(
         index = 2,
         count = 4,
         title = stringResource(if (frozen) R.string.unfreeze else R.string.freeze),
-        icon = Icons.Rounded.AcUnit
+        icon = if (frozen) Icons.Rounded.WbSunny else Icons.Rounded.AcUnit
     ) {
         dialogState.confirm(
             title = context.getString(R.string.prompt),
@@ -859,32 +958,149 @@ private fun Permissions(permissions: List<PackagePermission>, onClick: () -> Uni
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LabelColorDialog(label: ColoredLabel, onDismiss: () -> Unit, onSelect: (Long) -> Unit) {
+private fun LabelColorDialog(
+    label: ColoredLabel,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Long) -> Unit,
+) {
+    var name by remember(label.label) { mutableStateOf(label.label) }
+    var hex by remember(label.colorArgb) { mutableStateOf("%08X".format(label.colorArgb)) }
+    var renameCandidate by remember { mutableStateOf<String?>(null) }
+    val parsedColor = parseColor(hex)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(label.label) },
         text = {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level12),
-                verticalArrangement = Arrangement.spacedBy(SizeTokens.Level12),
-            ) {
-                LabelPalette.colors.forEach { colorArgb ->
-                    val color = Color(colorArgb)
+            Column(verticalArrangement = Arrangement.spacedBy(SizeTokens.Level12)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.label_name)) },
+                    singleLine = true,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level12),
+                    verticalArrangement = Arrangement.spacedBy(SizeTokens.Level12),
+                ) {
+                    LabelPalette.colors.forEach { colorArgb ->
+                        val color = Color(colorArgb)
+                        androidx.compose.material3.Surface(
+                            modifier = Modifier.size(40.dp),
+                            onClick = {
+                                hex = "%08X".format(colorArgb)
+                            },
+                            color = color,
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            border = if (colorArgb == parsedColor) BorderStroke(SizeTokens.Level2, LocalContentColor.current) else null,
+                        ) {}
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level12)) {
                     androidx.compose.material3.Surface(
                         modifier = Modifier.size(40.dp),
-                        onClick = { onSelect(colorArgb) },
-                        color = color,
+                        color = parsedColor?.let(::Color) ?: Color.Transparent,
                         shape = androidx.compose.foundation.shape.CircleShape,
-                        border = if (colorArgb == label.colorArgb) BorderStroke(SizeTokens.Level2, LocalContentColor.current) else null,
+                        border = BorderStroke(SizeTokens.Level1, LocalContentColor.current),
                     ) {}
+                    OutlinedTextField(
+                        modifier = Modifier.weight(1f),
+                        value = hex,
+                        onValueChange = { value ->
+                            hex = value.removePrefix("#").take(8).uppercase()
+                        },
+                        label = { Text(stringResource(R.string.hex_color)) },
+                        prefix = { Text("#") },
+                        isError = parsedColor == null,
+                        singleLine = true,
+                    )
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                enabled = name.trim().isNotEmpty() && parsedColor != null,
+                onClick = {
+                    if (name.trim() == label.label) onConfirm(name.trim(), parsedColor!!) else renameCandidate = name.trim()
+                },
+            ) { Text(stringResource(R.string.confirm)) }
+        },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.cancel))
             }
         },
     )
+    renameCandidate?.let { newName ->
+        AlertDialog(
+            onDismissRequest = { renameCandidate = null },
+            title = { Text(stringResource(R.string.rename_label)) },
+            text = { Text(stringResource(R.string.confirm_rename_label, label.label, newName)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    onConfirm(newName, parsedColor!!)
+                    renameCandidate = null
+                }) { Text(stringResource(R.string.confirm)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { renameCandidate = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun NoteRow(note: String, onEdit: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit)
+            .padding(horizontal = SizeTokens.Level24, vertical = SizeTokens.Level8),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8),
+    ) {
+        Icon(Icons.AutoMirrored.Rounded.Notes, contentDescription = null, tint = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value)
+        BodyMediumText(
+            modifier = Modifier.weight(1f),
+            text = note.ifEmpty { stringResource(R.string.no_note) },
+            color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
+        )
+    }
+}
+
+@Composable
+fun NoteEditorDialog(note: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var value by remember(note) { mutableStateOf(note) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.edit_note)) },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                maxLines = 8,
+                label = { Text(stringResource(R.string.note)) },
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onConfirm(value) }) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+private fun parseColor(value: String): Long? {
+    val normalized = value.removePrefix("#")
+    if (normalized.length !in setOf(6, 8) || normalized.any { it.digitToIntOrNull(16) == null }) return null
+    val argb = if (normalized.length == 6) "FF$normalized" else normalized
+    return argb.toLongOrNull(16)
 }

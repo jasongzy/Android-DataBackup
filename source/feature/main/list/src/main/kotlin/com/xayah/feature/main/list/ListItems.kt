@@ -206,14 +206,35 @@ fun AppItem(
 
             Column(modifier = Modifier.weight(1f)) {
                 TitleMediumText(text = title.ifEmpty { app.packageName }, color = systemColor, maxLines = 1)
-                BodyMediumText(text = backupSummary, color = ThemedColorSchemeKeyTokens.Outline.value, maxLines = 1)
-                if (app.isUpdatedSystemApp || item.labels.isNotEmpty()) {
+                BodyMediumText(
+                    text = backupSummary,
+                    color = if (item.revisionCount > 0) {
+                        ThemedColorSchemeKeyTokens.GreenPrimary.value
+                    } else {
+                        ThemedColorSchemeKeyTokens.Outline.value
+                    },
+                    maxLines = 1,
+                )
+                if (app.isFrozen || app.isUpdatedSystemApp || item.labels.isNotEmpty()) {
                     Row(
                         modifier = Modifier.padding(top = SizeTokens.Level2),
                         horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level4),
                     ) {
+                        if (app.isFrozen) {
+                            androidx.compose.material3.Surface(
+                                color = ThemedColorSchemeKeyTokens.BluePrimaryContainer.value,
+                                contentColor = ThemedColorSchemeKeyTokens.BlueOnPrimaryContainer.value,
+                                shape = MaterialTheme.shapes.small,
+                            ) {
+                                Text(
+                                    modifier = Modifier.padding(horizontal = SizeTokens.Level6, vertical = SizeTokens.Level1),
+                                    text = stringResource(com.xayah.feature.main.list.R.string.frozen),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
                         if (app.isUpdatedSystemApp) {
-                            val color = ThemedColorSchemeKeyTokens.Error.value
                             androidx.compose.material3.Surface(
                                 color = ThemedColorSchemeKeyTokens.ErrorContainer.value,
                                 contentColor = ThemedColorSchemeKeyTokens.OnErrorContainer.value,
@@ -227,7 +248,7 @@ fun AppItem(
                                 )
                             }
                         }
-                        val labelLimit = if (app.isUpdatedSystemApp) 2 else 3
+                        val labelLimit = (3 - listOf(app.isFrozen, app.isUpdatedSystemApp).count { it }).coerceAtLeast(0)
                         item.labels.take(labelLimit).forEach { label ->
                             val color = Color(label.colorArgb)
                             Text(

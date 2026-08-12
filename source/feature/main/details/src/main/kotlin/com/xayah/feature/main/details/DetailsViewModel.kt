@@ -25,12 +25,18 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xayah.core.data.repository.AppsRepo
+import com.xayah.core.data.repository.AppBackupRepository
+import com.xayah.core.data.repository.AppIconRepository
 import com.xayah.core.data.repository.FilesRepo
 import com.xayah.core.data.repository.LabelsRepo
+import com.xayah.core.data.repository.ListDataRepo
 import com.xayah.core.data.util.srcDir
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.common.util.BuildConfigUtil
 import com.xayah.core.model.OpType
+import com.xayah.core.model.BackupAppEntity
+import com.xayah.core.model.CompressionType
+import com.xayah.core.model.DataState
 import com.xayah.core.model.DataType
 import com.xayah.core.model.Target
 import com.xayah.core.model.database.LabelAppCrossRefEntity
@@ -40,6 +46,11 @@ import com.xayah.core.model.database.MediaEntity
 import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.database.PackagePermission
+import com.xayah.core.model.database.PackageDataStats
+import com.xayah.core.model.database.PackageExtraInfo
+import com.xayah.core.model.database.PackageIndexInfo
+import com.xayah.core.model.database.PackageInfo
+import com.xayah.core.model.database.PackageStorageStats
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.util.decodeURL
@@ -58,6 +69,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Dispatchers
@@ -83,8 +95,11 @@ class DetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val rootService: RemoteRootService,
     private val appsRepo: AppsRepo,
+    private val appBackupRepository: AppBackupRepository,
+    private val appIconRepository: AppIconRepository,
     private val filesRepo: FilesRepo,
     private val labelsRepo: LabelsRepo,
+    private val listDataRepo: ListDataRepo,
 ) : ViewModel() {
     private val id: Long = savedStateHandle.get<String>(MainRoutes.ARG_ID)?.toLongOrNull() ?: 0L
     private val packageName = savedStateHandle.get<String>(MainRoutes.ARG_PACKAGE_NAME)
@@ -105,19 +120,31 @@ class DetailsViewModel @Inject constructor(
 
     val uiState: StateFlow<DetailsUiState> = when (target) {
         Target.Apps -> {
-            val appFlow = if (id != 0L) {
+            val installedAppFlow = if (id != 0L) {
                 appsRepo.getApp(id)
             } else {
                 appsRepo.getApp(checkNotNull(packageName), userId)
             }
+            val appFlow = if (packageName != null) {
+                combine(installedAppFlow, appBackupRepository.observeApp(packageName, userId)) { installed, indexed ->
+                    installed?.let { AppDetailsSource(it, true, indexed?.note.orEmpty()) }
+                        ?: indexed?.let { AppDetailsSource(it.toPackageEntity(), false, it.note) }
+                }
+            } else {
+                installedAppFlow.combine(kotlinx.coroutines.flow.flowOf(null as BackupAppEntity?)) { installed, _ ->
+                    installed?.let { AppDetailsSource(it, true) }
+                }
+            }
             viewModelScope.launchOnDefault {
                 appFlow
                     .filterNotNull()
-                    .distinctUntilChangedBy { Triple(it.packageName, it.userId, it.packageInfo.versionCode) }
-                    .collect(::loadAppRuntimeInfo)
+                    .filter { it.isInstalled }
+                    .distinctUntilChangedBy { Triple(it.app.packageName, it.app.userId, it.app.packageInfo.versionCode) }
+                    .collect { loadAppRuntimeInfo(it.app) }
             }
-            combine(appFlow, isRefreshing, labelsRepo.getColoredLabelsFlow(), labelsRepo.getAppRefsFlow(), appRuntimeInfo) { app, isRefreshing, labels, refs, runtimeInfo ->
-                if (app != null) {
+            combine(appFlow, isRefreshing, labelsRepo.getColoredLabelsFlow(), labelsRepo.getAppRefsFlow(), appRuntimeInfo) { source, isRefreshing, labels, refs, runtimeInfo ->
+                if (source != null) {
+                    val app = source.app
                     Success.App(
                         isRefreshing = isRefreshing,
                         labels = labels,
@@ -127,6 +154,8 @@ class DetailsViewModel @Inject constructor(
                         },
                         architecture = runtimeInfo.architecture,
                         targetSdk = runtimeInfo.targetSdk,
+                        isInstalled = source.isInstalled,
+                        note = source.note,
                     )
                 } else {
                     Error
@@ -160,6 +189,7 @@ class DetailsViewModel @Inject constructor(
                 try {
                     when (state) {
                         is Success.App -> {
+                            if (!state.isInstalled) return@withLock
                             when (state.app.indexInfo.opType) {
                                 OpType.BACKUP -> {
                                     appsRepo.updateApp(state.app, state.app.userId)
@@ -217,11 +247,28 @@ class DetailsViewModel @Inject constructor(
     fun deleteLabel(label: String) {
         viewModelScope.launchOnDefault {
             labelsRepo.deleteLabel(label)
+            listDataRepo.removeLabelFilter(label)
+            appBackupRepository.removeUnusedApps()
         }
     }
 
-    fun setLabelColor(label: String, colorArgb: Long) {
-        viewModelScope.launchOnDefault { labelsRepo.setLabelColor(label, colorArgb) }
+    fun updateAppNote(note: String) {
+        viewModelScope.launchOnDefault {
+            val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
+            appBackupRepository.updateAppNote(app.packageName, app.userId, note)
+            showToast(R.string.note_saved)
+        }
+    }
+
+    fun updateLabel(oldLabel: String, newLabel: String, colorArgb: Long) {
+        viewModelScope.launchOnDefault {
+            val normalized = newLabel.trim()
+            if (oldLabel != normalized) {
+                labelsRepo.renameLabel(oldLabel, normalized)
+                listDataRepo.renameLabelFilter(oldLabel, normalized)
+            }
+            labelsRepo.setLabelColor(normalized, colorArgb)
+        }
     }
 
     fun selectAppLabel(selected: Boolean, ref: LabelAppCrossRefEntity?) {
@@ -229,6 +276,7 @@ class DetailsViewModel @Inject constructor(
             if (ref != null) {
                 if (selected) {
                     labelsRepo.deleteLabelAppCrossRef(ref)
+                    appBackupRepository.removeUnusedApps(ref.userId)
                 } else {
                     labelsRepo.addLabelAppCrossRef(ref)
                 }
@@ -457,8 +505,7 @@ class DetailsViewModel @Inject constructor(
         viewModelScope.launchOnDefault {
             val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
             val icon = runCatching { context.packageManager.getApplicationIcon(app.packageName) }.getOrNull()
-                ?: BaseUtil.readIcon(context, PathUtil.getPackageIconPath(context, app.packageName, true))
-                ?: BaseUtil.readIcon(context, PathUtil.getPackageIconPath(context, app.packageName, false))
+                ?: BaseUtil.readIcon(context, appIconRepository.getLocalIconPath(app.packageName))
             val saved = icon != null && saveIcon(icon.toBitmap(512, 512, Bitmap.Config.ARGB_8888), app.packageName)
             showToast(if (saved) R.string.app_icon_saved else R.string.app_icon_save_failed)
         }
@@ -827,6 +874,8 @@ sealed interface DetailsUiState {
             val refs: List<LabelAppCrossRefEntity>,
             val architecture: String,
             val targetSdk: Int,
+            val isInstalled: Boolean,
+            val note: String,
         ) : Success(isRefreshing, labels)
 
         data class File(
@@ -843,4 +892,33 @@ sealed interface DetailsUiState {
 private data class AppRuntimeInfo(
     val architecture: String = "",
     val targetSdk: Int = 0,
+)
+
+private data class AppDetailsSource(val app: PackageEntity, val isInstalled: Boolean, val note: String = "")
+
+private fun BackupAppEntity.toPackageEntity() = PackageEntity(
+    id = 0,
+    indexInfo = PackageIndexInfo(OpType.RESTORE, packageName, userId, CompressionType.ZSTD, 0, "", ""),
+    packageInfo = PackageInfo(
+        label = label,
+        versionName = versionName,
+        versionCode = versionCode,
+        flags = if (isSystem) android.content.pm.ApplicationInfo.FLAG_SYSTEM else 0,
+        firstInstallTime = firstInstallTime,
+        lastUpdateTime = lastUpdateTime,
+    ),
+    extraInfo = PackageExtraInfo(0, false, emptyList(), "", 0, false, false, true, false),
+    dataStates = PackageDataStates(
+        apkState = DataState.NotSelected,
+        userState = DataState.NotSelected,
+        userDeState = DataState.NotSelected,
+        dataState = DataState.NotSelected,
+        obbState = DataState.NotSelected,
+        mediaState = DataState.NotSelected,
+        permissionState = DataState.NotSelected,
+        ssaidState = DataState.NotSelected,
+    ),
+    storageStats = PackageStorageStats(),
+    dataStats = PackageDataStats(),
+    displayStats = PackageDataStats(),
 )
