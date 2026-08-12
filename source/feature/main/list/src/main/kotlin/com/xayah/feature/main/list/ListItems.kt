@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -37,11 +38,14 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
+import java.text.DateFormat
+import java.util.Date
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.model.OpType
 import com.xayah.core.model.Target
 import com.xayah.core.model.database.PackageEntity
+import com.xayah.core.model.util.formatSize
 import com.xayah.core.ui.R
 import com.xayah.core.ui.component.BodyMediumText
 import com.xayah.core.ui.component.IconButton
@@ -95,6 +99,9 @@ fun LazyListScope.listItems(
                 AppItem(
                     item = item,
                     selectionMode = selectionMode,
+                    showInstallTime = uiState.showInstallTime,
+                    showDataSize = uiState.showDataSize,
+                    showUpdateTime = uiState.showUpdateTime,
                     onClick = {
                         if (selectionMode) {
                             if (item.app.isInstalled) {
@@ -107,7 +114,6 @@ fun LazyListScope.listItems(
                         }
                     },
                     onLongClick = { if (item.app.isInstalled) viewModel.enterSelection(item.app.id) },
-                    onChangeFlag = viewModel::onChangeFlag,
                     onSelectedChanged = viewModel::onSelectedChanged,
                 )
             }
@@ -139,7 +145,9 @@ fun LazyListScope.listItems(
 fun AppItem(
     item: AppListItem,
     selectionMode: Boolean,
-    onChangeFlag: (Long, Int) -> Unit,
+    showInstallTime: Boolean,
+    showDataSize: Boolean,
+    showUpdateTime: Boolean,
     onSelectedChanged: (Long, Boolean) -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -155,6 +163,31 @@ fun AppItem(
         )
     } ?: stringResource(com.xayah.feature.main.list.R.string.no_backups)
     val metadata = if (!app.isInstalled) stringResource(com.xayah.feature.main.list.R.string.not_installed) else null
+    val systemColor = if (app.isSystemApp) ThemedColorSchemeKeyTokens.Error.value else Color.Unspecified
+    val formattedUpdateTime = remember(app.lastUpdateTime) {
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(app.lastUpdateTime))
+    }
+    val formattedInstallTime = remember(app.firstInstallTime) {
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(app.firstInstallTime))
+    }
+    val installTime = if (showInstallTime && app.firstInstallTime > 0) {
+        stringResource(
+            com.xayah.feature.main.list.R.string.installed_at,
+            formattedInstallTime,
+        )
+    } else null
+    val updateTime = if (showUpdateTime && app.lastUpdateTime > 0) {
+        stringResource(
+            com.xayah.feature.main.list.R.string.updated_at,
+            formattedUpdateTime,
+        )
+    } else null
+    val dataSize = if (showDataSize) {
+        stringResource(
+            com.xayah.feature.main.list.R.string.app_data_size,
+            app.dataSizeBytes.toDouble().formatSize(),
+        )
+    } else null
 
     Surface(
         onClick = onClick,
@@ -172,14 +205,30 @@ fun AppItem(
             PackageIconImage(packageName = app.packageName, size = 36.dp)
 
             Column(modifier = Modifier.weight(1f)) {
-                TitleMediumText(text = title.ifEmpty { app.packageName }, maxLines = 1)
+                TitleMediumText(text = title.ifEmpty { app.packageName }, color = systemColor, maxLines = 1)
                 BodyMediumText(text = backupSummary, color = ThemedColorSchemeKeyTokens.Outline.value, maxLines = 1)
-                if (item.labels.isNotEmpty()) {
+                if (app.isUpdatedSystemApp || item.labels.isNotEmpty()) {
                     Row(
                         modifier = Modifier.padding(top = SizeTokens.Level2),
                         horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level4),
                     ) {
-                        item.labels.take(3).forEach { label ->
+                        if (app.isUpdatedSystemApp) {
+                            val color = ThemedColorSchemeKeyTokens.Error.value
+                            androidx.compose.material3.Surface(
+                                color = ThemedColorSchemeKeyTokens.ErrorContainer.value,
+                                contentColor = ThemedColorSchemeKeyTokens.OnErrorContainer.value,
+                                shape = MaterialTheme.shapes.small,
+                            ) {
+                                Text(
+                                    modifier = Modifier.padding(horizontal = SizeTokens.Level6, vertical = SizeTokens.Level1),
+                                    text = stringResource(com.xayah.feature.main.list.R.string.updated),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                        val labelLimit = if (app.isUpdatedSystemApp) 2 else 3
+                        item.labels.take(labelLimit).forEach { label ->
                             val color = Color(label.colorArgb)
                             Text(
                                 modifier = Modifier
@@ -191,8 +240,8 @@ fun AppItem(
                                 maxLines = 1,
                             )
                         }
-                        if (item.labels.size > 3) {
-                            Text("+${item.labels.size - 3}", style = MaterialTheme.typography.labelSmall)
+                        if (item.labels.size > labelLimit) {
+                            Text("+${item.labels.size - labelLimit}", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 } else if (metadata != null) {
@@ -202,15 +251,21 @@ fun AppItem(
                         maxLines = 1,
                     )
                 }
+                if (updateTime != null) {
+                    BodyMediumText(text = updateTime, color = ThemedColorSchemeKeyTokens.Outline.value, maxLines = 1)
+                }
+                if (installTime != null) {
+                    BodyMediumText(text = installTime, color = ThemedColorSchemeKeyTokens.Outline.value, maxLines = 1)
+                }
+                if (dataSize != null) {
+                    BodyMediumText(text = dataSize, color = ThemedColorSchemeKeyTokens.Outline.value, maxLines = 1)
+                }
             }
 
             if (app.isInstalled) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (app.preserveId != 0L) {
                         Icon(imageVector = Icons.Outlined.Shield, contentDescription = null)
-                    }
-                    AnimatedDataIndicator(app.selectionFlag) {
-                        onChangeFlag(app.id, app.selectionFlag)
                     }
                 }
             }

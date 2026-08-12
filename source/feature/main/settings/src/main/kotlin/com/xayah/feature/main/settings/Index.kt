@@ -28,6 +28,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.datastore.KeyAutoScreenOff
 import com.xayah.core.datastore.KeyMonet
+import com.xayah.core.datastore.KeyLoadSystemApps
 import com.xayah.core.ui.component.Clickable
 import com.xayah.core.ui.component.InnerBottomSpacer
 import com.xayah.core.ui.component.Switchable
@@ -76,6 +77,16 @@ fun PageSettings() {
                 ) {
                     navController.navigateSingle(MainRoutes.RestoreSettings.route)
                 }
+                Switchable(
+                    key = KeyLoadSystemApps,
+                    defValue = true,
+                    title = stringResource(id = R.string.load_system_apps),
+                    checkedText = stringResource(id = R.string.enabled),
+                    notCheckedText = stringResource(id = R.string.not_enabled),
+                    onCheckedChange = { enabled ->
+                        if (enabled) viewModel.emitIntentOnIO(IndexUiIntent.LoadSystemApps)
+                    },
+                )
                 Clickable(
                     title = stringResource(id = R.string.setup),
                     value = stringResource(id = R.string.enter_the_setup_page_again),

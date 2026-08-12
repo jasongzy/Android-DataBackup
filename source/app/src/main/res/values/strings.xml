@@ -276,6 +276,13 @@
     <string name="args_restore">Restore %1$s</string>
     <string name="set_up_inst_env">Set up the installation environment</string>
     <string name="load_system_apps">Load system apps</string>
+    <string name="system_apps">System apps</string>
+    <string name="system_app">System app</string>
+    <string name="non_system_apps">Non-system apps</string>
+    <string name="updated">Updated</string>
+    <string name="updated_at">Updated: %1$s</string>
+    <string name="installed_at">Installed: %1$s</string>
+    <string name="app_data_size">Data size: %1$s</string>
     <string name="set_them_later_in_settings">You can set them later in settings</string>
     <string name="backup_settings">Backup settings</string>
     <string name="verify_all_backups">Verify all backups</string>

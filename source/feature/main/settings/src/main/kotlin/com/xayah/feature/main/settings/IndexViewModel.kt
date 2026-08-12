@@ -7,6 +7,7 @@ import com.xayah.core.util.FileUtil
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.xayah.core.data.repository.DirectoryRepository
 import com.xayah.core.model.database.DirectoryEntity
+import com.xayah.core.work.WorkManagerInitializer
 import com.xayah.core.ui.viewmodel.BaseViewModel
 import com.xayah.core.ui.viewmodel.IndexUiEffect
 import com.xayah.core.ui.viewmodel.UiIntent
@@ -21,6 +22,7 @@ data object IndexUiState : UiState
 
 sealed class IndexUiIntent : UiIntent {
     data object ClearCache : IndexUiIntent()
+    data object LoadSystemApps : IndexUiIntent()
 }
 
 @ExperimentalMaterial3Api
@@ -31,6 +33,7 @@ class IndexViewModel @Inject constructor(
 ) : BaseViewModel<IndexUiState, IndexUiIntent, IndexUiEffect>(IndexUiState) {
     override suspend fun onEvent(state: IndexUiState, intent: IndexUiIntent) {
         when (intent) {
+            IndexUiIntent.LoadSystemApps -> WorkManagerInitializer.fastInitializeAndUpdateApps(context)
             IndexUiIntent.ClearCache -> {
                 val directories = buildList {
                     add(context.cacheDir)

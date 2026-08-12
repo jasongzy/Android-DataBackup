@@ -268,6 +268,13 @@
     <string name="args_restore">恢复 %1$s</string>
     <string name="set_up_inst_env">设置安装环境</string>
     <string name="load_system_apps">加载系统应用</string>
+    <string name="system_apps">系统应用</string>
+    <string name="system_app">系统应用</string>
+    <string name="non_system_apps">非系统应用</string>
+    <string name="updated">已更新</string>
+    <string name="updated_at">更新时间：%1$s</string>
+    <string name="installed_at">安装时间：%1$s</string>
+    <string name="app_data_size">数据大小：%1$s</string>
     <string name="set_them_later_in_settings">你可以稍后在设置中找到它们</string>
     <string name="backup_settings">备份设置</string>
     <string name="verify_all_backups">校验全部备份</string>

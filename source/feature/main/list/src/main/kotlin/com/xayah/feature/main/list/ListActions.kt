@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Rule
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmarks
@@ -80,6 +81,17 @@ internal fun ListActions(
         }
 
         FilterAction(viewModel::showFilterSheet)
+        var sortExpanded by remember { mutableStateOf(false) }
+        SortAction { sortExpanded = true }
+        SortSheet(
+            isShow = sortExpanded,
+            target = target,
+            selected = uiState.sortIndex,
+            sortType = uiState.sortType,
+            onSortByType = viewModel::setSortByType,
+            onSortByIndex = viewModel::setSortByIndex,
+            onDismissRequest = { sortExpanded = false },
+        )
 
         if (uiState.selectionMode) {
             ListAction(viewModel, visibleAppIds)
@@ -161,6 +173,11 @@ internal fun ListActions(
 @Composable
 private fun FilterAction(onFilter: () -> Unit) {
     IconButton(icon = Icons.Outlined.FilterList, tooltip = stringResource(R.string.filters), onClick = onFilter)
+}
+
+@Composable
+private fun SortAction(onSort: () -> Unit) {
+    IconButton(icon = Icons.AutoMirrored.Rounded.Sort, tooltip = stringResource(R.string.sort), onClick = onSort)
 }
 
 @Composable

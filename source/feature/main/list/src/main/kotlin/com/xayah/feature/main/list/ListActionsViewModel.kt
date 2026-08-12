@@ -62,6 +62,8 @@ class ListActionsViewModel @Inject constructor(
                 selected = listData.selected,
                 selectionMode = listData.selectionMode,
                 isUpdating = listData.isUpdating,
+                sortIndex = listData.sortIndex,
+                sortType = listData.sortType,
                 appList = aList,
                 labels = labels,
             )
@@ -77,6 +79,8 @@ class ListActionsViewModel @Inject constructor(
                 selected = listData.selected,
                 selectionMode = listData.selectionMode,
                 isUpdating = listData.isUpdating,
+                sortIndex = listData.sortIndex,
+                sortType = listData.sortType,
                 fileList = fList,
             )
         }
@@ -121,6 +125,18 @@ class ListActionsViewModel @Inject constructor(
     fun showFilterSheet() {
         viewModelScope.launchOnDefault {
             listDataRepo.setShowFilterSheet(true)
+        }
+    }
+
+    fun setSortByType() {
+        viewModelScope.launchOnDefault {
+            listDataRepo.setSortType { if (it == com.xayah.core.model.SortType.ASCENDING) com.xayah.core.model.SortType.DESCENDING else com.xayah.core.model.SortType.ASCENDING }
+        }
+    }
+
+    fun setSortByIndex(index: Int) {
+        viewModelScope.launchOnDefault {
+            listDataRepo.setSortIndex { index }
         }
     }
 
@@ -294,22 +310,28 @@ sealed interface ListActionsUiState {
         open val selected: Long,
         open val selectionMode: Boolean,
         open val isUpdating: Boolean,
+        open val sortIndex: Int,
+        open val sortType: com.xayah.core.model.SortType,
     ) : ListActionsUiState {
         data class Apps(
             override val opType: OpType,
             override val selected: Long,
             override val selectionMode: Boolean,
             override val isUpdating: Boolean,
+            override val sortIndex: Int,
+            override val sortType: com.xayah.core.model.SortType,
             val appList: List<App>,
             val labels: List<ColoredLabel>,
-        ) : Success(opType, selected, selectionMode, isUpdating)
+        ) : Success(opType, selected, selectionMode, isUpdating, sortIndex, sortType)
 
         data class Files(
             override val opType: OpType,
             override val selected: Long,
             override val selectionMode: Boolean,
             override val isUpdating: Boolean,
+            override val sortIndex: Int,
+            override val sortType: com.xayah.core.model.SortType,
             val fileList: List<File>,
-        ) : Success(opType, selected, selectionMode, isUpdating)
+        ) : Success(opType, selected, selectionMode, isUpdating, sortIndex, sortType)
     }
 }

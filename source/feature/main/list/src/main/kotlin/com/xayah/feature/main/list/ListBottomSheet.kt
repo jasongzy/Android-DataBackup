@@ -24,6 +24,7 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,10 +39,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.data.repository.Filters
 import com.xayah.core.data.repository.LabelFilterMode
-import com.xayah.core.datastore.saveLoadSystemApps
+import com.xayah.core.datastore.readLoadSystemApps
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.OpType
 import com.xayah.core.model.SortType
+import com.xayah.core.model.Target
 import com.xayah.core.model.database.CloudEntity
 import com.xayah.core.model.ColoredLabel
 import com.xayah.core.model.database.PackageDataStates
@@ -54,7 +56,6 @@ import com.xayah.core.ui.component.TitleSort
 import com.xayah.core.ui.component.paddingHorizontal
 import com.xayah.core.ui.token.SizeTokens
 import com.xayah.core.util.localBackupSaveDir
-import com.xayah.core.work.WorkManagerInitializer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -96,15 +97,11 @@ internal fun ListBottomSheet(
                 opType = uiState.opType,
                 clouds = uiState.clouds,
                 filters = uiState.filters,
-                sortIndex = uiState.sortIndex,
-                sortType = uiState.sortType,
                 labelEntities = uiState.labelEntities,
                 labelFilters = uiState.labelFilters,
                 onClickLabel = viewModel::cycleLabelFilter,
                 onDeleteLabel = viewModel::deleteLabel,
                 setFilters = viewModel::setFilters,
-                onSortByType = viewModel::setSortByType,
-                onSortByIndex = viewModel::setSortByIndex,
                 onDismissRequest = onDismissRequest,
             )
 
@@ -129,13 +126,9 @@ internal fun ListBottomSheet(
             FilesFilterSheet(
                 isShow = uiState.showFilterSheet,
                 sheetState = sheetState,
-                sortIndex = uiState.sortIndex,
-                sortType = uiState.sortType,
                 labelEntities = uiState.labelEntities,
                 labelFilters = uiState.labelFilters,
                 onClickLabel = viewModel::cycleLabelFilter,
-                onSortByType = viewModel::setSortByType,
-                onSortByIndex = viewModel::setSortByIndex,
                 onDismissRequest = onDismissRequest,
             )
         }
@@ -295,20 +288,20 @@ internal fun AppsFilterSheet(
     opType: OpType,
     clouds: List<CloudEntity>,
     filters: Filters,
-    sortIndex: Int,
-    sortType: SortType,
     labelEntities: List<ColoredLabel>,
     labelFilters: Map<String, LabelFilterMode>,
     onClickLabel: (String) -> Unit,
     onDeleteLabel: (String) -> Unit,
     setFilters: (Filters) -> Unit,
-    onSortByType: () -> Unit,
-    onSortByIndex: (Int) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var deleteCandidate by remember { mutableStateOf<String?>(null) }
+    val loadSystemApps by LocalContext.current.readLoadSystemApps().collectAsStateWithLifecycle(initialValue = filters.systemApps)
+    LaunchedEffect(loadSystemApps) {
+        if (filters.systemApps != loadSystemApps || !filters.nonSystemApps) {
+            setFilters(filters.copy(systemApps = loadSystemApps, nonSystemApps = true))
+        }
+    }
     if (isShow) {
         ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState) {
             Title(text = stringResource(id = R.string.filters))
@@ -317,12 +310,13 @@ internal fun AppsFilterSheet(
                     setFilters(filters.copy(cloud = cloud, backupDir = backupDir))
                 }
             }
-            CompactOptions {
-                CompactOption(stringResource(R.string.load_system_apps), filters.showSystemApps) {
-                    scope.launch {
-                        if (filters.showSystemApps.not()) WorkManagerInitializer.fastInitializeAndUpdateApps(context)
-                        context.saveLoadSystemApps(filters.showSystemApps.not())
-                        setFilters(filters.copy(showSystemApps = filters.showSystemApps.not()))
+            if (loadSystemApps) {
+                CompactOptions {
+                    CompactOption(stringResource(R.string.system_apps), filters.systemApps) {
+                        setFilters(filters.copy(systemApps = filters.systemApps.not()))
+                    }
+                    CompactOption(stringResource(R.string.non_system_apps), filters.nonSystemApps) {
+                        setFilters(filters.copy(nonSystemApps = filters.nonSystemApps.not()))
                     }
                 }
             }
@@ -373,9 +367,6 @@ internal fun AppsFilterSheet(
                     onLongClick = { deleteCandidate = it },
                 )
             }
-
-            TitleSort(text = stringResource(id = R.string.sort), sortType = sortType, onSort = onSortByType)
-            SortOptions(selected = sortIndex, items = stringArrayResource(R.array.backup_sort_type_items_apps).toList(), onSelect = onSortByIndex)
         }
     }
     deleteCandidate?.let { label ->
@@ -403,13 +394,9 @@ internal fun AppsFilterSheet(
 internal fun FilesFilterSheet(
     isShow: Boolean,
     sheetState: SheetState,
-    sortIndex: Int,
-    sortType: SortType,
     labelEntities: List<ColoredLabel>,
     labelFilters: Map<String, LabelFilterMode>,
     onClickLabel: (String) -> Unit,
-    onSortByType: () -> Unit,
-    onSortByIndex: (Int) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     if (isShow) {
@@ -418,12 +405,30 @@ internal fun FilesFilterSheet(
                 Title(text = stringResource(id = R.string.labels))
                 LabelsFlow(labelEntities = labelEntities, labelFilters = labelFilters, onClick = onClickLabel)
             }
+        }
+    }
+}
 
-            TitleSort(text = stringResource(id = R.string.sort), sortType = sortType, onSort = onSortByType)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SortSheet(
+    isShow: Boolean,
+    target: Target,
+    selected: Int,
+    sortType: SortType,
+    onSortByType: () -> Unit,
+    onSortByIndex: (Int) -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    if (isShow) {
+        ModalBottomSheet(onDismissRequest = onDismissRequest) {
+            TitleSort(text = stringResource(R.string.sort), sortType = sortType, onSort = onSortByType)
             SortOptions(
-                selected = sortIndex,
-                items = stringArrayResource(id = R.array.backup_sort_type_items_files).toList(),
-                onSelect = onSortByIndex
+                selected = selected,
+                items = stringArrayResource(
+                    if (target == Target.Apps) R.array.backup_sort_type_items_apps else R.array.backup_sort_type_items_files
+                ).toList(),
+                onSelect = onSortByIndex,
             )
         }
     }

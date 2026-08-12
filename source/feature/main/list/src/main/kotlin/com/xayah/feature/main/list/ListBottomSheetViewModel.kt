@@ -16,7 +16,6 @@ import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.App
 import com.xayah.core.model.File
 import com.xayah.core.model.OpType
-import com.xayah.core.model.SortType
 import com.xayah.core.model.Target
 import com.xayah.core.model.database.CloudEntity
 import com.xayah.core.model.database.LabelEntity
@@ -63,8 +62,6 @@ class ListBottomSheetViewModel @Inject constructor(
             Success.Apps(
                 opType = opType,
                 showFilterSheet = listData.showFilterSheet,
-                sortIndex = listData.sortIndex,
-                sortType = listData.sortType,
                 labelEntities = labels,
                 labelFilters = listData.labelFilters,
                 showDataItemsSheet = listData.showDataItemsSheet,
@@ -83,8 +80,6 @@ class ListBottomSheetViewModel @Inject constructor(
             Success.Files(
                 opType = opType,
                 showFilterSheet = listData.showFilterSheet,
-                sortIndex = listData.sortIndex,
-                sortType = listData.sortType,
                 labelEntities = labels,
                 labelFilters = listData.labelFilters,
                 fileList = fList,
@@ -111,25 +106,15 @@ class ListBottomSheetViewModel @Inject constructor(
     fun setFilters(filters: Filters) {
         viewModelScope.launchOnDefault {
             if (uiState.value is Success.Apps) {
-                val isShow = filters.showSystemApps
                 listDataRepo.setFilters { filters }
                 val state = uiState.value.castTo<Success.Apps>()
-                if (isShow.not()) {
+                if (filters.systemApps.not()) {
                     listDataRepo.unselectApps(state.appList.filter { it.isSystemApp }.map { it.id })
                 }
+                if (filters.nonSystemApps.not()) {
+                    listDataRepo.unselectApps(state.appList.filterNot { it.isSystemApp }.map { it.id })
+                }
             }
-        }
-    }
-
-    fun setSortByType() {
-        viewModelScope.launchOnDefault {
-            listDataRepo.setSortType { if (it == SortType.ASCENDING) SortType.DESCENDING else SortType.ASCENDING }
-        }
-    }
-
-    fun setSortByIndex(index: Int) {
-        viewModelScope.launchOnDefault {
-            listDataRepo.setSortIndex { index }
         }
     }
 
@@ -163,32 +148,26 @@ sealed interface ListBottomSheetUiState {
     sealed class Success(
         open val opType: OpType,
         open val showFilterSheet: Boolean,
-        open val sortIndex: Int,
-        open val sortType: SortType,
         open val labelEntities: List<ColoredLabel>,
         open val labelFilters: Map<String, LabelFilterMode>,
     ) : ListBottomSheetUiState {
         data class Apps(
             override val opType: OpType,
             override val showFilterSheet: Boolean,
-            override val sortIndex: Int,
-            override val sortType: SortType,
             override val labelEntities: List<ColoredLabel>,
             override val labelFilters: Map<String, LabelFilterMode>,
             val showDataItemsSheet: Boolean,
             val filters: Filters,
             val appList: List<App>,
             val clouds: List<CloudEntity>,
-        ) : Success(opType, showFilterSheet, sortIndex, sortType, labelEntities, labelFilters)
+        ) : Success(opType, showFilterSheet, labelEntities, labelFilters)
 
         data class Files(
             override val opType: OpType,
             override val showFilterSheet: Boolean,
-            override val sortIndex: Int,
-            override val sortType: SortType,
             override val labelEntities: List<ColoredLabel>,
             override val labelFilters: Map<String, LabelFilterMode>,
             val fileList: List<File>,
-        ) : Success(opType, showFilterSheet, sortIndex, sortType, labelEntities, labelFilters)
+        ) : Success(opType, showFilterSheet, labelEntities, labelFilters)
     }
 }

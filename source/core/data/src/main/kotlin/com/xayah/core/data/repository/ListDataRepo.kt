@@ -87,7 +87,8 @@ class ListDataRepo @Inject constructor(
                     Filters(
                         cloud = cloudName,
                         backupDir = backupDir,
-                        showSystemApps = runBlocking { appsRepo.getLoadSystemApps() },
+                        systemApps = runBlocking { appsRepo.getLoadSystemApps() },
+                        nonSystemApps = true,
                         hasBackups = true,
                         hasNoBackups = true,
                         installedApps = true,
@@ -292,7 +293,8 @@ class ListDataRepo @Inject constructor(
 data class Filters(
     val cloud: String,
     val backupDir: String,
-    val showSystemApps: Boolean,
+    val systemApps: Boolean,
+    val nonSystemApps: Boolean,
     val hasBackups: Boolean,
     val hasNoBackups: Boolean,
     val installedApps: Boolean,

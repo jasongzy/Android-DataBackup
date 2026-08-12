@@ -261,6 +261,9 @@ data class PackageEntity(
     val isSystemApp: Boolean
         get() = (packageInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
 
+    val isUpdatedSystemApp: Boolean
+        get() = (packageInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+
     val archivesRelativeDir: String
         get() = "${packageName}/user_${userId}${if (preserveId == 0L) "" else "@$preserveId"}"
 
@@ -278,6 +281,7 @@ fun PackageEntity.asExternalModel() = App(
     versionCode = packageInfo.versionCode,
     preserveId = preserveId,
     isSystemApp = isSystemApp,
+    isUpdatedSystemApp = isUpdatedSystemApp,
     isInstalled = indexInfo.opType == OpType.BACKUP,
     firstInstallTime = packageInfo.firstInstallTime,
     lastUpdateTime = packageInfo.lastUpdateTime,

@@ -5,7 +5,12 @@
     <item name="select_files" type="string" />
     <item name="backed_up_files" type="string" />
     <item name="filters" type="string" />
-    <item name="load_system_apps" type="string" />
+    <item name="system_apps" type="string" />
+    <item name="non_system_apps" type="string" />
+    <item name="updated" type="string" />
+    <item name="updated_at" type="string" />
+    <item name="installed_at" type="string" />
+    <item name="app_data_size" type="string" />
     <item name="sort" type="string" />
     <item name="select_all" type="string" />
     <item name="unselect_all" type="string" />

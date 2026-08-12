@@ -87,7 +87,9 @@ class ListItemsViewModel @Inject constructor(
                 .filter { selectedUserId == null || it.app.userId == selectedUserId }
                 .filter { it.app.packageName to it.app.userId !in installedKeys }
                 .filter { listData.filters.notInstalledApps && listData.filters.hasBackups }
-                .filter { listData.filters.showSystemApps || !it.app.isSystem }
+                .filter { overview ->
+                    if (overview.app.isSystem) listData.filters.systemApps else listData.filters.nonSystemApps
+                }
                 .filter { overview ->
                     val appLabels = labelsByApp[overview.app.packageName to overview.app.userId].orEmpty().mapTo(mutableSetOf()) { it.label }
                     val included = listData.labelFilters.filterValues { it == LabelFilterMode.INCLUDE }.keys
@@ -109,6 +111,7 @@ class ListItemsViewModel @Inject constructor(
                             versionCode = overview.app.versionCode,
                             preserveId = 0,
                             isSystemApp = overview.app.isSystem,
+                            isUpdatedSystemApp = false,
                             isInstalled = false,
                             firstInstallTime = overview.app.firstInstallTime,
                             lastUpdateTime = overview.app.lastUpdateTime,
@@ -145,6 +148,9 @@ class ListItemsViewModel @Inject constructor(
             Success.Apps(
                 opType = opType,
                 appList = filteredItems.sorted(listData),
+                showInstallTime = listData.sortIndex == 1,
+                showDataSize = listData.sortIndex == 2,
+                showUpdateTime = listData.sortIndex == 3,
             )
         }
 
@@ -184,7 +190,7 @@ class ListItemsViewModel @Inject constructor(
             1 -> compareBy<AppListItem> { it.app.firstInstallTime }
             2 -> compareBy { it.app.dataSizeBytes }
             3 -> compareBy { it.app.lastUpdateTime }
-            4 -> compareBy { it.latestRevisionAt ?: 0 }
+            4 -> compareBy { it.latestRevisionAt ?: 0L }
             else -> {
                 val collator = Collator.getInstance()
                 Comparator { first, second -> collator.compare(first.app.label, second.app.label) }
@@ -245,6 +251,9 @@ sealed interface ListItemsUiState {
         data class Apps(
             override val opType: OpType,
             val appList: List<AppListItem>,
+            val showInstallTime: Boolean,
+            val showDataSize: Boolean,
+            val showUpdateTime: Boolean,
         ) : Success(opType)
 
         data class Files(

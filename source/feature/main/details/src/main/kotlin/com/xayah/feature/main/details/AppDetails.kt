@@ -401,6 +401,22 @@ private fun LabelsFlow(
         horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(-SizeTokens.Level8)
     ) {
+        if (app.isSystemApp) {
+            FilterChip(
+                onClick = { },
+                selected = true,
+                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = ThemedColorSchemeKeyTokens.BluePrimaryContainer.value, selectedLabelColor = ThemedColorSchemeKeyTokens.BlueOnPrimaryContainer.value),
+                label = { Text(stringResource(R.string.system_app)) },
+            )
+        }
+        if (app.isUpdatedSystemApp) {
+            FilterChip(
+                onClick = { },
+                selected = true,
+                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = ThemedColorSchemeKeyTokens.ErrorContainer.value, selectedLabelColor = ThemedColorSchemeKeyTokens.OnErrorContainer.value),
+                label = { Text(stringResource(R.string.updated)) },
+            )
+        }
         when (opType) {
             OpType.BACKUP -> {
                 if (app.extraInfo.enabled.not()) {
