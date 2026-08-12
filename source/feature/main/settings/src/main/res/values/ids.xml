@@ -64,6 +64,9 @@
     <item name="unselect_all" type="string" />
     <item name="already_imported" type="string" />
     <item name="ready_to_import" type="string" />
+    <item name="search_imports" type="string" />
+    <item name="waiting_to_import" type="string" />
+    <item name="importing" type="string" />
     <item name="missing_files" type="string" />
     <item name="import_backups" type="string" />
     <item name="import_labels" type="string" />

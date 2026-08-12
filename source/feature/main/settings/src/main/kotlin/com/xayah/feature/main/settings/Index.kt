@@ -14,6 +14,7 @@ import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.SystemUpdateAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
@@ -148,6 +149,13 @@ fun PageSettings() {
                     value = stringResource(id = R.string.reload_desc),
                 ) {
                     navController.navigateSingle(MainRoutes.Reload.route)
+                }
+                Clickable(
+                    icon = Icons.Outlined.SystemUpdateAlt,
+                    title = stringResource(id = R.string.import_from_titanium),
+                    value = stringResource(id = R.string.import_from_titanium_desc),
+                ) {
+                    navController.navigateSingle(MainRoutes.TitaniumImport.route)
                 }
             }
             Title(title = stringResource(id = R.string.advanced)) {

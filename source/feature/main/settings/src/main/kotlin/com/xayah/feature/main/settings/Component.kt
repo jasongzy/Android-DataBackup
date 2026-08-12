@@ -55,6 +55,7 @@ fun SettingsScaffold(
     snackbarHostState: SnackbarHostState? = null,
     title: String,
     actions: @Composable RowScope.() -> Unit = {},
+    onBackClick: (() -> Unit)? = null,
     content: @Composable (BoxScope.(innerPadding: PaddingValues) -> Unit)
 ) {
     Scaffold(
@@ -63,7 +64,8 @@ fun SettingsScaffold(
             SecondaryLargeTopBar(
                 scrollBehavior = scrollBehavior,
                 title = title,
-                actions = actions
+                actions = actions,
+                onBackClick = onBackClick,
             )
         },
         snackbarHost = {
