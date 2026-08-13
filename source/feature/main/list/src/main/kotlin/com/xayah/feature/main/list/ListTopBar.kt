@@ -134,7 +134,9 @@ internal fun ListTopBar(
                     .paddingVertical(SizeTokens.Level8),
                 enabled = true,
                 placeholder = when (uiState) {
-                    is ListTopBarUiState.Success.Apps -> stringResource(id = R.string.search_bar_hint_packages)
+                    is ListTopBarUiState.Success.Apps -> stringResource(
+                        id = if (isDashboard) R.string.search_bar_hint_dashboard else R.string.search_bar_hint_packages
+                    )
                     is ListTopBarUiState.Success.Files -> stringResource(id = R.string.search_bar_hint_medium)
                 },
                 onTextChange = viewModel::search

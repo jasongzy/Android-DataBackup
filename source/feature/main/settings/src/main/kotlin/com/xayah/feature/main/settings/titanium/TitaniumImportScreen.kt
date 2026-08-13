@@ -166,7 +166,9 @@ fun PageTitaniumImport() {
                     onUnselectAll = { viewModel.emitIntentOnIO(TitaniumImportIntent.SelectAll(false)) },
                 )
             }
-            if (state.stage == ImportStage.PREVIEW || state.stage == ImportStage.IMPORTING || state.stage == ImportStage.COMPLETE) {
+            if (state.mode == ImportMode.BACKUPS &&
+                (state.stage == ImportStage.PREVIEW || state.stage == ImportStage.IMPORTING || state.stage == ImportStage.COMPLETE)
+            ) {
                 OutlinedTextField(
                     value = state.searchQuery,
                     onValueChange = { viewModel.emitIntentOnIO(TitaniumImportIntent.SetSearchQuery(it)) },
@@ -201,7 +203,7 @@ fun PageTitaniumImport() {
                         }
                     }
                     state.stage == ImportStage.PREVIEW -> {
-                        items(state.labelCandidates.filter { it.matches(state.searchQuery) }, key = { it.name }) { candidate ->
+                        items(state.labelCandidates, key = { it.name }) { candidate ->
                             LabelCandidateItem(
                                 candidate = candidate,
                                 selected = candidate.name in state.selectedLabels,
@@ -223,7 +225,7 @@ fun PageTitaniumImport() {
                         val resultMap = state.labelResults.associateBy { it.label }
                         val selected = state.labelCandidates.filter { it.name in state.selectedLabels }
                         val processingName = selected.getOrNull(state.labelResults.size)?.name
-                        items(selected.filter { it.matches(state.searchQuery) }, key = { it.name }) { candidate ->
+                        items(selected, key = { it.name }) { candidate ->
                             ImportingLabelItem(candidate, resultMap[candidate.name], candidate.name == processingName)
                             HorizontalDivider()
                         }
@@ -237,7 +239,7 @@ fun PageTitaniumImport() {
                         }
                     }
                     state.stage == ImportStage.COMPLETE -> {
-                        items(state.labelResults.filter { it.matches(state.searchQuery) }, key = { it.label }) { result ->
+                        items(state.labelResults, key = { it.label }) { result ->
                             LabelResultItem(result)
                             HorizontalDivider()
                         }
@@ -320,18 +322,10 @@ private val TitaniumImportRepository.BackupResult.key: String
     get() = "$packageName:$createdAt"
 
 private fun TitaniumImportRepository.BackupCandidate.matches(query: String): Boolean = query.isBlank() ||
-    label.contains(query, ignoreCase = true) || packageName.contains(query, ignoreCase = true) ||
-    versionName.contains(query, ignoreCase = true) || versionCode.toString().contains(query)
-
-private fun TitaniumImportRepository.LabelCandidate.matches(query: String): Boolean = query.isBlank() ||
-    name.contains(query, ignoreCase = true) || packages.any { it.contains(query, ignoreCase = true) }
+    label.contains(query, ignoreCase = true) || packageName.contains(query, ignoreCase = true)
 
 private fun TitaniumImportRepository.BackupResult.matches(query: String): Boolean = query.isBlank() ||
-    label.contains(query, ignoreCase = true) || packageName.contains(query, ignoreCase = true) ||
-    versionName.contains(query, ignoreCase = true) || detail.contains(query, ignoreCase = true)
-
-private fun TitaniumImportRepository.LabelResult.matches(query: String): Boolean = query.isBlank() ||
-    label.contains(query, ignoreCase = true) || detail.contains(query, ignoreCase = true)
+    label.contains(query, ignoreCase = true) || packageName.contains(query, ignoreCase = true)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

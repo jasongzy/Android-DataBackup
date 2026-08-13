@@ -23,6 +23,7 @@
     <item name="detailed_data_items" type="string" />
     <item name="delete" type="string" />
     <item name="refresh" type="string" />
+    <item name="search_bar_hint_dashboard" type="string" />
     <item name="search_bar_hint_packages" type="string" />
     <item name="search_bar_hint_medium" type="string" />
     <item name="prompt" type="string" />

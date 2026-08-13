@@ -45,6 +45,7 @@
     <string name="failed">Failed</string>
     <string name="save_directory_structure">Save directory structure</string>
     <string name="backup_list">Backup list</string>
+    <string name="search_bar_hint_dashboard">Search for name, package, or notes…</string>
     <string name="search_bar_hint_packages">Search for name or package…</string>
     <string name="apk">APK</string>
     <string name="data">Data</string>
@@ -565,7 +566,7 @@
     <string name="selected_count">Selected: %1$d</string>
     <string name="already_imported">Already imported</string>
     <string name="ready_to_import">Ready to import</string>
-    <string name="search_imports">Search apps, packages, or versions</string>
+    <string name="search_imports">Search app name or package</string>
     <string name="waiting_to_import">Waiting</string>
     <string name="importing">Importing…</string>
     <string name="missing_files">Missing: %1$s</string>

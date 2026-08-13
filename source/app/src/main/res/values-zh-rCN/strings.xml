@@ -42,6 +42,7 @@
     <string name="failed">失败</string>
     <string name="save_directory_structure">保存目录结构</string>
     <string name="backup_list">备份列表</string>
+    <string name="search_bar_hint_dashboard">搜索应用名称、包名或备注…</string>
     <string name="search_bar_hint_packages">搜索应用名称或包名…</string>
     <string name="apk">安装包</string>
     <string name="data">数据</string>
@@ -553,7 +554,7 @@
     <string name="selected_count">已选择：%1$d</string>
     <string name="already_imported">已完整导入</string>
     <string name="ready_to_import">可以导入</string>
-    <string name="search_imports">搜索应用、包名或版本</string>
+    <string name="search_imports">搜索应用名称或包名</string>
     <string name="waiting_to_import">等待导入</string>
     <string name="importing">正在导入…</string>
     <string name="missing_files">缺少：%1$s</string>
