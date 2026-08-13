@@ -58,6 +58,13 @@ import javax.inject.Inject
 private const val APP_INIT_BATCH_SIZE = 50
 private val appInitializationMutex = Mutex()
 
+private data class FastInitializationBatch(
+    val userId: Int,
+    val outdatedPackages: Set<String>,
+    val missingPackages: List<android.content.pm.PackageInfo>,
+    val changedApps: List<PackageEntity>,
+)
+
 class AppsRepo @Inject constructor(
     @ApplicationContext private val context: Context,
     @Dispatcher(Default) private val defaultDispatcher: CoroutineDispatcher,
@@ -221,10 +228,12 @@ class AppsRepo @Inject constructor(
         val loadSystemApps = context.readLoadSystemApps().first()
         val settings = settingsDataRepo.settingsData.first()
         val pm = context.packageManager
-        val userInfoList = rootService.getUsers()
-        for (userInfo in userInfoList) {
-            val userId = userInfo.id
-            val installedPackages = getInstalledPackages(userId)
+        val installedPackagesByUser = rootService.getUsers().associate { userInfo ->
+            userInfo.id to getInstalledPackages(userInfo.id)
+        }
+        val itemCount = installedPackagesByUser.values.sumOf { it.size }
+        var current = 0
+        for ((userId, installedPackages) in installedPackagesByUser) {
             val storedSet = appsDao.queryPkgSetByUserId(OpType.BACKUP, userId).toSet()
 
             // Remove uninstalled apps
@@ -232,8 +241,8 @@ class AppsRepo @Inject constructor(
             appsDao.deleteByPkgNames(opType = OpType.BACKUP, userId = userId, packageNames = outdatedPackages)
 
             val apps = mutableListOf<PackageEntity>()
-            installedPackages.forEachIndexed { index, info ->
-                onInit(index, installedPackages.size, info.packageName)
+            installedPackages.forEach { info ->
+                onInit(current++, itemCount, info.packageName)
                 if (storedSet.contains(info.packageName).not()) {
                     val isSystemApp = ((info.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM) != 0
                     if (loadSystemApps || isSystemApp.not()) {
@@ -258,17 +267,11 @@ class AppsRepo @Inject constructor(
         val loadSystemApps = context.readLoadSystemApps().first()
         val settings = settingsDataRepo.settingsData.first()
         val pm = context.packageManager
-        val userInfoList = rootService.getUsers()
-        for (userInfo in userInfoList) {
+        val batches = rootService.getUsers().map { userInfo ->
             val userId = userInfo.id
             val installedPackages = getInstalledPackages(userId).associateBy { it.packageName }
             val storedApps = appsDao.queryPkgEntitiesByUserId(OpType.BACKUP, userId)
             val storedPackages = storedApps.associateBy { it.packageName }
-
-            val outdatedPackages = storedPackages.keys.subtract(installedPackages.keys)
-            appsDao.deleteByPkgNames(opType = OpType.BACKUP, userId = userId, packageNames = outdatedPackages)
-
-            val missingPackages = installedPackages.filterKeys { it !in storedPackages }
             val changedApps = storedApps.filter { app ->
                 val info = installedPackages[app.packageName] ?: return@filter false
                 val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -278,13 +281,23 @@ class AppsRepo @Inject constructor(
                 }
                 app.packageInfo.versionCode != versionCode || app.packageInfo.lastUpdateTime != info.lastUpdateTime
             }
-            val itemCount = missingPackages.size + changedApps.size
+            FastInitializationBatch(
+                userId = userId,
+                outdatedPackages = storedPackages.keys.subtract(installedPackages.keys),
+                missingPackages = installedPackages.filterKeys { it !in storedPackages }.values.toList(),
+                changedApps = changedApps,
+            )
+        }
+        val itemCount = batches.sumOf { it.missingPackages.size + it.changedApps.size }
+        var current = 0
+        for (batch in batches) {
+            appsDao.deleteByPkgNames(OpType.BACKUP, batch.userId, batch.outdatedPackages)
             val apps = mutableListOf<PackageEntity>()
-            missingPackages.values.forEachIndexed { index, info ->
-                onInit(index, itemCount, info.packageName)
+            batch.missingPackages.forEach { info ->
+                onInit(current++, itemCount, info.packageName)
                 val isSystemApp = ((info.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM) != 0
                 if (loadSystemApps || isSystemApp.not()) {
-                    apps.add(initializeApp(settings, pm, userId, info))
+                    apps.add(initializeApp(settings, pm, batch.userId, info))
                     if (apps.size == APP_INIT_BATCH_SIZE) {
                         appsDao.upsert(apps.toList())
                         apps.clear()
@@ -293,13 +306,13 @@ class AppsRepo @Inject constructor(
             }
             if (apps.isNotEmpty()) appsDao.upsert(apps)
 
-            val userHandle = rootService.getUserHandle(userId)
-            val updates = changedApps.mapIndexedNotNull { index, app ->
-                onInit(missingPackages.size + index, itemCount, app.packageName)
-                updateApp(pm, app, userId, userHandle)
+            val userHandle = rootService.getUserHandle(batch.userId)
+            val updates = batch.changedApps.mapNotNull { app ->
+                onInit(current++, itemCount, app.packageName)
+                updateApp(pm, app, batch.userId, userHandle)
             }
             appsDao.update(updates)
-            syncInstalledApps(userId)
+            syncInstalledApps(batch.userId)
         }
         labelsRepo.deleteOrphanedAppRefs()
     }
@@ -348,15 +361,17 @@ class AppsRepo @Inject constructor(
 
     suspend fun fullUpdate(onUpdate: suspend (cur: Int, max: Int, content: String) -> Unit) {
         val pm = context.packageManager
-        val userInfoList = rootService.getUsers()
-        for (userInfo in userInfoList) {
-            val userId = userInfo.id
+        val appsByUser = rootService.getUsers().associate { userInfo ->
+            userInfo.id to appsDao.queryPkgEntitiesByUserId(OpType.BACKUP, userInfo.id)
+        }
+        val itemCount = appsByUser.values.sumOf { it.size }
+        var current = 0
+        for ((userId, apps) in appsByUser) {
             val userHandle = rootService.getUserHandle(userId)
-            val apps = appsDao.queryPkgEntitiesByUserId(OpType.BACKUP, userId)
             val updateList = mutableListOf<PackageUpdateEntity>()
 
-            apps.forEachIndexed { index, pkg ->
-                onUpdate(index, apps.size, pkg.packageName)
+            apps.forEach { pkg ->
+                onUpdate(current++, itemCount, pkg.packageName)
                 val updateEntity = updateApp(pm, pkg, userId, userHandle)
                 if (updateEntity != null) {
                     updateList.add(updateEntity)

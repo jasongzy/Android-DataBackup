@@ -8,6 +8,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkerParameters
 import com.xayah.core.data.repository.AppsRepo
+import com.xayah.core.data.repository.APP_REFRESH_WORK_TAG
 import com.xayah.core.datastore.di.DbDispatchers.Default
 import com.xayah.core.datastore.di.Dispatcher
 import com.xayah.core.util.NotificationUtil
@@ -43,23 +44,25 @@ internal class AppsFastUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result = withContext(defaultDispatcher) {
         appsRepo.fastUpdate { cur, max, content ->
             if (cur % 10 == 0 || cur == max - 1) {
-                publishProgress(cur + 1, max)
+                val progress = publishProgress(cur + 1, max, APP_UPDATE_STAGE, APP_REFRESH_STAGE_COUNT)
                 mNotificationInfo = NotificationUtil.createForegroundInfo(
                     appContext,
                     mNotificationBuilder,
                     appContext.getString(R.string.updating_app_list),
                     content,
-                    max,
-                    cur + 1
+                    progress.max,
+                    progress.current,
                 )
                 setForeground(mNotificationInfo!!)
             }
         }
+        publishProgress(1, 1, APP_UPDATE_STAGE, APP_REFRESH_STAGE_COUNT)
         Result.success()
     }
 
     companion object {
         fun buildRequest() = OneTimeWorkRequestBuilder<AppsFastUpdateWorker>()
+            .addTag(APP_REFRESH_WORK_TAG)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
     }

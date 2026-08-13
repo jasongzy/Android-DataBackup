@@ -9,6 +9,7 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.xayah.core.data.repository.AppsRepo
+import com.xayah.core.data.repository.APP_REFRESH_WORK_TAG
 import com.xayah.core.data.repository.INPUT_DATA_KEY_REGULAR
 import com.xayah.core.data.repository.SettingsDataRepo
 import com.xayah.core.datastore.di.DbDispatchers.Default
@@ -55,24 +56,26 @@ internal class AppsUpdateWorker @AssistedInject constructor(
             settingsDataRepo.setAppsUpdateTime(curTime)
             appsRepo.fullUpdate { cur, max, content ->
                 if (cur % 10 == 0 || cur == max - 1) {
-                    publishProgress(cur + 1, max)
+                    val progress = publishProgress(cur + 1, max, APP_UPDATE_STAGE, APP_REFRESH_STAGE_COUNT)
                     mNotificationInfo = NotificationUtil.createForegroundInfo(
                         appContext,
                         mNotificationBuilder,
                         appContext.getString(R.string.updating_app_list),
                         content,
-                        max,
-                        cur + 1
+                        progress.max,
+                        progress.current,
                     )
                     setForeground(mNotificationInfo!!)
                 }
             }
         }
+        publishProgress(1, 1, APP_UPDATE_STAGE, APP_REFRESH_STAGE_COUNT)
         Result.success()
     }
 
     companion object {
         fun buildRequest(regular: Boolean) = OneTimeWorkRequestBuilder<AppsUpdateWorker>()
+            .addTag(APP_REFRESH_WORK_TAG)
             .setInputData(
                 workDataOf(
                     INPUT_DATA_KEY_REGULAR to regular
