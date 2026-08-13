@@ -494,6 +494,9 @@
     <string name="backup_damaged">备份可能已损坏</string>
     <string name="backup_damaged_restore_warning">部分文件缺失或与校验值不符，恢复可能失败或产生不完整数据。</string>
     <string name="restore_anyway">仍然恢复</string>
+    <string name="possible_keystore_data">备份数据可能受密钥保护</string>
+    <string name="keystore_restore_warning">检测到该备份数据可能受 Android Keystore 加密。卸载应用后，恢复的数据可能因原密钥丢失而不可用。</string>
+    <string name="keystore_restore_warning_batch">检测到以下备份数据可能受 Android Keystore 加密。卸载应用后，恢复的数据可能因原密钥丢失而不可用。</string>
     <string name="rebuild_finished">已重建 %1$d 个备份的索引</string>
     <string name="rebuild_progress">已扫描 %1$d/%2$d · 可重建 %3$d 个索引</string>
     <string name="rebuild_rules">重建规则</string>

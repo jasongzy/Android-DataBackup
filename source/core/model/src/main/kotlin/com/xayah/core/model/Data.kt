@@ -46,7 +46,6 @@ data class ConfigurationSettings(
     val language: String,
     val autoScreenOff: Boolean,
     val loadSystemApps: Boolean,
-    val checkKeystore: Boolean,
     val compressionLevel: Int,
     val killAppOption: String,
     val fastSameVersionBackup: Boolean,

@@ -14,8 +14,6 @@
     <item name="backup" type="string" />
     <item name="restore" type="string" />
     <item name="version" type="string" />
-    <item name="check_keystore" type="string" />
-    <item name="check_keystore_desc" type="string" />
     <item name="load_system_apps" type="string" />
     <item name="enabled" type="string" />
     <item name="not_enabled" type="string" />

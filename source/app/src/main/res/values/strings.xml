@@ -505,6 +505,9 @@
     <string name="backup_damaged">Backup may be damaged</string>
     <string name="backup_damaged_restore_warning">One or more files are missing or do not match their checksums. Restoring this backup may fail or produce incomplete data.</string>
     <string name="restore_anyway">Restore anyway</string>
+    <string name="possible_keystore_data">Possible Keystore-protected data</string>
+    <string name="keystore_restore_warning">This backup may contain data protected by Android Keystore. After the app is uninstalled, restored data may be unusable because the original keys have been lost.</string>
+    <string name="keystore_restore_warning_batch">The following backups may contain data protected by Android Keystore. After the apps are uninstalled, restored data may be unusable because the original keys have been lost.</string>
     <string name="rebuild_finished">Indexed %1$d backups</string>
     <string name="rebuild_progress">Scanned %1$d of %2$d · %3$d indexable</string>
     <string name="rebuild_rules">Rebuild rules</string>

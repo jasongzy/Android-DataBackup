@@ -13,7 +13,6 @@ suspend fun Context.readConfigurationSettings(): ConfigurationSettings {
         language = readLanguage().first(),
         autoScreenOff = readAutoScreenOff().first(),
         loadSystemApps = readLoadSystemApps().first(),
-        checkKeystore = readCheckKeystore().first(),
         compressionLevel = readCompressionLevel().first(),
         killAppOption = readKillAppOption().first().name,
         fastSameVersionBackup = readFastSameVersionBackup().first(),
@@ -33,7 +32,6 @@ suspend fun Context.saveConfigurationSettings(settings: ConfigurationSettings) {
     saveLanguage(settings.language)
     saveAutoScreenOff(settings.autoScreenOff)
     saveLoadSystemApps(settings.loadSystemApps)
-    saveCheckKeystore(settings.checkKeystore)
     saveCompressionLevel(settings.compressionLevel)
     saveKillAppOption(KillAppOption.valueOf(settings.killAppOption))
     saveStoreBoolean(KeyFastSameVersionBackup, settings.fastSameVersionBackup)

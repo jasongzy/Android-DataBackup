@@ -3,6 +3,7 @@ package com.xayah.feature.main.processing.packages.restore
 import android.content.Context
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.lifecycle.SavedStateHandle
+import androidx.navigation.NavController
 import com.xayah.core.data.repository.CloudRepository
 import com.xayah.core.data.repository.PackageRepository
 import com.xayah.core.data.repository.TaskRepository
@@ -53,6 +54,8 @@ class RestoreViewModelImpl @Inject constructor(
     mCloudService: ProcessingServiceProxyCloudImpl,
     private val args: SavedStateHandle,
 ) : AbstractPackagesProcessingViewModel(mContext, mRootService, mTaskRepo, mLocalService, mCloudService) {
+    data class KeystoreRiskPackage(val label: String, val packageName: String)
+
     override suspend fun onOtherEvent(state: IndexUiState, intent: ProcessingUiIntent) {
         when (intent) {
             is UpdateApps -> {
@@ -169,10 +172,45 @@ class RestoreViewModelImpl @Inject constructor(
     private val _packages: MutableStateFlow<List<PackageEntity>> = MutableStateFlow(listOf())
     private val _packagesSize: MutableStateFlow<String> = MutableStateFlow("")
     private val _restoreUsers: MutableStateFlow<List<DialogRadioItem<Any>>> = MutableStateFlow(listOf(DialogRadioItem(enum = Any(), title = mContext.getString(R.string.backup_user))))
+    private val _keystoreRiskPackages = MutableStateFlow<List<KeystoreRiskPackage>>(emptyList())
+    private val _isCheckingKeystoreRisk = MutableStateFlow(false)
 
     val accounts: StateFlow<List<DialogRadioItem<Any>>> = _accounts.stateInScope(listOf())
     val isTesting: StateFlow<Boolean> = _isTesting.stateInScope(false)
     val packages: StateFlow<List<PackageEntity>> = _packages.stateInScope(listOf())
     val packagesSize: StateFlow<String> = _packagesSize.stateInScope("")
     val restoreUsers: StateFlow<List<DialogRadioItem<Any>>> = _restoreUsers.stateInScope(listOf(DialogRadioItem(enum = Any(), title = mContext.getString(R.string.backup_user))))
+    val keystoreRiskPackages: StateFlow<List<KeystoreRiskPackage>> = _keystoreRiskPackages
+    val isCheckingKeystoreRisk: StateFlow<Boolean> = _isCheckingKeystoreRisk
+
+    fun continueRestore(restoreUser: Int, navController: NavController) {
+        if (_isCheckingKeystoreRisk.value) return
+        launchOnIO {
+            _isCheckingKeystoreRisk.value = true
+            try {
+                val risks = _packages.value.filter { app ->
+                    val targetUser = restoreUser.takeIf { it != -1 } ?: app.userId
+                    app.extraInfo.hasKeystore &&
+                        app.selectionFlag and PackageEntity.FLAG_DATA != 0 &&
+                        mRootService.getPackageUid(app.packageName, targetUser) == -1
+                }.map { KeystoreRiskPackage(it.packageInfo.label, it.packageName) }
+                if (risks.isEmpty()) {
+                    emitIntent(FinishSetup(navController))
+                } else {
+                    _keystoreRiskPackages.value = risks
+                }
+            } finally {
+                _isCheckingKeystoreRisk.value = false
+            }
+        }
+    }
+
+    fun confirmKeystoreRisk(navController: NavController) {
+        _keystoreRiskPackages.value = emptyList()
+        emitIntentOnIO(FinishSetup(navController))
+    }
+
+    fun dismissKeystoreRisk() {
+        _keystoreRiskPackages.value = emptyList()
+    }
 }

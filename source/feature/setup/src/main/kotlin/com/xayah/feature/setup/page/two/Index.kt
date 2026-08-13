@@ -18,7 +18,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xayah.core.datastore.KeyCheckKeystore
 import com.xayah.core.datastore.KeyLoadSystemApps
 import com.xayah.core.datastore.readBackupSavePath
 import com.xayah.core.datastore.readBackupSavePathSaved
@@ -122,14 +121,6 @@ fun PageTwo() {
                     title = stringResource(id = R.string.load_system_apps),
                     checkedText = stringResource(id = R.string.enabled),
                     notCheckedText = stringResource(id = R.string.not_enabled),
-                )
-                Switchable(
-                    key = KeyCheckKeystore,
-                    defValue = true,
-                    title = stringResource(id = R.string.check_keystore),
-                    checkedText = stringResource(id = R.string.enabled),
-                    notCheckedText = stringResource(id = R.string.not_enabled),
-                    desc = stringResource(id = R.string.set_them_later_in_settings)
                 )
             }
         }

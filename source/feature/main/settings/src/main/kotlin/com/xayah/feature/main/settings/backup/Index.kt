@@ -24,7 +24,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.datastore.KeyBackupConfigs
 import com.xayah.core.datastore.KeyBackupItself
-import com.xayah.core.datastore.KeyCheckKeystore
 import com.xayah.core.datastore.KeyCompressionTest
 import com.xayah.core.datastore.KeyFollowSymlinks
 import com.xayah.core.datastore.KeyFastSameVersionBackup
@@ -119,12 +118,6 @@ fun PageBackupSettings() {
                     defValue = true,
                     title = stringResource(id = R.string.fast_same_version_backup),
                     checkedText = stringResource(id = R.string.fast_same_version_backup_desc),
-                )
-                Switchable(
-                    key = KeyCheckKeystore,
-                    defValue = true,
-                    title = stringResource(id = R.string.check_keystore),
-                    checkedText = stringResource(id = R.string.check_keystore_desc),
                 )
                 Switchable(
                     key = KeyBackupItself,
