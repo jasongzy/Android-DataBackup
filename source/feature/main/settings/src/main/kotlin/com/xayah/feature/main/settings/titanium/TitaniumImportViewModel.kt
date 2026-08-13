@@ -78,6 +78,7 @@ class TitaniumImportViewModel @Inject constructor(
     )
 ) {
     private var operationJob: Job? = null
+    private val modeStates = mutableMapOf<ImportMode, TitaniumImportUiState>()
 
     init {
         launchOnIO {
@@ -92,12 +93,12 @@ class TitaniumImportViewModel @Inject constructor(
 
     override suspend fun onEvent(state: TitaniumImportUiState, intent: TitaniumImportIntent) {
         when (intent) {
-            is TitaniumImportIntent.SetMode -> reset(state.copy(mode = intent.mode))
+            is TitaniumImportIntent.SetMode -> setMode(state, intent.mode)
             is TitaniumImportIntent.SelectBackupPath -> selectPath(intent.activity, PickerType.DIRECTORY) { path ->
-                reset(uiState.value.copy(backupPath = path))
+                resetCurrent(uiState.value.copy(backupPath = path))
             }
             is TitaniumImportIntent.SelectLabelPath -> selectPath(intent.activity, PickerType.FILE) { path ->
-                reset(uiState.value.copy(labelPath = path))
+                resetCurrent(uiState.value.copy(labelPath = path))
             }
             is TitaniumImportIntent.ToggleBackup -> toggleBackup(state, intent.id)
             is TitaniumImportIntent.ToggleBackupGroup -> toggleBackupGroup(state, intent.packageName)
@@ -120,8 +121,30 @@ class TitaniumImportViewModel @Inject constructor(
         repository.clearPreviewCache()
     }
 
-    private suspend fun reset(state: TitaniumImportUiState) {
-        repository.clearPreviewCache()
+    private suspend fun setMode(state: TitaniumImportUiState, mode: ImportMode) {
+        if (mode == state.mode) return
+        modeStates[state.mode] = state
+        val restored = modeStates[mode] ?: state.copy(
+            mode = mode,
+            stage = ImportStage.IDLE,
+            cancelling = false,
+            completed = 0,
+            total = 0,
+            backupCandidates = emptyList(),
+            labelCandidates = emptyList(),
+            selectedBackupIds = emptySet(),
+            selectedLabels = emptySet(),
+            searchQuery = "",
+            backupResults = emptyList(),
+            labelResults = emptyList(),
+            error = null,
+        )
+        emitState(restored)
+    }
+
+    private suspend fun resetCurrent(state: TitaniumImportUiState) {
+        if (state.mode == ImportMode.BACKUPS) repository.clearPreviewCache()
+        modeStates.remove(state.mode)
         emitState(
             state.copy(
                 stage = ImportStage.IDLE,
@@ -173,11 +196,11 @@ class TitaniumImportViewModel @Inject constructor(
                 }
             } catch (error: CancellationException) {
                 withContext(NonCancellable) {
-                    repository.clearPreviewCache()
+                    if (state.mode == ImportMode.BACKUPS) repository.clearPreviewCache()
                     emitState(uiState.value.copy(stage = ImportStage.IDLE))
                 }
             } catch (error: Throwable) {
-                repository.clearPreviewCache()
+                if (state.mode == ImportMode.BACKUPS) repository.clearPreviewCache()
                 emitState(uiState.value.copy(stage = ImportStage.IDLE, error = error.message.orEmpty()))
             } finally {
                 withContext(NonCancellable) { emitState(uiState.value.copy(cancelling = false)) }
@@ -219,7 +242,7 @@ class TitaniumImportViewModel @Inject constructor(
                 emitState(uiState.value.copy(error = error.message.orEmpty()))
             } finally {
                 withContext(NonCancellable) {
-                    repository.clearPreviewCache()
+                    if (state.mode == ImportMode.BACKUPS) repository.clearPreviewCache()
                     emitState(uiState.value.copy(stage = ImportStage.COMPLETE, cancelling = false))
                 }
             }
