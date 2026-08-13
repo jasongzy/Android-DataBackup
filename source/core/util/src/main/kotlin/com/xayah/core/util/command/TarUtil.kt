@@ -105,6 +105,27 @@ object Tar {
         )
     }
 
+    suspend fun hasContent(src: String, rootEntry: String, extra: String): ShellResult {
+        val filter = "awk -v root=${SymbolUtil.QUOTE}$rootEntry${SymbolUtil.QUOTE} " +
+            "'${SymbolUtil.USD}0 != root && ${SymbolUtil.USD}0 != root \"/\" { found=1 } END { exit !found }'"
+        return if (extra.isEmpty()) {
+            execute("-tf", "${SymbolUtil.QUOTE}$src${SymbolUtil.QUOTE}", "|", filter)
+        } else {
+            BaseUtil.execute(
+                "zstd",
+                "-d",
+                "-c",
+                "${SymbolUtil.QUOTE}$src${SymbolUtil.QUOTE}",
+                "|",
+                "tar",
+                "-tf",
+                "-",
+                "|",
+                filter,
+            )
+        }
+    }
+
     suspend fun decompress(src: String, dst: String, extra: String): ShellResult = run {
         if (extra.isEmpty()) {
             // tar --totals -xmpf "$src" -C "$dst"

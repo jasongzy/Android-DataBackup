@@ -452,7 +452,11 @@ class TitaniumImportRepository @Inject constructor(
             check(rootService.mkdirs(destination))
             val result = Tar.compress(exclusions, "", parent, packageName, target, compressionArgs)
             check(result.isSuccess) { result.outString.ifBlank { "Unable to convert ${type.type}" } }
-            imported += type
+            if (Tar.hasContent(target, packageName, compression.decompressPara).isSuccess) {
+                imported += type
+            } else {
+                rootService.deleteRecursively(target)
+            }
         }
         return imported
     }

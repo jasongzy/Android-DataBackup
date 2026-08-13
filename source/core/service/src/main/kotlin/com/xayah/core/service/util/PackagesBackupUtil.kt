@@ -15,6 +15,7 @@ import com.xayah.core.model.DataType
 import com.xayah.core.model.OperationState
 import com.xayah.core.model.SelectionType
 import com.xayah.core.model.database.PackageEntity
+import com.xayah.core.model.database.PackageDataStates.Companion.setSelected
 import com.xayah.core.model.database.TaskDetailPackageEntity
 import com.xayah.core.model.util.getCompressPara
 import com.xayah.core.network.client.CloudClient
@@ -365,8 +366,15 @@ class PackagesBackupUtil @Inject constructor(
                 isSuccess = isSuccess && result.isSuccess
                 out.addAll(result.out)
                 if (result.isSuccess) {
-                    p.setDataBytes(dataType, sizeBytes)
-                    p.setDisplayBytes(dataType, rootService.calculateSize(dst))
+                    if (Tar.hasContent(dst, packageName, ct.decompressPara).isSuccess) {
+                        p.setDataBytes(dataType, sizeBytes)
+                        p.setDisplayBytes(dataType, rootService.calculateSize(dst))
+                    } else {
+                        rootService.deleteRecursively(dst)
+                        p.dataStates = dataType.setSelected(p.dataStates, false)
+                        t.updateInfo(dataType = dataType, state = OperationState.SKIP)
+                        return@run ShellResult(code = -2, input = listOf(), out = out)
+                    }
                 }
             }
 
