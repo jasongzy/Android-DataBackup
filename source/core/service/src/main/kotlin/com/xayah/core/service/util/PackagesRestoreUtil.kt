@@ -296,9 +296,12 @@ class PackagesRestoreUtil @Inject constructor(
                     log { "Original SELinux context: $pathContext." }
 
                     // Decompress the archive.
+                    if (context.readCleanRestoring().first() && rootService.exists(dst)) {
+                        rootService.listFilePaths(dst).forEach { rootService.deleteRecursively(it) }
+                    }
                     Tar.decompress(
                         exclusionList = exclusionList,
-                        clear = if (context.readCleanRestoring().first()) "--recursive-unlink" else "",
+                        clear = "--no-overwrite-dir",
                         m = true,
                         src = src,
                         dst = dstDir,
