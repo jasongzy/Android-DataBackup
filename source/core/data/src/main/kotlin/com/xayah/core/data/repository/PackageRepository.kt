@@ -90,6 +90,17 @@ class PackageRepository @Inject constructor(
             if (selected) rootService.calculateSize(getArchiveDst(revisionDir, type, app.indexInfo.compressionType)) else 0L
         }
     }
+    suspend fun selectOnlyForRestore(items: List<Pair<PackageEntity, PackageDataStates>>) {
+        packageDao.clearActivated(OpType.RESTORE)
+        items.forEach { (app, dataStates) ->
+            packageDao.update(
+                app.copy(
+                    extraInfo = app.extraInfo.copy(activated = true),
+                    dataStates = dataStates,
+                )
+            )
+        }
+    }
     suspend fun setBlocked(id: Long, blocked: Boolean) = packageDao.setBlocked(id, blocked)
     suspend fun clearBlocked() = packageDao.clearBlocked()
     private val localBackupSaveDir get() = context.localBackupSaveDir()

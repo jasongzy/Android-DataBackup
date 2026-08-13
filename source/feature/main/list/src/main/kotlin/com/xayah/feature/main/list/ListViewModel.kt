@@ -6,11 +6,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import com.xayah.core.data.repository.AppsRepo
+import com.xayah.core.data.repository.AppBackupRepository
 import com.xayah.core.data.repository.BackupRequestStore
 import com.xayah.core.data.repository.DirectoryRepository
 import com.xayah.core.data.repository.ListData
 import com.xayah.core.data.repository.ListDataRepo
 import com.xayah.core.hiddenapi.castTo
+import com.xayah.core.model.AppKey
+import com.xayah.core.model.BackupEngine
 import com.xayah.core.model.OpType
 import com.xayah.core.model.Target
 import com.xayah.core.model.util.of
@@ -41,6 +44,7 @@ class ListViewModel @Inject constructor(
     private val appsRepo: AppsRepo,
     private val backupRequestStore: BackupRequestStore,
     private val directoryRepository: DirectoryRepository,
+    private val appBackupRepository: AppBackupRepository,
 ) : ViewModel() {
     private var initialRefreshRequested = false
     private val target: Target = savedStateHandle.get<String>(MainRoutes.ARG_TARGET)
@@ -60,8 +64,14 @@ class ListViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<ListUiState> = when (target) {
-        Target.Apps -> listDataRepo.getListData().map {
-            val listData = it.castTo<ListData.Apps>()
+        Target.Apps -> kotlinx.coroutines.flow.combine(
+            listDataRepo.getListData(),
+            listDataRepo.getAppList(),
+            appBackupRepository.observeRevisions(),
+            listDataRepo.getSelectedAppKeys(),
+        ) { data, apps, revisions, selectedKeys ->
+            val listData = data.castTo<ListData.Apps>()
+            val repositoryId = ":$backupDir"
             Success.Apps(
                 opType = opType,
                 selected = listData.selected,
@@ -69,6 +79,12 @@ class ListViewModel @Inject constructor(
                 isUpdating = listData.isUpdating,
                 cloudName = cloudName,
                 backupDir = backupDir,
+                hasSelectedInstalledApps = apps.any { it.selected && it.isInstalled },
+                hasSelectedBackups = revisions.any {
+                    it.engine == BackupEngine.LEGACY &&
+                        it.repositoryId == repositoryId &&
+                        AppKey(it.packageName, it.userId) in selectedKeys
+                },
             )
         }
 
@@ -159,6 +175,21 @@ class ListViewModel @Inject constructor(
             }
         }
     }
+
+    fun restoreSelected(navController: NavHostController) {
+        viewModelScope.launch {
+            val selection = appBackupRepository.selectLatestLocalRevisionsForRestore(
+                listDataRepo.getSelectedAppKeys().value
+            ) ?: return@launch
+            listDataRepo.clearAppSelection()
+            navController.navigateSingle(
+                MainRoutes.PackagesRestoreProcessingGraph.getRoute(
+                    cloudName = selection.cloudName.ifEmptyEncodeURLWithSpace(),
+                    backupDir = selection.backupDir.ifEmptyEncodeURLWithSpace(),
+                )
+            )
+        }
+    }
 }
 
 sealed interface ListUiState {
@@ -178,6 +209,8 @@ sealed interface ListUiState {
             override val isUpdating: Boolean,
             override val cloudName: String,
             override val backupDir: String,
+            val hasSelectedInstalledApps: Boolean,
+            val hasSelectedBackups: Boolean,
         ) : Success(opType, selected, selectionMode, isUpdating, cloudName, backupDir)
 
         data class Files(

@@ -4,6 +4,7 @@ import android.content.Context
 import com.xayah.core.database.dao.AppBackupDao
 import com.xayah.core.model.AppBackupOverview
 import com.xayah.core.model.AppNoteItem
+import com.xayah.core.model.AppKey
 import com.xayah.core.model.BACKUP_MANIFEST_SCHEMA_VERSION
 import com.xayah.core.model.BackupAppEntity
 import com.xayah.core.model.BackupEngine
@@ -12,6 +13,7 @@ import com.xayah.core.model.BackupManifestFile
 import com.xayah.core.model.BackupRevisionEntity
 import com.xayah.core.model.BackupVerificationStatus
 import com.xayah.core.model.DataType
+import com.xayah.core.model.DataState
 import com.xayah.core.model.OpType
 import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.database.PackageEntity
@@ -81,6 +83,8 @@ class AppBackupRepository @Inject constructor(
 
     fun observeRevisions(packageName: String, userId: Int): Flow<List<BackupRevisionEntity>> =
         dao.observeRevisions(packageName, userId)
+
+    fun observeRevisions(): Flow<List<BackupRevisionEntity>> = dao.observeRevisions()
 
     suspend fun upsertImportedApps(apps: List<BackupAppEntity>) {
         val merged = apps.map { imported ->
@@ -427,6 +431,24 @@ class AppBackupRepository @Inject constructor(
         )
     }
 
+    suspend fun selectLatestLocalRevisionsForRestore(keys: Set<AppKey>): RestoreSelection? {
+        val backupDir = context.localBackupSaveDir()
+        val repositoryId = ":$backupDir"
+        val latest = dao.getRevisions(repositoryId)
+            .asSequence()
+            .filter { AppKey(it.packageName, it.userId) in keys }
+            .distinctBy { AppKey(it.packageName, it.userId) }
+            .toList()
+        val revisions = buildList {
+            latest.forEach { revision ->
+                findLegacyRevision(revision)?.let { app -> add(app to revision.contentMask.toDataStates()) }
+            }
+        }
+        if (revisions.isEmpty()) return null
+        packageRepository.selectOnlyForRestore(revisions)
+        return RestoreSelection(cloudName = "", backupDir = backupDir)
+    }
+
     private suspend fun findLegacyRevision(revision: BackupRevisionEntity): PackageEntity? {
         if (revision.engine != BackupEngine.LEGACY) return null
         val preserveId = revision.artifactId.substringAfterLast('@').toLongOrNull() ?: return null
@@ -442,6 +464,15 @@ class AppBackupRepository @Inject constructor(
         val backupDir = revision.repositoryId.substringAfter(':')
         return "$backupDir/${PathUtil.getAppsRelativeDir()}/${revision.artifactId}"
     }
+
+    private fun Int.toDataStates() = PackageDataStates(
+        apkState = if (this and 1 != 0) DataState.Selected else DataState.NotSelected,
+        userState = if (this and 2 != 0) DataState.Selected else DataState.NotSelected,
+        userDeState = if (this and 4 != 0) DataState.Selected else DataState.NotSelected,
+        dataState = if (this and 8 != 0) DataState.Selected else DataState.NotSelected,
+        obbState = if (this and 16 != 0) DataState.Selected else DataState.NotSelected,
+        mediaState = if (this and 32 != 0) DataState.Selected else DataState.NotSelected,
+    )
 
     private fun PackageEntity.toBackupApp(isInstalled: Boolean = true, note: String = "") = BackupAppEntity(
         packageName = packageName,

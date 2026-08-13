@@ -32,6 +32,7 @@
     <item name="confirm" type="string" />
     <item name="confirm_delete" type="string" />
     <item name="_continue" type="string" />
+    <item name="restore" type="string" />
     <item name="add" type="string" />
     <item name="select_target_directory" type="string" />
     <item name="labels" type="string" />

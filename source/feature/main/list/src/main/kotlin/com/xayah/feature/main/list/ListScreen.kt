@@ -6,9 +6,12 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Backup
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
@@ -26,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.ui.component.InnerTopSpacer
 import com.xayah.core.ui.util.LocalNavController
+import com.xayah.core.ui.token.SizeTokens
 
 @Composable
 fun ListRoute(
@@ -45,14 +49,24 @@ fun ListRoute(
     LaunchedEffect(isDashboard) {
         if (isDashboard) viewModel.refresh(initial = true)
     }
-    ListScreen(uiState, isDashboard, viewModel::refresh) {
-        viewModel.toNextPage(navController)
-    }
+    ListScreen(
+        uiState = uiState,
+        isDashboard = isDashboard,
+        onRefresh = viewModel::refresh,
+        onBackup = { viewModel.toNextPage(navController) },
+        onRestore = { viewModel.restoreSelected(navController) },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ListScreen(uiState: ListUiState, isDashboard: Boolean, onRefresh: () -> Unit, onFabClick: () -> Unit) {
+internal fun ListScreen(
+    uiState: ListUiState,
+    isDashboard: Boolean,
+    onRefresh: () -> Unit,
+    onBackup: () -> Unit,
+    onRestore: () -> Unit,
+) {
     val scrollState = rememberLazyListState()
     val selectionMode = uiState is ListUiState.Success && uiState.selectionMode
 
@@ -62,12 +76,29 @@ internal fun ListScreen(uiState: ListUiState, isDashboard: Boolean, onRefresh: (
         topBar = { ListTopBar(isDashboard = isDashboard) },
         floatingActionButtonPosition = FabPosition.End,
         floatingActionButton = {
-            AnimatedVisibility(visible = uiState is ListUiState.Success && uiState.selected != 0L, enter = scaleIn(), exit = scaleOut()) {
-                ExtendedFloatingActionButton(
-                    onClick = onFabClick,
-                    icon = { Icon(Icons.Rounded.ChevronRight, null) },
-                    text = { Text(text = stringResource(id = R.string.back_up_selected)) },
-                )
+            val appsState = uiState as? ListUiState.Success.Apps
+            AnimatedVisibility(
+                visible = appsState?.let { it.hasSelectedInstalledApps || it.hasSelectedBackups } == true ||
+                    (uiState is ListUiState.Success.Files && uiState.selected != 0L),
+                enter = scaleIn(),
+                exit = scaleOut(),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level12)) {
+                    if (appsState?.hasSelectedBackups == true) {
+                        ExtendedFloatingActionButton(
+                            onClick = onRestore,
+                            icon = { Icon(Icons.Rounded.Restore, null) },
+                            text = { Text(text = stringResource(id = R.string.restore)) },
+                        )
+                    }
+                    if (appsState?.hasSelectedInstalledApps == true || uiState is ListUiState.Success.Files) {
+                        ExtendedFloatingActionButton(
+                            onClick = onBackup,
+                            icon = { Icon(Icons.Rounded.Backup, null) },
+                            text = { Text(text = stringResource(id = R.string.back_up_selected)) },
+                        )
+                    }
+                }
             }
         }
     ) { innerPadding ->

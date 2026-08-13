@@ -75,6 +75,9 @@ interface AppBackupDao {
     @Query("SELECT * FROM backup_revisions WHERE repositoryId = :repositoryId ORDER BY createdAt DESC")
     suspend fun getRevisions(repositoryId: String): List<BackupRevisionEntity>
 
+    @Query("SELECT * FROM backup_revisions")
+    fun observeRevisions(): Flow<List<BackupRevisionEntity>>
+
     @Query("DELETE FROM backup_revisions WHERE repositoryId = :repositoryId")
     suspend fun deleteRevisions(repositoryId: String)
 
