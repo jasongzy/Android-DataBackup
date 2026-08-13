@@ -273,11 +273,6 @@ internal fun AppsFilterSheet(
     onDismissRequest: () -> Unit,
 ) {
     val loadSystemApps by LocalContext.current.readLoadSystemApps().collectAsStateWithLifecycle(initialValue = filters.systemApps)
-    LaunchedEffect(loadSystemApps) {
-        if (filters.systemApps != loadSystemApps || !filters.nonSystemApps) {
-            setFilters(filters.copy(systemApps = loadSystemApps, nonSystemApps = true))
-        }
-    }
     if (isShow) {
         ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState) {
             Title(text = stringResource(id = R.string.filters))

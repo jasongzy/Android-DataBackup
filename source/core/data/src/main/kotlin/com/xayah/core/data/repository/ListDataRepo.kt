@@ -2,7 +2,11 @@ package com.xayah.core.data.repository
 
 import android.content.Context
 import com.xayah.core.datastore.DashboardSortField
+import com.xayah.core.datastore.DashboardFilterPreference
+import com.xayah.core.datastore.DashboardLabelFilterMode
+import com.xayah.core.datastore.readDashboardFilterPreference
 import com.xayah.core.datastore.readDashboardSortPreference
+import com.xayah.core.datastore.saveDashboardFilterPreference
 import com.xayah.core.datastore.saveDashboardSortPreference
 import com.xayah.core.model.App
 import com.xayah.core.model.File
@@ -35,6 +39,7 @@ class ListDataRepo @Inject constructor(
 ) {
     private lateinit var target: Target
     private lateinit var listData: Flow<ListData>
+    private var persistDashboardState = false
 
     private lateinit var selected: Flow<Long>
     private lateinit var selectionMode: MutableStateFlow<Boolean>
@@ -63,8 +68,14 @@ class ListDataRepo @Inject constructor(
 
     fun initialize(target: Target, opType: OpType, cloudName: String, backupDir: String) {
         this.target = target
+        persistDashboardState = target == Target.Apps && opType == OpType.BACKUP
         when (target) {
             Target.Apps -> {
+                val savedFilters = if (persistDashboardState) {
+                    runBlocking { context.readDashboardFilterPreference().first() }
+                } else {
+                    DashboardFilterPreference()
+                }
                 selectedAppIds = MutableStateFlow(emptySet())
                 selectionMode = MutableStateFlow(false)
                 selected = selectedAppIds.map { it.size.toLong() }
@@ -77,7 +88,9 @@ class ListDataRepo @Inject constructor(
                     OpType.BACKUP -> workRepo.isAppRefreshRunning()
                     OpType.RESTORE -> combine(workRepo.isAppRefreshRunning(), workRepo.isLoadAppBackupsRunning()) { refresh, loadBackups -> refresh || loadBackups }
                 }
-                labelFilters = MutableStateFlow(emptyMap())
+                labelFilters = MutableStateFlow(
+                    savedFilters.labelFilters.mapValues { (_, mode) -> mode.toLabelFilterMode() }
+                )
                 labelAppRefs = labelFilters.map {
                     labelsRepo.getAppRefs(it.keys)
                 }
@@ -87,19 +100,19 @@ class ListDataRepo @Inject constructor(
                     Filters(
                         cloud = cloudName,
                         backupDir = backupDir,
-                        systemApps = runBlocking { appsRepo.getLoadSystemApps() },
-                        nonSystemApps = true,
-                        frozenApps = true,
-                        unfrozenApps = true,
-                        hasBackups = true,
-                        hasNoBackups = true,
-                        installedApps = true,
-                        notInstalledApps = true,
-                        hasApkBackup = false,
-                        hasNoApkBackup = false,
-                        hasDataBackup = false,
-                        hasNoDataBackup = false,
-                        hasOutdatedApkBackup = false,
+                        systemApps = savedFilters.systemApps,
+                        nonSystemApps = savedFilters.nonSystemApps,
+                        frozenApps = savedFilters.frozenApps,
+                        unfrozenApps = savedFilters.unfrozenApps,
+                        hasBackups = savedFilters.hasBackups,
+                        hasNoBackups = savedFilters.hasNoBackups,
+                        installedApps = savedFilters.installedApps,
+                        notInstalledApps = savedFilters.notInstalledApps,
+                        hasApkBackup = savedFilters.hasApkBackup,
+                        hasNoApkBackup = savedFilters.hasNoApkBackup,
+                        hasDataBackup = savedFilters.hasDataBackup,
+                        hasNoDataBackup = savedFilters.hasNoDataBackup,
+                        hasOutdatedApkBackup = savedFilters.hasOutdatedApkBackup,
                     )
                 )
                 userIndex = MutableStateFlow(0)
@@ -189,6 +202,7 @@ class ListDataRepo @Inject constructor(
 
     suspend fun setFilters(block: (Filters) -> Filters) {
         filters.emit(block(filters.value))
+        saveDashboardFilters()
     }
 
     suspend fun setAppSelected(id: Long, selected: Boolean) {
@@ -265,11 +279,13 @@ class ListDataRepo @Inject constructor(
             LabelFilterMode.EXCLUDE -> filters.remove(label)
         }
         labelFilters.emit(filters)
+        saveDashboardFilters()
     }
 
     suspend fun removeLabelFilter(label: String) {
         if (!::labelFilters.isInitialized) return
         labelFilters.emit(labelFilters.value - label)
+        saveDashboardFilters()
     }
 
     suspend fun renameLabelFilter(oldLabel: String, newLabel: String) {
@@ -277,6 +293,7 @@ class ListDataRepo @Inject constructor(
         val mode = labelFilters.value[oldLabel]
         val filters = labelFilters.value - oldLabel
         labelFilters.emit(if (mode == null) filters else filters + (newLabel to mode))
+        saveDashboardFilters()
     }
 
     private suspend fun saveAppSortPreference() {
@@ -284,6 +301,29 @@ class ListDataRepo @Inject constructor(
         context.saveDashboardSortPreference(
             field = sortIndex.value.toSortField(),
             ascending = sortType.value == SortType.ASCENDING,
+        )
+    }
+
+    private suspend fun saveDashboardFilters() {
+        if (!persistDashboardState) return
+        val current = filters.value
+        context.saveDashboardFilterPreference(
+            DashboardFilterPreference(
+                systemApps = current.systemApps,
+                nonSystemApps = current.nonSystemApps,
+                frozenApps = current.frozenApps,
+                unfrozenApps = current.unfrozenApps,
+                hasBackups = current.hasBackups,
+                hasNoBackups = current.hasNoBackups,
+                installedApps = current.installedApps,
+                notInstalledApps = current.notInstalledApps,
+                hasApkBackup = current.hasApkBackup,
+                hasNoApkBackup = current.hasNoApkBackup,
+                hasDataBackup = current.hasDataBackup,
+                hasNoDataBackup = current.hasNoDataBackup,
+                hasOutdatedApkBackup = current.hasOutdatedApkBackup,
+                labelFilters = labelFilters.value.mapValues { (_, mode) -> mode.toDashboardLabelFilterMode() },
+            )
         )
     }
 
@@ -302,6 +342,16 @@ class ListDataRepo @Inject constructor(
         4 -> DashboardSortField.BACKED_UP
         else -> DashboardSortField.NAME
     }
+}
+
+private fun DashboardLabelFilterMode.toLabelFilterMode() = when (this) {
+    DashboardLabelFilterMode.INCLUDE -> LabelFilterMode.INCLUDE
+    DashboardLabelFilterMode.EXCLUDE -> LabelFilterMode.EXCLUDE
+}
+
+private fun LabelFilterMode.toDashboardLabelFilterMode() = when (this) {
+    LabelFilterMode.INCLUDE -> DashboardLabelFilterMode.INCLUDE
+    LabelFilterMode.EXCLUDE -> DashboardLabelFilterMode.EXCLUDE
 }
 
 data class Filters(

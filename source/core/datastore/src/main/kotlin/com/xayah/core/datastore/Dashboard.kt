@@ -3,11 +3,26 @@ package com.xayah.core.datastore
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.map
 
 private val KeyDashboardSortField = stringPreferencesKey("dashboard_sort_field")
 private val KeyDashboardSortAscending = booleanPreferencesKey("dashboard_sort_ascending")
+private val KeyDashboardSystemApps = booleanPreferencesKey("dashboard_filter_system_apps")
+private val KeyDashboardNonSystemApps = booleanPreferencesKey("dashboard_filter_non_system_apps")
+private val KeyDashboardFrozenApps = booleanPreferencesKey("dashboard_filter_frozen_apps")
+private val KeyDashboardUnfrozenApps = booleanPreferencesKey("dashboard_filter_unfrozen_apps")
+private val KeyDashboardHasBackups = booleanPreferencesKey("dashboard_filter_has_backups")
+private val KeyDashboardHasNoBackups = booleanPreferencesKey("dashboard_filter_has_no_backups")
+private val KeyDashboardInstalledApps = booleanPreferencesKey("dashboard_filter_installed_apps")
+private val KeyDashboardNotInstalledApps = booleanPreferencesKey("dashboard_filter_not_installed_apps")
+private val KeyDashboardHasApkBackup = booleanPreferencesKey("dashboard_filter_has_apk_backup")
+private val KeyDashboardHasNoApkBackup = booleanPreferencesKey("dashboard_filter_has_no_apk_backup")
+private val KeyDashboardHasDataBackup = booleanPreferencesKey("dashboard_filter_has_data_backup")
+private val KeyDashboardHasNoDataBackup = booleanPreferencesKey("dashboard_filter_has_no_data_backup")
+private val KeyDashboardHasOutdatedApkBackup = booleanPreferencesKey("dashboard_filter_has_outdated_apk_backup")
+private val KeyDashboardLabelFilters = stringSetPreferencesKey("dashboard_label_filters")
 
 data class DashboardSortPreference(
     val field: DashboardSortField,
@@ -22,6 +37,25 @@ enum class DashboardSortField {
     BACKED_UP,
 }
 
+data class DashboardFilterPreference(
+    val systemApps: Boolean = true,
+    val nonSystemApps: Boolean = true,
+    val frozenApps: Boolean = true,
+    val unfrozenApps: Boolean = true,
+    val hasBackups: Boolean = true,
+    val hasNoBackups: Boolean = true,
+    val installedApps: Boolean = true,
+    val notInstalledApps: Boolean = true,
+    val hasApkBackup: Boolean = false,
+    val hasNoApkBackup: Boolean = false,
+    val hasDataBackup: Boolean = false,
+    val hasNoDataBackup: Boolean = false,
+    val hasOutdatedApkBackup: Boolean = false,
+    val labelFilters: Map<String, DashboardLabelFilterMode> = emptyMap(),
+)
+
+enum class DashboardLabelFilterMode { INCLUDE, EXCLUDE }
+
 fun Context.readDashboardSortPreference() = dataStore.data.map { preferences ->
     DashboardSortPreference(
         field = preferences[KeyDashboardSortField]
@@ -35,5 +69,51 @@ suspend fun Context.saveDashboardSortPreference(field: DashboardSortField, ascen
     dataStore.edit { preferences ->
         preferences[KeyDashboardSortField] = field.name
         preferences[KeyDashboardSortAscending] = ascending
+    }
+}
+
+fun Context.readDashboardFilterPreference() = dataStore.data.map { preferences ->
+    DashboardFilterPreference(
+        systemApps = preferences[KeyDashboardSystemApps] ?: true,
+        nonSystemApps = preferences[KeyDashboardNonSystemApps] ?: true,
+        frozenApps = preferences[KeyDashboardFrozenApps] ?: true,
+        unfrozenApps = preferences[KeyDashboardUnfrozenApps] ?: true,
+        hasBackups = preferences[KeyDashboardHasBackups] ?: true,
+        hasNoBackups = preferences[KeyDashboardHasNoBackups] ?: true,
+        installedApps = preferences[KeyDashboardInstalledApps] ?: true,
+        notInstalledApps = preferences[KeyDashboardNotInstalledApps] ?: true,
+        hasApkBackup = preferences[KeyDashboardHasApkBackup] ?: false,
+        hasNoApkBackup = preferences[KeyDashboardHasNoApkBackup] ?: false,
+        hasDataBackup = preferences[KeyDashboardHasDataBackup] ?: false,
+        hasNoDataBackup = preferences[KeyDashboardHasNoDataBackup] ?: false,
+        hasOutdatedApkBackup = preferences[KeyDashboardHasOutdatedApkBackup] ?: false,
+        labelFilters = preferences[KeyDashboardLabelFilters].orEmpty().mapNotNull { entry ->
+            val separator = entry.indexOf(':')
+            if (separator <= 0) return@mapNotNull null
+            val mode = runCatching { DashboardLabelFilterMode.valueOf(entry.substring(0, separator)) }.getOrNull()
+                ?: return@mapNotNull null
+            entry.substring(separator + 1) to mode
+        }.toMap(),
+    )
+}
+
+suspend fun Context.saveDashboardFilterPreference(preference: DashboardFilterPreference) {
+    dataStore.edit { preferences ->
+        preferences[KeyDashboardSystemApps] = preference.systemApps
+        preferences[KeyDashboardNonSystemApps] = preference.nonSystemApps
+        preferences[KeyDashboardFrozenApps] = preference.frozenApps
+        preferences[KeyDashboardUnfrozenApps] = preference.unfrozenApps
+        preferences[KeyDashboardHasBackups] = preference.hasBackups
+        preferences[KeyDashboardHasNoBackups] = preference.hasNoBackups
+        preferences[KeyDashboardInstalledApps] = preference.installedApps
+        preferences[KeyDashboardNotInstalledApps] = preference.notInstalledApps
+        preferences[KeyDashboardHasApkBackup] = preference.hasApkBackup
+        preferences[KeyDashboardHasNoApkBackup] = preference.hasNoApkBackup
+        preferences[KeyDashboardHasDataBackup] = preference.hasDataBackup
+        preferences[KeyDashboardHasNoDataBackup] = preference.hasNoDataBackup
+        preferences[KeyDashboardHasOutdatedApkBackup] = preference.hasOutdatedApkBackup
+        preferences[KeyDashboardLabelFilters] = preference.labelFilters.mapTo(mutableSetOf()) { (label, mode) ->
+            "${mode.name}:$label"
+        }
     }
 }

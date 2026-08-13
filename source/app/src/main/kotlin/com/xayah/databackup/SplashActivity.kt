@@ -7,7 +7,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
-import com.xayah.core.datastore.getCurrentAppVersionName
 import com.xayah.core.datastore.readAppVersionName
 import com.xayah.core.work.WorkManagerInitializer
 import dagger.hilt.android.AndroidEntryPoint
@@ -26,8 +25,7 @@ class SplashActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         installSplashScreen()
 
-        if (getCurrentAppVersionName() > runBlocking { readAppVersionName().first() }) {
-            // There is an update
+        if (runBlocking { readAppVersionName().first() }.isEmpty()) {
             startActivity(Intent(this, SetupActivity::class.java))
         } else {
             WorkManagerInitializer.incrementalInitialize(this)
