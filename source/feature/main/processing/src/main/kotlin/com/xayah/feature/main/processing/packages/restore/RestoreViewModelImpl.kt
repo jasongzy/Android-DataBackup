@@ -68,9 +68,19 @@ class RestoreViewModelImpl @Inject constructor(
                 val packages = mPkgRepo.queryActivated(OpType.RESTORE, cloud, backupSaveDir)
                 LogUtil.log { "RestoreViewModelImpl.UpdateApps" to "Query activated apps, cloud: $cloud, backupDir: $backupSaveDir" }
                 LogUtil.log { "RestoreViewModelImpl.UpdateApps" to "Queried apps count: ${packages.size}" }
-                var bytes = 0.0
-                packages.forEach {
-                    bytes += it.storageStatsBytes
+                val bytes = if (cloud.isEmpty()) {
+                    packages.sumOf { mPkgRepo.calculateSelectedLocalArchiveSize(it) }.toDouble()
+                } else {
+                    packages.sumOf { app ->
+                        with(app) {
+                            (if (apkSelected) displayStats.apkBytes else 0L) +
+                                (if (userSelected) displayStats.userBytes else 0L) +
+                                (if (userDeSelected) displayStats.userDeBytes else 0L) +
+                                (if (dataSelected) displayStats.dataBytes else 0L) +
+                                (if (obbSelected) displayStats.obbBytes else 0L) +
+                                (if (mediaSelected) displayStats.mediaBytes else 0L)
+                        }
+                    }.toDouble()
                 }
                 _packages.value = packages
                 _packagesSize.value = bytes.formatSize()

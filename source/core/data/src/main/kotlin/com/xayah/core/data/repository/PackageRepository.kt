@@ -75,6 +75,21 @@ class PackageRepository @Inject constructor(
     suspend fun queryPackages(opType: OpType, cloud: String, backupDir: String) = packageDao.queryPackages(opType, cloud, backupDir)
     suspend fun queryActivated(opType: OpType) = packageDao.queryActivated(opType)
     suspend fun queryActivated(opType: OpType, cloud: String, backupDir: String) = packageDao.queryActivated(opType, cloud, backupDir)
+    suspend fun calculateSelectedLocalArchiveSize(app: PackageEntity): Long {
+        val revisionDir = "${pathUtil.getLocalBackupAppsDir()}/${app.archivesRelativeDir}"
+        return DataType.entries.sumOf { type ->
+            val selected = when (type) {
+                DataType.PACKAGE_APK -> app.apkSelected
+                DataType.PACKAGE_USER -> app.userSelected
+                DataType.PACKAGE_USER_DE -> app.userDeSelected
+                DataType.PACKAGE_DATA -> app.dataSelected
+                DataType.PACKAGE_OBB -> app.obbSelected
+                DataType.PACKAGE_MEDIA -> app.mediaSelected
+                else -> false
+            }
+            if (selected) rootService.calculateSize(getArchiveDst(revisionDir, type, app.indexInfo.compressionType)) else 0L
+        }
+    }
     suspend fun setBlocked(id: Long, blocked: Boolean) = packageDao.setBlocked(id, blocked)
     suspend fun clearBlocked() = packageDao.clearBlocked()
     private val localBackupSaveDir get() = context.localBackupSaveDir()
