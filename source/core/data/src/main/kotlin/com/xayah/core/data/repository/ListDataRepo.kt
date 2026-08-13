@@ -9,6 +9,7 @@ import com.xayah.core.datastore.readDashboardSortPreference
 import com.xayah.core.datastore.saveDashboardFilterPreference
 import com.xayah.core.datastore.saveDashboardSortPreference
 import com.xayah.core.model.App
+import com.xayah.core.model.AppKey
 import com.xayah.core.model.File
 import com.xayah.core.model.OpType
 import com.xayah.core.model.SortType
@@ -58,7 +59,7 @@ class ListDataRepo @Inject constructor(
     private lateinit var userList: Flow<List<UserInfo>>
     private lateinit var userMap: Flow<Map<Int, Long>>
     private lateinit var appList: Flow<List<App>>
-    private lateinit var selectedAppIds: MutableStateFlow<Set<Long>>
+    private lateinit var selectedAppKeys: MutableStateFlow<Set<AppKey>>
     private lateinit var pkgUserSet: Flow<Set<String>> // "${pkgName}-${userId}"
     private lateinit var labelAppRefs: Flow<List<LabelAppCrossRefEntity>> // Labels filtered app refs
 
@@ -76,9 +77,9 @@ class ListDataRepo @Inject constructor(
                 } else {
                     DashboardFilterPreference()
                 }
-                selectedAppIds = MutableStateFlow(emptySet())
+                selectedAppKeys = MutableStateFlow(emptySet())
                 selectionMode = MutableStateFlow(false)
-                selected = selectedAppIds.map { it.size.toLong() }
+                selected = selectedAppKeys.map { it.size.toLong() }
                 total = appsRepo.countApps(opType)
                 searchQuery = MutableStateFlow("")
                 showFilterSheet = MutableStateFlow(false)
@@ -131,9 +132,9 @@ class ListDataRepo @Inject constructor(
                 }
                 appList = combine(
                     appsRepo.getApps(opType = opType, listData = listData, pkgUserSet = pkgUserSet, refs = labelAppRefs, labelFilters = labelFilters, cloudName = cloudName, backupDir = backupDir),
-                    selectedAppIds,
-                ) { apps, ids ->
-                    apps.map { it.copy(selected = it.id in ids) }
+                    selectedAppKeys,
+                ) { apps, keys ->
+                    apps.map { it.copy(selected = it.key in keys) }
                 }
             }
 
@@ -196,7 +197,13 @@ class ListDataRepo @Inject constructor(
 
     fun getAppList(): Flow<List<App>> = appList
 
-    fun getSelectedAppIds(): StateFlow<Set<Long>> = selectedAppIds
+    fun getSelectedAppKeys(): StateFlow<Set<AppKey>> = selectedAppKeys
+
+    suspend fun getSelectedInstalledAppIds(): Set<Long> = appList.first()
+        .asSequence()
+        .filter { it.selected && it.isInstalled }
+        .map(App::id)
+        .toSet()
 
     fun getFileList(): Flow<List<File>> = fileList
 
@@ -205,36 +212,36 @@ class ListDataRepo @Inject constructor(
         saveDashboardFilters()
     }
 
-    suspend fun setAppSelected(id: Long, selected: Boolean) {
-        selectedAppIds.emit(
-            if (selected) selectedAppIds.value + id else selectedAppIds.value - id
+    suspend fun setAppSelected(key: AppKey, selected: Boolean) {
+        selectedAppKeys.emit(
+            if (selected) selectedAppKeys.value + key else selectedAppKeys.value - key
         )
     }
 
-    suspend fun enterAppSelection(id: Long) {
+    suspend fun enterAppSelection(key: AppKey) {
         selectionMode.emit(true)
-        setAppSelected(id, true)
+        setAppSelected(key, true)
     }
 
-    suspend fun selectApps(ids: Collection<Long>) {
-        selectedAppIds.emit(selectedAppIds.value + ids)
+    suspend fun selectApps(keys: Collection<AppKey>) {
+        selectedAppKeys.emit(selectedAppKeys.value + keys)
     }
 
-    suspend fun unselectApps(ids: Collection<Long>) {
-        selectedAppIds.emit(selectedAppIds.value - ids.toSet())
+    suspend fun unselectApps(keys: Collection<AppKey>) {
+        selectedAppKeys.emit(selectedAppKeys.value - keys.toSet())
     }
 
-    suspend fun reverseAppSelection(ids: Collection<Long>) {
-        val candidates = ids.toSet()
-        selectedAppIds.emit((selectedAppIds.value - candidates) + (candidates - selectedAppIds.value))
+    suspend fun reverseAppSelection(keys: Collection<AppKey>) {
+        val candidates = keys.toSet()
+        selectedAppKeys.emit((selectedAppKeys.value - candidates) + (candidates - selectedAppKeys.value))
     }
 
-    suspend fun retainAppSelection(ids: Collection<Long>) {
-        selectedAppIds.emit(selectedAppIds.value.intersect(ids.toSet()))
+    suspend fun retainAppSelection(keys: Collection<AppKey>) {
+        selectedAppKeys.emit(selectedAppKeys.value.intersect(keys.toSet()))
     }
 
     fun clearAppSelection() {
-        selectedAppIds.value = emptySet()
+        selectedAppKeys.value = emptySet()
         selectionMode.value = false
     }
 

@@ -14,6 +14,7 @@ import com.xayah.core.data.repository.LabelFilterMode
 import com.xayah.core.datastore.di.DbDispatchers.Default
 import com.xayah.core.datastore.di.Dispatcher
 import com.xayah.core.model.App
+import com.xayah.core.model.AppKey
 import com.xayah.core.model.DataState
 import com.xayah.core.model.File
 import com.xayah.core.model.OpType
@@ -56,10 +57,11 @@ class ListItemsViewModel @Inject constructor(
         Target.Apps -> combine(
             listDataRepo.getAppList(),
             appBackupRepository.observeApps(),
-            listDataRepo.getListData(),
+            combine(listDataRepo.getListData(), listDataRepo.getSelectedAppKeys()) { data, keys -> data to keys },
             labelsRepo.getAppRefsFlow(),
             labelsRepo.getColoredLabelsFlow(),
-        ) { installedApps, overviews, rawListData, labelRefs, labels ->
+        ) { installedApps, overviews, listState, labelRefs, labels ->
+            val (rawListData, selectedKeys) = listState
             val listData = rawListData as ListData.Apps
             val uniqueInstalledApps = installedApps
                 .groupBy { it.packageName to it.userId }
@@ -127,7 +129,7 @@ class ListItemsViewModel @Inject constructor(
                             lastBackupTime = overview.latestRevisionAt ?: 0,
                             dataSizeBytes = 0,
                             selectionFlag = PackageEntity.FLAG_NONE,
-                            selected = false,
+                            selected = AppKey(overview.app.packageName, overview.app.userId) in selectedKeys,
                         ),
                         revisionCount = overview.revisionCount,
                         latestRevisionAt = overview.latestRevisionAt,
@@ -179,7 +181,7 @@ class ListItemsViewModel @Inject constructor(
     }.onEach { state ->
         if (state is Success.Apps) {
             listDataRepo.retainAppSelection(
-                state.appList.asSequence().map(AppListItem::app).filter(App::isInstalled).map(App::id).toSet()
+                state.appList.asSequence().map(AppListItem::app).map(App::key).toSet()
             )
         }
     }.flowOn(defaultDispatcher).stateIn(
@@ -188,17 +190,20 @@ class ListItemsViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5_000),
     )
 
-    fun onSelectedChanged(id: Long, selected: Boolean) {
+    fun onAppSelectedChanged(key: AppKey, selected: Boolean) {
         viewModelScope.launchOnDefault {
-            when (target) {
-                Target.Apps -> listDataRepo.setAppSelected(id, selected)
-                Target.Files -> filesRepo.selectFile(id, selected)
-            }
+            if (target == Target.Apps) listDataRepo.setAppSelected(key, selected)
         }
     }
 
-    fun enterSelection(id: Long) {
-        viewModelScope.launchOnDefault { listDataRepo.enterAppSelection(id) }
+    fun onFileSelectedChanged(id: Long, selected: Boolean) {
+        viewModelScope.launchOnDefault {
+            if (target == Target.Files) filesRepo.selectFile(id, selected)
+        }
+    }
+
+    fun enterSelection(key: AppKey) {
+        viewModelScope.launchOnDefault { listDataRepo.enterAppSelection(key) }
     }
 
     private fun List<AppListItem>.sorted(listData: ListData.Apps): List<AppListItem> {

@@ -1,5 +1,7 @@
 package com.xayah.core.model
 
+data class AppKey(val packageName: String, val userId: Int)
+
 data class App(
     val id: Long,
     val packageName: String,
@@ -18,4 +20,7 @@ data class App(
     val dataSizeBytes: Long,
     val selectionFlag: Int,
     val selected: Boolean,
-)
+) {
+    val key: AppKey
+        get() = AppKey(packageName, userId)
+}

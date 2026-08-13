@@ -37,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.model.OpType
+import com.xayah.core.model.AppKey
 import com.xayah.core.model.Target
 import com.xayah.core.ui.component.DropdownMenuItem
 import com.xayah.core.ui.component.IconButton
@@ -55,19 +56,19 @@ internal fun ListActions(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val itemsUiState by itemsViewModel.uiState.collectAsStateWithLifecycle()
-    val visibleAppIds = (itemsUiState as? ListItemsUiState.Success.Apps)
+    val visibleAppKeys = (itemsUiState as? ListItemsUiState.Success.Apps)
         ?.appList
-        ?.mapNotNull { it.app.id.takeIf { id -> it.app.isInstalled && id != 0L } }
+        ?.map { it.app.key }
         .orEmpty()
 
-    ListActions(uiState, viewModel, visibleAppIds)
+    ListActions(uiState, viewModel, visibleAppKeys)
 }
 
 @Composable
 internal fun ListActions(
     uiState: ListActionsUiState,
     viewModel: ListActionsViewModel,
-    visibleAppIds: List<Long>,
+    visibleAppKeys: List<AppKey>,
 ) {
     if (uiState is ListActionsUiState.Success) {
         val context = LocalContext.current
@@ -94,7 +95,7 @@ internal fun ListActions(
         )
 
         if (uiState.selectionMode) {
-            ListAction(viewModel, visibleAppIds)
+            ListAction(viewModel, visibleAppKeys)
         }
 
         var moreExpanded by remember { mutableStateOf(false) }
@@ -181,7 +182,7 @@ private fun SortAction(onSort: () -> Unit) {
 }
 
 @Composable
-private fun ListAction(viewModel: ListActionsViewModel, visibleAppIds: List<Long>) {
+private fun ListAction(viewModel: ListActionsViewModel, visibleAppKeys: List<AppKey>) {
     var checkListExpanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
         IconButton(icon = Icons.Rounded.Checklist, tooltip = stringResource(R.string.selection_options)) {
@@ -193,15 +194,15 @@ private fun ListAction(viewModel: ListActionsViewModel, visibleAppIds: List<Long
         ) {
             SelectAllItem {
                 checkListExpanded = false
-                viewModel.selectAll(visibleAppIds)
+                viewModel.selectAll(visibleAppKeys)
             }
             UnselectAllItem {
                 checkListExpanded = false
-                viewModel.unselectAll(visibleAppIds)
+                viewModel.unselectAll(visibleAppKeys)
             }
             ReverseItem {
                 checkListExpanded = false
-                viewModel.reverseAll(visibleAppIds)
+                viewModel.reverseAll(visibleAppKeys)
             }
         }
     }

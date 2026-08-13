@@ -43,6 +43,7 @@ import java.util.Date
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.core.model.OpType
+import com.xayah.core.model.AppKey
 import com.xayah.core.model.Target
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.util.formatSize
@@ -104,17 +105,15 @@ fun LazyListScope.listItems(
                     showUpdateTime = uiState.showUpdateTime,
                     onClick = {
                         if (selectionMode) {
-                            if (item.app.isInstalled) {
-                                viewModel.onSelectedChanged(item.app.id, !item.app.selected)
-                            }
+                            viewModel.onAppSelectedChanged(item.app.key, !item.app.selected)
                         } else {
                             navController.navigateSingle(
                                 MainRoutes.AppRevisions.getRoute(item.app.packageName, item.app.userId)
                             )
                         }
                     },
-                    onLongClick = { if (item.app.isInstalled) viewModel.enterSelection(item.app.id) },
-                    onSelectedChanged = viewModel::onSelectedChanged,
+                    onLongClick = { viewModel.enterSelection(item.app.key) },
+                    onSelectedChanged = viewModel::onAppSelectedChanged,
                 )
             }
         }
@@ -131,7 +130,7 @@ fun LazyListScope.listItems(
                     onClick = {
                         navController.navigateSingle(MainRoutes.Details.getRoute(Target.Files, uiState.opType, item.id))
                     },
-                    onSelectedChanged = viewModel::onSelectedChanged
+                    onSelectedChanged = viewModel::onFileSelectedChanged
                 )
             }
         }
@@ -148,7 +147,7 @@ fun AppItem(
     showInstallTime: Boolean,
     showDataSize: Boolean,
     showUpdateTime: Boolean,
-    onSelectedChanged: (Long, Boolean) -> Unit,
+    onSelectedChanged: (AppKey, Boolean) -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -290,11 +289,11 @@ fun AppItem(
                     }
                 }
             }
-            if (selectionMode && app.isInstalled) {
+            if (selectionMode) {
                 VerticalDivider(modifier = Modifier.height(SizeTokens.Level32))
                 Checkbox(
                     checked = app.selected,
-                    onCheckedChange = { onSelectedChanged(app.id, !app.selected) },
+                    onCheckedChange = { onSelectedChanged(app.key, !app.selected) },
                 )
             } else if (!selectionMode) {
                 Icon(Icons.Rounded.ChevronRight, contentDescription = null)

@@ -108,7 +108,7 @@ class ListViewModel @Inject constructor(
     fun toNextPage(navController: NavHostController) {
         if (target == Target.Apps && opType == OpType.BACKUP) {
             viewModelScope.launch {
-                val ids = listDataRepo.getSelectedAppIds().value
+                val ids = listDataRepo.getSelectedInstalledAppIds()
                 backupRequestStore.prepare(ids)
                 listDataRepo.clearAppSelection()
                 directoryRepository.updateSelected()
@@ -128,7 +128,7 @@ class ListViewModel @Inject constructor(
 
                     OpType.RESTORE -> {
                         viewModelScope.launch {
-                            appsRepo.replaceSelection(opType, listDataRepo.getSelectedAppIds().value)
+                            appsRepo.replaceSelection(opType, listDataRepo.getSelectedInstalledAppIds())
                             listDataRepo.clearAppSelection()
                             navController.navigateSingle(
                                 MainRoutes.PackagesRestoreProcessingGraph.getRoute(

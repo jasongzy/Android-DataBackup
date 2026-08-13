@@ -12,6 +12,7 @@ import com.xayah.core.data.repository.ListDataRepo
 import com.xayah.core.data.repository.LabelsRepo
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.App
+import com.xayah.core.model.AppKey
 import com.xayah.core.model.File
 import com.xayah.core.model.OpType
 import com.xayah.core.model.Target
@@ -140,12 +141,12 @@ class ListActionsViewModel @Inject constructor(
         }
     }
 
-    fun selectAll(visibleAppIds: Collection<Long>) {
+    fun selectAll(visibleAppKeys: Collection<AppKey>) {
         viewModelScope.launchOnDefault {
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    listDataRepo.selectApps(visibleAppIds)
+                    listDataRepo.selectApps(visibleAppKeys)
                 }
 
                 is Success.Files -> {
@@ -159,12 +160,12 @@ class ListActionsViewModel @Inject constructor(
         }
     }
 
-    fun unselectAll(visibleAppIds: Collection<Long>) {
+    fun unselectAll(visibleAppKeys: Collection<AppKey>) {
         viewModelScope.launchOnDefault {
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    listDataRepo.unselectApps(visibleAppIds)
+                    listDataRepo.unselectApps(visibleAppKeys)
                 }
 
                 is Success.Files -> {
@@ -178,12 +179,12 @@ class ListActionsViewModel @Inject constructor(
         }
     }
 
-    fun reverseAll(visibleAppIds: Collection<Long>) {
+    fun reverseAll(visibleAppKeys: Collection<AppKey>) {
         viewModelScope.launchOnDefault {
             when (uiState.value) {
                 is Success.Apps -> {
                     val state = uiState.value.castTo<Success.Apps>()
-                    listDataRepo.reverseAppSelection(visibleAppIds)
+                    listDataRepo.reverseAppSelection(visibleAppKeys)
                 }
 
                 is Success.Files -> {
@@ -294,8 +295,11 @@ class ListActionsViewModel @Inject constructor(
         }
     }
 
-    private fun Success.Apps.selectedLabelRefs(label: String) = appList.filter(App::selected).map { app ->
-        LabelAppCrossRefEntity(label, app.packageName, app.userId, app.preserveId)
+    private fun Success.Apps.selectedLabelRefs(label: String): List<LabelAppCrossRefEntity> {
+        val installedByKey = appList.associateBy(App::key)
+        return listDataRepo.getSelectedAppKeys().value.map { key ->
+            LabelAppCrossRefEntity(label, key.packageName, key.userId, installedByKey[key]?.preserveId ?: 0)
+        }
     }
 
     private suspend fun showToast(message: Int) = withContext(Dispatchers.Main.immediate) {

@@ -103,16 +103,16 @@ class ListBottomSheetViewModel @Inject constructor(
                 listDataRepo.setFilters { filters }
                 val state = uiState.value.castTo<Success.Apps>()
                 if (filters.systemApps.not()) {
-                    listDataRepo.unselectApps(state.appList.filter { it.isSystemApp }.map { it.id })
+                    listDataRepo.unselectApps(state.appList.filter { it.isSystemApp }.map { it.key })
                 }
                 if (filters.nonSystemApps.not()) {
-                    listDataRepo.unselectApps(state.appList.filterNot { it.isSystemApp }.map { it.id })
+                    listDataRepo.unselectApps(state.appList.filterNot { it.isSystemApp }.map { it.key })
                 }
                 if (filters.frozenApps.not()) {
-                    listDataRepo.unselectApps(state.appList.filter { it.isFrozen }.map { it.id })
+                    listDataRepo.unselectApps(state.appList.filter { it.isFrozen }.map { it.key })
                 }
                 if (filters.unfrozenApps.not()) {
-                    listDataRepo.unselectApps(state.appList.filterNot { it.isFrozen }.map { it.id })
+                    listDataRepo.unselectApps(state.appList.filterNot { it.isFrozen }.map { it.key })
                 }
             }
         }
