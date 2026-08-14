@@ -576,6 +576,8 @@
     <string name="import_backups">Import backups</string>
     <string name="import_labels">Import labels</string>
     <string name="titanium_imported">Imported</string>
+    <string name="titanium_partially_imported">Partially imported</string>
+    <string name="titanium_unsafe_entries_skipped">%1$d unsafe or unsupported archive entries skipped</string>
     <string name="titanium_skipped">Already imported</string>
     <string name="titanium_failed">Failed</string>
     <string name="cancel_import">Cancel import?</string>

@@ -69,6 +69,8 @@
     <item name="import_backups" type="string" />
     <item name="import_labels" type="string" />
     <item name="titanium_imported" type="string" />
+    <item name="titanium_partially_imported" type="string" />
+    <item name="titanium_unsafe_entries_skipped" type="string" />
     <item name="titanium_skipped" type="string" />
     <item name="titanium_failed" type="string" />
     <item name="cancel_import" type="string" />

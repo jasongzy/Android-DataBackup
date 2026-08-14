@@ -327,8 +327,12 @@ class AppBackupRepository @Inject constructor(
         val repositoryId = ":$backupDir"
         val appsDir = pathUtil.getLocalBackupAppsDir()
         val rebuilt = mutableListOf<Pair<PackageEntity, BackupManifest>>()
-        val revisionDirs = rootService.listFilePaths(appsDir, listFiles = false, listDirs = true)
-            .flatMap { rootService.listFilePaths(it, listFiles = false, listDirs = true) }
+        val packageDirs = rootService.listFilePathsChecked(appsDir, listFiles = false, listDirs = true).getOrThrow()
+        val revisionDirs = buildList {
+            packageDirs.forEach { packageDir ->
+                addAll(rootService.listFilePathsChecked(packageDir, listFiles = false, listDirs = true).getOrThrow())
+            }
+        }
         onProgress(0, revisionDirs.size, 0)
         revisionDirs.forEachIndexed { index, revisionDir ->
             val app = rootService.readJson<PackageEntity>(PathUtil.getPackageRestoreConfigDst(revisionDir))

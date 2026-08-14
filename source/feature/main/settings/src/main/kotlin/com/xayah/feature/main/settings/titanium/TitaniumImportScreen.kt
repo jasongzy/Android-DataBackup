@@ -507,7 +507,7 @@ private fun BackupResultItem(result: TitaniumImportRepository.BackupResult, onCl
         supportingContent = {
             Column {
                 Text("${result.versionName} · ${DateUtil.formatTimestamp(result.createdAt, DateUtil.PATTERN_YMD_HMS)}")
-                ResultDetail(result.status, result.detail)
+                ResultDetail(result.status, result.detail, result.skippedEntries)
             }
         },
         modifier = Modifier.clickable(enabled = result.status != TitaniumImportRepository.Status.FAILED, onClick = onClick),
@@ -536,14 +536,21 @@ private fun LabelResultItem(result: TitaniumImportRepository.LabelResult) {
 }
 
 @Composable
-private fun ResultDetail(status: TitaniumImportRepository.Status, detail: String) {
+private fun ResultDetail(status: TitaniumImportRepository.Status, detail: String, skippedEntries: Int = 0) {
     val statusText = when (status) {
         TitaniumImportRepository.Status.IMPORTED -> stringResource(R.string.titanium_imported)
+        TitaniumImportRepository.Status.PARTIAL -> stringResource(R.string.titanium_partially_imported)
         TitaniumImportRepository.Status.SKIPPED -> stringResource(R.string.titanium_skipped)
         TitaniumImportRepository.Status.FAILED -> stringResource(R.string.titanium_failed)
     }
+    val skippedDetail = if (skippedEntries == 0) "" else stringResource(R.string.titanium_unsafe_entries_skipped, skippedEntries)
+    val details = listOf(detail, skippedDetail).filter(String::isNotEmpty).joinToString(" · ")
     Text(
-        text = if (detail.isEmpty()) statusText else "$statusText · $detail",
-        color = if (status == TitaniumImportRepository.Status.FAILED) MaterialTheme.colorScheme.error else Color.Unspecified,
+        text = if (details.isEmpty()) statusText else "$statusText · $details",
+        color = when (status) {
+            TitaniumImportRepository.Status.FAILED -> MaterialTheme.colorScheme.error
+            TitaniumImportRepository.Status.PARTIAL -> MaterialTheme.colorScheme.tertiary
+            else -> Color.Unspecified
+        },
     )
 }

@@ -564,6 +564,8 @@
     <string name="import_backups">导入备份</string>
     <string name="import_labels">导入标签</string>
     <string name="titanium_imported">已导入</string>
+    <string name="titanium_partially_imported">部分导入</string>
+    <string name="titanium_unsafe_entries_skipped">已跳过 %1$d 个不安全或不支持的归档项</string>
     <string name="titanium_skipped">已导入，跳过</string>
     <string name="titanium_failed">失败</string>
     <string name="cancel_import">取消导入？</string>
