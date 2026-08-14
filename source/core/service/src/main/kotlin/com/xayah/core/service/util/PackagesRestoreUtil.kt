@@ -19,11 +19,9 @@ import com.xayah.core.network.client.CloudClient
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.LogUtil
 import com.xayah.core.util.PathUtil
-import com.xayah.core.util.SymbolUtil
 import com.xayah.core.util.command.Appops
 import com.xayah.core.util.command.Pm
 import com.xayah.core.util.command.SELinux
-import com.xayah.core.util.command.Tar
 import com.xayah.core.util.model.ShellResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -178,9 +176,19 @@ class PackagesRestoreUtil @Inject constructor(
                 val tmpApkPath = pathUtil.getTmpApkPath(packageName = packageName)
                 rootService.deleteRecursively(tmpApkPath)
                 rootService.mkdirs(tmpApkPath)
-                Tar.decompress(src = src, dst = tmpApkPath, extra = ct.decompressPara).also { result ->
-                    isSuccess = result.isSuccess
-                    out.addAll(result.out)
+                val workspace = "${context.cacheDir}/archive-${UUID.randomUUID()}"
+                try {
+                    rootService.extractArchive(
+                        source = src,
+                        destination = tmpApkPath,
+                        compression = ct.decompressPara,
+                        workspace = workspace,
+                    ).result.also { result ->
+                        isSuccess = result.isSuccess
+                        out.addAll(result.out)
+                    }
+                } finally {
+                    rootService.deleteRecursively(workspace)
                 }
 
                 // Install apks
@@ -271,22 +279,21 @@ class PackagesRestoreUtil @Inject constructor(
                     val sizeBytes = rootService.calculateSize(src)
                     t.updateInfo(dataType = dataType, state = OperationState.PROCESSING, bytes = sizeBytes)
                     // Generate exclusion items.
-                    val exclusionList = mutableListOf<String>()
+                    val excludedPathPrefixes = mutableListOf<String>()
+                    val excludedNamePrefixes = mutableListOf<String>()
                     when (dataType) {
                         DataType.PACKAGE_USER, DataType.PACKAGE_USER_DE, DataType.PACKAGE_DATA, DataType.PACKAGE_OBB, DataType.PACKAGE_MEDIA -> {
-                            // Exclude cache
                             val folders = listOf(".ota", "cache", "lib", "code_cache", "no_backup")
-                            exclusionList.addAll(folders.map { "${SymbolUtil.QUOTE}$packageName/$it${SymbolUtil.QUOTE}" })
+                            excludedPathPrefixes.addAll(folders.map { "$packageName/$it" })
                             if (dataType == DataType.PACKAGE_DATA || dataType == DataType.PACKAGE_OBB || dataType == DataType.PACKAGE_MEDIA) {
-                                // Exclude Backup_*
-                                exclusionList.add("${SymbolUtil.QUOTE}Backup_${SymbolUtil.QUOTE}*")
+                                excludedNamePrefixes.add("Backup_")
                             }
 
                         }
 
                         else -> {}
                     }
-                    log { "ExclusionList: $exclusionList." }
+                    log { "Excluded paths: $excludedPathPrefixes, names: $excludedNamePrefixes." }
 
                     // Get the SELinux context of the path.
                     val pathContext: String
@@ -297,23 +304,18 @@ class PackagesRestoreUtil @Inject constructor(
                     log { "Original SELinux context: $pathContext." }
 
                     // Decompress the archive.
-                    if (context.readCleanRestoring().first() && rootService.deleteRecursively(dst).not()) {
-                        isSuccess = false
-                        out.add(log { "Refused to clean an unsafe restore destination: $dst" })
-                        t.updateInfo(dataType = dataType, state = OperationState.ERROR, log = out.toLineString())
-                        return@run ShellResult(code = -1, input = listOf(), out = out)
-                    }
                     val linkDir = "${context.cacheDir}/restore-links-${UUID.randomUUID()}"
                     try {
-                        val extraction = Tar.decompressWithLinks(
-                            exclusionList = exclusionList,
-                            clear = "--no-overwrite-dir",
-                            m = true,
-                            src = src,
-                            dst = dstDir,
-                            extra = ct.decompressPara,
-                            linkDir = linkDir,
+                        val extraction = rootService.extractArchive(
+                            source = src,
+                            destination = dstDir,
+                            compression = ct.decompressPara,
+                            workspace = linkDir,
+                            cleanDestination = dst.takeIf { context.readCleanRestoring().first() }.orEmpty(),
                             requiredPrefix = packageName,
+                            excludedPathPrefixes = excludedPathPrefixes,
+                            excludedNamePrefixes = excludedNamePrefixes,
+                            ignoreModificationTime = true,
                         )
                         isSuccess = extraction.result.isSuccess
                         out.addAll(extraction.result.out)

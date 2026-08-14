@@ -33,6 +33,7 @@ import com.xayah.core.datastore.ConstantUtil.DEFAULT_IDLE_TIMEOUT
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.database.PackagePermission
 import com.xayah.core.rootservice.IRemoteRootService
+import com.xayah.core.rootservice.parcelables.ArchiveExtractionParcelable
 import com.xayah.core.rootservice.parcelables.DirectoryListingParcelable
 import com.xayah.core.rootservice.parcelables.PathParcelable
 import com.xayah.core.rootservice.parcelables.StatFsParcelable
@@ -43,6 +44,8 @@ import com.xayah.core.rootservice.util.SsaidUtil
 import com.xayah.core.util.FileUtil
 import com.xayah.core.util.HashUtil
 import com.xayah.core.util.PathUtil
+import com.xayah.core.util.archive.TarHeaderInspector.Link
+import com.xayah.core.util.archive.TarHeaderInspector.LinkType
 import com.xayah.core.util.command.BaseUtil.setAllPermissions
 import com.xayah.libnative.NativeLib
 import java.io.File
@@ -57,6 +60,7 @@ import kotlin.io.path.pathString
 
 internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRootService.Stub() {
     private val lock = Any()
+    private val archiveExtractor = ArchiveExtractor(context)
     private var systemContext: Context
     private var packageManager: PackageManager
     private var packageManagerHidden: PackageManagerHidden
@@ -159,45 +163,59 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
 
     override fun restoreArchiveLinks(linkDir: String, destination: String): Int = synchronized(lock) {
         val root = FileUtil.normalizeAbsolutePath(destination) ?: return@synchronized 0
-        var restored = restoreHardLinks(File(linkDir, "hardlinks"), root)
-        restored += restoreSymbolicLinks(File(linkDir, "symlinks"), root)
-        restored
+        runCatching {
+            ArchiveLinkStore.read(File(linkDir, ArchiveExtractor.LINKS_FILE)).count { link ->
+                restoreArchiveLink(link, root)
+            }
+        }.getOrDefault(0)
     }
 
-    private fun restoreHardLinks(file: File, root: String): Int {
-        if (!file.isFile) return 0
-        return file.readLines().count { mapping ->
-            val separator = mapping.indexOf('\t')
-            if (separator < 1) return@count false
-            val linkEntry = normalizeArchiveEntry(mapping.substring(0, separator)) ?: return@count false
-            val link = resolveArchiveEntry(root, linkEntry) ?: return@count false
-            val target = resolveHardLinkTarget(root, mapping.substring(separator + 1)) ?: return@count false
-            if (!prepareLinkDestination(root, link) || !isRegularFile(target)) return@count false
-            runCatching {
-                Os.link(target, link)
+    override fun extractArchive(
+        source: String,
+        destination: String,
+        compression: String,
+        workspace: String,
+        cleanDestination: String,
+        requiredPrefix: String,
+        excludedPathPrefixes: Array<String>,
+        excludedNamePrefixes: Array<String>,
+        preservePermissions: Boolean,
+        ignoreModificationTime: Boolean,
+    ): ArchiveExtractionParcelable = synchronized(lock) {
+        if (!ensureDirectories(context.cacheDir.path, workspace)) {
+            return@synchronized ArchiveExtractionParcelable(-1, listOf("Invalid archive workspace"), 0, 0)
+        }
+        archiveExtractor.extract(
+            source = source,
+            destination = destination,
+            compression = compression,
+            workspace = workspace,
+            cleanDestination = cleanDestination,
+            requiredPrefix = requiredPrefix,
+            excludedPathPrefixes = excludedPathPrefixes,
+            excludedNamePrefixes = excludedNamePrefixes,
+            preservePermissions = preservePermissions,
+            ignoreModificationTime = ignoreModificationTime,
+        )
+    }
+
+    private fun restoreArchiveLink(link: Link, root: String): Boolean {
+        val destination = resolveArchiveEntry(root, link.path) ?: return false
+        if (!prepareLinkDestination(root, destination)) return false
+        return when (link.type) {
+            LinkType.SYMBOLIC -> runCatching {
+                Os.symlink(link.target, destination)
                 true
             }.getOrDefault(false)
-        }
-    }
-
-    private fun restoreSymbolicLinks(source: File, root: String): Int {
-        if (!isDirectory(source.path)) return 0
-        var restored = 0
-        fun visit(file: File) {
-            val mode = lstatMode(file.path) ?: return
-            when {
-                OsConstants.S_ISLNK(mode) -> {
-                    val relative = source.toPath().relativize(file.toPath()).toString().replace(File.separatorChar, '/')
-                    val destination = resolveArchiveEntry(root, relative) ?: return
-                    if (!prepareLinkDestination(root, destination)) return
-                    runCatching { Os.symlink(Os.readlink(file.path), destination) }
-                        .onSuccess { restored++ }
-                }
-                OsConstants.S_ISDIR(mode) -> file.listFiles()?.forEach(::visit)
+            LinkType.HARD -> {
+                val target = resolveHardLinkTarget(root, link.target) ?: return false
+                if (!isRegularFile(target)) return false
+                runCatching {
+                    Os.link(target, destination)
+                    true
+                }.getOrDefault(false)
             }
         }
-        source.listFiles()?.forEach(::visit)
-        return restored
     }
 
     private fun prepareLinkDestination(root: String, path: String): Boolean {
@@ -238,13 +256,13 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
     }
 
     private fun resolveHardLinkTarget(root: String, target: String): String? {
-        if ('\u0000' in target || '\\' in target) return null
+        if ('\u0000' in target) return null
         val path = if (target.startsWith('/')) target else "$root/$target"
         return FileUtil.normalizeAbsolutePath(path)
     }
 
     private fun normalizeArchiveEntry(entry: String): String? {
-        if (entry.startsWith('/') || '\u0000' in entry || '\\' in entry) return null
+        if (entry.startsWith('/') || '\u0000' in entry) return null
         val segments = entry.split('/').filter { it.isNotEmpty() && it != "." }
         if (segments.isEmpty() || ".." in segments) return null
         return segments.joinToString("/")

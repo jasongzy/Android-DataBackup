@@ -27,13 +27,14 @@ import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.DateUtil
 import com.xayah.core.util.LogUtil
 import com.xayah.core.util.PathUtil
-import com.xayah.core.util.command.Tar
 import com.xayah.core.util.localBackupSaveDir
+import com.xayah.core.util.model.ShellResult
 import com.xayah.core.util.withLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import java.text.Collator
+import java.util.UUID
 import javax.inject.Inject
 
 class PackageRepository @Inject constructor(
@@ -88,6 +89,15 @@ class PackageRepository @Inject constructor(
                 else -> false
             }
             if (selected) rootService.calculateSize(getArchiveDst(revisionDir, type, app.indexInfo.compressionType)) else 0L
+        }
+    }
+
+    private suspend fun extractArchive(source: String, destination: String, compression: String): ShellResult {
+        val workspace = "${context.cacheDir}/archive-${UUID.randomUUID()}"
+        return try {
+            rootService.extractArchive(source, destination, compression, workspace).result
+        } finally {
+            rootService.deleteRecursively(workspace)
         }
     }
     suspend fun selectOnlyForRestore(items: List<Pair<PackageEntity, PackageDataStates>>) {
@@ -698,7 +708,7 @@ class PackageRepository @Inject constructor(
                                         val tmpApkPath = pathUtil.getTmpApkPath(packageName = packageName)
                                         rootService.deleteRecursively(tmpApkPath)
                                         rootService.mkdirs(tmpApkPath)
-                                        Tar.decompress(src = archivePath.pathString, dst = tmpApkPath, extra = type.decompressPara)
+                                        extractArchive(archivePath.pathString, tmpApkPath, type.decompressPara)
                                         rootService.listFilePaths(tmpApkPath).also { pathList ->
                                             if (pathList.isNotEmpty()) {
                                                 rootService.getPackageArchiveInfo(pathList.first())?.apply {
@@ -1031,7 +1041,7 @@ class PackageRepository @Inject constructor(
                                                 rootService.mkdirs(tmpApkPath)
                                                 val tmpDir = pathUtil.getCloudTmpDir()
                                                 cloudRepository.download(client = client, src = archivePath.pathString, dstDir = tmpDir) { path ->
-                                                    Tar.decompress(src = path, dst = tmpApkPath, extra = type.decompressPara)
+                                                    extractArchive(path, tmpApkPath, type.decompressPara)
                                                     rootService.listFilePaths(tmpApkPath).also { pathList ->
                                                         if (pathList.isNotEmpty()) {
                                                             rootService.getPackageArchiveInfo(pathList.first())?.apply {

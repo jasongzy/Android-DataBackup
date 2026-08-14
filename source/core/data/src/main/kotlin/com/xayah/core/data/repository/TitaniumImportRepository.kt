@@ -181,8 +181,10 @@ class TitaniumImportRepository @Inject constructor(
         onProgress: suspend (completed: Int, total: Int, result: BackupResult?) -> Unit,
     ): List<BackupResult> {
         val results = mutableListOf<BackupResult>()
+        val packageNames = candidates.map(BackupCandidate::packageName)
+            .filter(packageNamePattern::matches)
+            .toSet()
         onProgress(0, candidates.size, null)
-        cleanupBackupDirectories()
         try {
             candidates.forEachIndexed { index, candidate ->
                 coroutineContext.ensureActive()
@@ -206,7 +208,7 @@ class TitaniumImportRepository @Inject constructor(
         } finally {
             withContext(NonCancellable) {
                 deleteEmptyImportWorkspace()
-                cleanupBackupDirectories()
+                cleanupBackupDirectories(packageNames)
                 appBackupRepository.rebuildLocalIndex { _, _, _ -> }
                 clearPreviewCache()
             }
@@ -443,7 +445,13 @@ class TitaniumImportRepository @Inject constructor(
         val extracted = "$stage/data"
         check(rootService.mkdirs(extracted))
         val linkDir = "$stage/links"
-        val extraction = Tar.decompressGzipSafely(source, extracted, linkDir)
+        val extraction = rootService.extractArchive(
+            source = source,
+            destination = extracted,
+            compression = "gzip",
+            workspace = linkDir,
+            preservePermissions = false,
+        )
         check(extraction.result.isSuccess) { extraction.result.outString.ifBlank { "Invalid or unsafe data archive" } }
         val restoredLinks = rootService.restoreArchiveLinks(linkDir, extracted)
         val sources = listOf(
@@ -577,8 +585,14 @@ class TitaniumImportRepository @Inject constructor(
         }
     }
 
-    private suspend fun cleanupBackupDirectories() {
-        rootService.clearEmptyDirectoriesRecursively(pathUtil.getLocalBackupAppsDir())
+    private suspend fun cleanupBackupDirectories(packageNames: Set<String>) {
+        val appsDir = pathUtil.getLocalBackupAppsDir()
+        packageNames.forEach { packageName ->
+            val packageDir = "$appsDir/$packageName"
+            if (FileUtil.isDescendant(appsDir, packageDir)) {
+                rootService.clearEmptyDirectoriesRecursively(packageDir)
+            }
+        }
     }
 
     private fun quote(value: String) = "'${value.replace("'", "'\\''")}'"

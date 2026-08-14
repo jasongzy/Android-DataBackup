@@ -42,6 +42,12 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
+data class ArchiveExtraction(
+    val result: ShellResult,
+    val skippedEntries: Int,
+    val pendingLinks: Int,
+)
+
 class RemoteRootService(private val context: Context) {
     private var mService: IRemoteRootService? = null
     private var mConnection: ServiceConnection? = null
@@ -177,6 +183,52 @@ class RemoteRootService(private val context: Context) {
 
     suspend fun restoreArchiveLinks(linkDir: String, destination: String): Int =
         runCatching { getService().restoreArchiveLinks(linkDir, destination) }.onFailure(onFailure).getOrElse { 0 }
+
+    suspend fun extractArchive(
+        source: String,
+        destination: String,
+        compression: String,
+        workspace: String,
+        cleanDestination: String = "",
+        requiredPrefix: String = "",
+        excludedPathPrefixes: List<String> = emptyList(),
+        excludedNamePrefixes: List<String> = emptyList(),
+        preservePermissions: Boolean = true,
+        ignoreModificationTime: Boolean = true,
+    ): ArchiveExtraction = runCatching {
+        getService().extractArchive(
+            source,
+            destination,
+            compression,
+            workspace,
+            cleanDestination,
+            requiredPrefix,
+            excludedPathPrefixes.toTypedArray(),
+            excludedNamePrefixes.toTypedArray(),
+            preservePermissions,
+            ignoreModificationTime,
+        ).let { result ->
+            ArchiveExtraction(
+                result = ShellResult(
+                    code = result.code,
+                    input = listOf(source),
+                    out = result.output,
+                ),
+                skippedEntries = result.skippedEntries,
+                pendingLinks = result.pendingLinks,
+            )
+        }
+    }.onFailure(onFailure).getOrElse { error ->
+        ArchiveExtraction(
+            result = ShellResult(
+                code = -1,
+                input = listOf(source),
+                out = listOf(error.message ?: "Unable to extract archive"),
+            ),
+            skippedEntries = 0,
+            pendingLinks = 0,
+        )
+    }
 
     suspend fun renameTo(src: String, dst: String): Boolean = runCatching { getService().renameTo(src, dst) }.onFailure(onFailure).getOrElse { false }
 

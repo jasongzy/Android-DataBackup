@@ -11,9 +11,8 @@ import com.xayah.core.model.CompressionType
 import com.xayah.core.model.DataType
 import com.xayah.core.model.util.suffixOf
 import com.xayah.core.rootservice.service.RemoteRootService
-import com.xayah.core.util.PathUtil
 import com.xayah.core.util.FileUtil
-import com.xayah.core.util.command.Tar
+import com.xayah.core.util.PathUtil
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,6 +20,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -90,16 +90,20 @@ class AppIconRepository @Inject constructor(
         val suffix = PathUtil.getFileName(apkArchive).substringAfter("${DataType.PACKAGE_APK.type}.")
         val compression = CompressionType.suffixOf(suffix) ?: return@withLock false
         val extracted = File(context.cacheDir, "app-icon-extract").path
+        val workspace = File(context.cacheDir, "archive-${UUID.randomUUID()}").path
         try {
             rootService.deleteRecursively(extracted)
             if (!rootService.mkdirs(extracted)) return@withLock false
-            if (!Tar.decompress(apkArchive, extracted, compression.decompressPara).isSuccess) return@withLock false
+            if (!rootService.extractArchive(apkArchive, extracted, compression.decompressPara, workspace).result.isSuccess) {
+                return@withLock false
+            }
             val apk = rootService.listFilePaths(extracted, listDirs = false)
                 .firstOrNull { it.endsWith(".apk", ignoreCase = true) }
                 ?: return@withLock false
             saveApkIconUnlocked(apk, appsDir, packageName)
         } finally {
             rootService.deleteRecursively(extracted)
+            rootService.deleteRecursively(workspace)
         }
     }
 

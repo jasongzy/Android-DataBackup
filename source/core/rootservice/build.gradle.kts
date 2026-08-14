@@ -38,4 +38,7 @@ dependencies {
 
     // Gson
     implementation(libs.gson)
+
+    // Apache commons compress
+    implementation(libs.apache.commons.compress)
 }

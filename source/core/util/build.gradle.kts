@@ -28,6 +28,9 @@ dependencies {
     // Apache commons codec
     implementation(libs.apache.commons.codec)
 
+    // Apache commons compress
+    implementation(libs.apache.commons.compress)
+
     // Work manager
     implementation(libs.androidx.work.runtime.ktx)
 

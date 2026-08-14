@@ -15,7 +15,6 @@ import com.xayah.core.network.client.CloudClient
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.LogUtil
 import com.xayah.core.util.PathUtil
-import com.xayah.core.util.command.Tar
 import com.xayah.core.util.model.ShellResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -75,23 +74,16 @@ class MediumRestoreUtil @Inject constructor(
             val sizeBytes = rootService.calculateSize(src)
             t.updateInfo(state = OperationState.PROCESSING, bytes = sizeBytes)
 
-            if (context.readCleanRestoring().first() && rootService.deleteRecursively(dst).not()) {
-                isSuccess = false
-                out.add(log { "Refused to clean an unsafe restore destination: $dst" })
-                t.updateInfo(state = OperationState.ERROR, log = out.toLineString())
-                return@run ShellResult(code = -1, input = listOf(), out = out)
-            }
             val linkDir = "${context.cacheDir}/restore-links-${UUID.randomUUID()}"
             try {
-                val extraction = Tar.decompressWithLinks(
-                    exclusionList = listOf(),
-                    clear = "--no-overwrite-dir",
-                    m = false,
-                    src = src,
-                    dst = dstDir,
-                    extra = ct.decompressPara,
-                    linkDir = linkDir,
+                val extraction = rootService.extractArchive(
+                    source = src,
+                    destination = dstDir,
+                    compression = ct.decompressPara,
+                    workspace = linkDir,
+                    cleanDestination = dst.takeIf { context.readCleanRestoring().first() }.orEmpty(),
                     requiredPrefix = PathUtil.getFileName(dst),
+                    ignoreModificationTime = false,
                 )
                 isSuccess = extraction.result.isSuccess
                 out.addAll(extraction.result.out)

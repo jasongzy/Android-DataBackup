@@ -3,6 +3,7 @@ package com.xayah.core.rootservice;
 import com.xayah.core.rootservice.parcelables.StatFsParcelable;
 import com.xayah.core.rootservice.parcelables.StorageStatsParcelable;
 import com.xayah.core.rootservice.parcelables.DirectoryListingParcelable;
+import com.xayah.core.rootservice.parcelables.ArchiveExtractionParcelable;
 import com.xayah.core.model.database.PackagePermission;
 
 interface IRemoteRootService {
@@ -13,6 +14,7 @@ interface IRemoteRootService {
     boolean copyTo(String path, String targetPath, boolean overwrite);
     boolean createHardLink(String path, String targetPath);
     int restoreArchiveLinks(String linkDir, String destination);
+    ArchiveExtractionParcelable extractArchive(String source, String destination, String compression, String workspace, String cleanDestination, String requiredPrefix, in String[] excludedPathPrefixes, in String[] excludedNamePrefixes, boolean preservePermissions, boolean ignoreModificationTime);
     boolean renameTo(String src, String dst);
     boolean exists(String path);
     boolean createNewFile(String path);
