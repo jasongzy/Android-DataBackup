@@ -2,19 +2,23 @@ package com.xayah.core.rootservice;
 
 import com.xayah.core.rootservice.parcelables.StatFsParcelable;
 import com.xayah.core.rootservice.parcelables.StorageStatsParcelable;
+import com.xayah.core.rootservice.parcelables.DirectoryListingParcelable;
 import com.xayah.core.model.database.PackagePermission;
 
 interface IRemoteRootService {
     StatFsParcelable readStatFs(String path);
     boolean mkdirs(String path);
+    boolean mkdirsWithin(String root, String path);
     boolean copyRecursively(String path, String targetPath, boolean overwrite);
     boolean copyTo(String path, String targetPath, boolean overwrite);
     boolean createHardLink(String path, String targetPath);
+    int restoreArchiveLinks(String linkDir, String destination);
     boolean renameTo(String src, String dst);
     boolean exists(String path);
     boolean createNewFile(String path);
     boolean deleteRecursively(String path);
     List<String> listFilePaths(String path, boolean listFiles, boolean listDirs);
+    DirectoryListingParcelable listFilePathsChecked(String path, boolean listFiles, boolean listDirs);
     ParcelFileDescriptor readText(String path);
     ParcelFileDescriptor readBytes(String path);
     long calculateSize(String path);

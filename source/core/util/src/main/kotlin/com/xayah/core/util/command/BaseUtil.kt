@@ -13,6 +13,7 @@ import com.xayah.core.common.util.BuildConfigUtil
 import com.xayah.core.common.util.trim
 import com.xayah.core.datastore.readCustomSUFile
 import com.xayah.core.util.BinArchiveName
+import com.xayah.core.util.FileUtil
 import com.xayah.core.util.LogUtil
 import com.xayah.core.util.LogUtil.TAG_SHELL_CODE
 import com.xayah.core.util.LogUtil.TAG_SHELL_IN
@@ -246,8 +247,8 @@ object BaseUtil {
         val binArchive = File(context.binArchivePath())
 
         // Remove old bin files
-        bin.deleteRecursively()
-        binArchive.deleteRecursively()
+        FileUtil.deleteRecursively(bin.path)
+        FileUtil.deleteRecursively(binArchive.path)
 
         // Release binaries
         val assetPath = getBinArchiveAssetPath() ?: return@withIOContext false
@@ -264,7 +265,7 @@ object BaseUtil {
         if (hasBaseBinaries(context).not()) return@withIOContext false
 
         // Remove binary archive
-        binArchive.deleteRecursively()
+        FileUtil.deleteRecursively(binArchive.path)
 
         return@withIOContext true
     }

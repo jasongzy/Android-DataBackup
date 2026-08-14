@@ -30,6 +30,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 import kotlin.coroutines.coroutineContext
 
@@ -296,50 +297,65 @@ class PackagesRestoreUtil @Inject constructor(
                     log { "Original SELinux context: $pathContext." }
 
                     // Decompress the archive.
-                    if (context.readCleanRestoring().first() && rootService.exists(dst)) {
-                        rootService.listFilePaths(dst).forEach { rootService.deleteRecursively(it) }
+                    if (context.readCleanRestoring().first() && rootService.deleteRecursively(dst).not()) {
+                        isSuccess = false
+                        out.add(log { "Refused to clean an unsafe restore destination: $dst" })
+                        t.updateInfo(dataType = dataType, state = OperationState.ERROR, log = out.toLineString())
+                        return@run ShellResult(code = -1, input = listOf(), out = out)
                     }
-                    Tar.decompress(
-                        exclusionList = exclusionList,
-                        clear = "--no-overwrite-dir",
-                        m = true,
-                        src = src,
-                        dst = dstDir,
-                        extra = ct.decompressPara
-                    ).also { result ->
-                        isSuccess = result.isSuccess
-                        out.addAll(result.out)
-                    }
+                    val linkDir = "${context.cacheDir}/restore-links-${UUID.randomUUID()}"
+                    try {
+                        val extraction = Tar.decompressWithLinks(
+                            exclusionList = exclusionList,
+                            clear = "--no-overwrite-dir",
+                            m = true,
+                            src = src,
+                            dst = dstDir,
+                            extra = ct.decompressPara,
+                            linkDir = linkDir,
+                            requiredPrefix = packageName,
+                        )
+                        isSuccess = extraction.result.isSuccess
+                        out.addAll(extraction.result.out)
 
-                    // Restore SELinux context.
-                    var gid: UInt = uid.toUInt()
-                    if (dataType == DataType.PACKAGE_DATA || dataType == DataType.PACKAGE_OBB || dataType == DataType.PACKAGE_MEDIA) {
-                        val (_, pathGid) = rootService.getUidGid(dataType.srcDir(userId))
-                        gid = pathGid
-                    }
-                    SELinux.chown(uid = uid.toUInt(), gid = gid, path = dst).also { result ->
-                        isSuccess = isSuccess && result.isSuccess
-                        out.addAll(result.out)
-                    }
-                    if (pathContext.isNotEmpty()) {
-                        SELinux.chcon(context = pathContext, path = dst).also { result ->
-                            isSuccess = isSuccess && result.isSuccess
-                            out.addAll(result.out)
-                        }
-                    } else {
-                        val parentContext: String
-                        SELinux.getContext(dstDir).also { result ->
-                            parentContext = if (result.isSuccess) result.outString.replace("system_data_file", "app_data_file") else ""
-                        }
-                        if (parentContext.isNotEmpty()) {
-                            SELinux.chcon(context = parentContext, path = dst).also { result ->
+                        if (isSuccess) {
+                            var gid: UInt = uid.toUInt()
+                            if (dataType == DataType.PACKAGE_DATA || dataType == DataType.PACKAGE_OBB || dataType == DataType.PACKAGE_MEDIA) {
+                                val (_, pathGid) = rootService.getUidGid(dataType.srcDir(userId))
+                                gid = pathGid
+                            }
+                            SELinux.chown(uid = uid.toUInt(), gid = gid, path = dst).also { result ->
                                 isSuccess = isSuccess && result.isSuccess
                                 out.addAll(result.out)
                             }
-                        } else {
-                            isSuccess = false
-                            out.add(log { "Failed to restore context: $dst" })
+                            if (pathContext.isNotEmpty()) {
+                                SELinux.chcon(context = pathContext, path = dst).also { result ->
+                                    isSuccess = isSuccess && result.isSuccess
+                                    out.addAll(result.out)
+                                }
+                            } else {
+                                val parentContext: String
+                                SELinux.getContext(dstDir).also { result ->
+                                    parentContext = if (result.isSuccess) result.outString.replace("system_data_file", "app_data_file") else ""
+                                }
+                                if (parentContext.isNotEmpty()) {
+                                    SELinux.chcon(context = parentContext, path = dst).also { result ->
+                                        isSuccess = isSuccess && result.isSuccess
+                                        out.addAll(result.out)
+                                    }
+                                } else {
+                                    isSuccess = false
+                                    out.add(log { "Failed to restore context: $dst" })
+                                }
+                            }
+                            if (isSuccess) {
+                                val restoredLinks = rootService.restoreArchiveLinks(linkDir, dstDir)
+                                val skippedLinks = extraction.skippedEntries + extraction.pendingLinks - restoredLinks
+                                if (skippedLinks > 0) out.add(log { "Skipped $skippedLinks unsafe or conflicting archive entries." })
+                            }
                         }
+                    } finally {
+                        rootService.deleteRecursively(linkDir)
                     }
 
                 } else {

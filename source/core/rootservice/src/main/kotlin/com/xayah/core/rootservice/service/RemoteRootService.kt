@@ -24,6 +24,7 @@ import com.xayah.core.rootservice.parcelables.StorageStatsParcelable
 import com.xayah.core.rootservice.util.ExceptionUtil.tryOnScope
 import com.xayah.core.rootservice.util.withMainContext
 import com.xayah.core.util.GsonUtil
+import com.xayah.core.util.FileUtil
 import com.xayah.core.util.LogUtil
 import com.xayah.core.util.PathUtil
 import com.xayah.core.util.model.ShellResult
@@ -162,6 +163,9 @@ class RemoteRootService(private val context: Context) {
 
     suspend fun mkdirs(path: String): Boolean = runCatching { getService().mkdirs(path) }.onFailure(onFailure).getOrElse { false }
 
+    suspend fun mkdirsWithin(root: String, path: String): Boolean =
+        runCatching { getService().mkdirsWithin(root, path) }.onFailure(onFailure).getOrElse { false }
+
     suspend fun copyRecursively(path: String, targetPath: String, overwrite: Boolean): Boolean =
         runCatching { getService().copyRecursively(path, targetPath, overwrite) }.onFailure(onFailure).getOrElse { false }
 
@@ -170,6 +174,9 @@ class RemoteRootService(private val context: Context) {
 
     suspend fun createHardLink(path: String, targetPath: String): Boolean =
         runCatching { getService().createHardLink(path, targetPath) }.onFailure(onFailure).getOrElse { false }
+
+    suspend fun restoreArchiveLinks(linkDir: String, destination: String): Int =
+        runCatching { getService().restoreArchiveLinks(linkDir, destination) }.onFailure(onFailure).getOrElse { 0 }
 
     suspend fun renameTo(src: String, dst: String): Boolean = runCatching { getService().renameTo(src, dst) }.onFailure(onFailure).getOrElse { false }
 
@@ -180,7 +187,7 @@ class RemoteRootService(private val context: Context) {
         tmpFile.writeText(text)
         if (getService().mkdirs(PathUtil.getParentPath(dst)).not()) isSuccess = false
         if (getService().copyTo(tmpFilePath, dst, true).not()) isSuccess = false
-        tmpFile.deleteRecursively()
+        FileUtil.deleteRecursively(tmpFile.path)
         isSuccess
     }.onFailure(onFailure).getOrElse { false }
 
@@ -191,7 +198,7 @@ class RemoteRootService(private val context: Context) {
         tmpFile.writeBytes(bytes)
         getService().mkdirs(PathUtil.getParentPath(dst))
         isSuccess = isSuccess and getService().copyTo(tmpFilePath, dst, true)
-        tmpFile.deleteRecursively()
+        FileUtil.deleteRecursively(tmpFile.path)
         isSuccess
     }.onFailure(onFailure).getOrElse { false }
 
@@ -203,6 +210,14 @@ class RemoteRootService(private val context: Context) {
 
     suspend fun listFilePaths(path: String, listFiles: Boolean = true, listDirs: Boolean = true): List<String> =
         runCatching { getService().listFilePaths(path, listFiles, listDirs) }.onFailure(onFailure).getOrElse { listOf() }
+
+    suspend fun listFilePathsChecked(path: String, listFiles: Boolean = true, listDirs: Boolean = true): Result<List<String>> =
+        runCatching {
+            getService().listFilePathsChecked(path, listFiles, listDirs).let { result ->
+                check(result.successful) { "Unable to read directory: $path" }
+                result.paths
+            }
+        }.onFailure(onFailure)
 
     private fun readFromParcel(pfd: ParcelFileDescriptor, block: (Parcel) -> Unit) = run {
         val stream = ParcelFileDescriptor.AutoCloseInputStream(pfd)

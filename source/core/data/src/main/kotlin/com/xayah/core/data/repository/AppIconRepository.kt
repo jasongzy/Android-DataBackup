@@ -12,6 +12,7 @@ import com.xayah.core.model.DataType
 import com.xayah.core.model.util.suffixOf
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.PathUtil
+import com.xayah.core.util.FileUtil
 import com.xayah.core.util.command.Tar
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +72,7 @@ class AppIconRepository @Inject constructor(
                 PathUtil.getAppIconPath(appsDir, packageName),
             )
         } finally {
-            cacheDir.deleteRecursively()
+            FileUtil.deleteRecursively(cacheDir.path)
         }
     }
 

@@ -80,6 +80,7 @@ internal abstract class AbstractBackupService : AbstractMediumService() {
     }
 
     protected open suspend fun onTargetDirsCreated() {}
+    protected open suspend fun createDirectory(path: String): Boolean = mRootService.mkdirs(path)
     protected open suspend fun onFileDirCreated(archivesRelativeDir: String): Boolean = true
     abstract suspend fun backup(m: MediaEntity, r: MediaEntity?, t: TaskDetailMediaEntity, dstDir: String)
     protected open suspend fun onConfigSaved(path: String, archivesRelativeDir: String) {}
@@ -93,8 +94,7 @@ internal abstract class AbstractBackupService : AbstractMediumService() {
         when (entity.infoType) {
             ProcessingInfoType.NECESSARY_PREPARATIONS -> {
                 log { "Trying to create: $mFilesDir." }
-                mRootService.mkdirs(mFilesDir)
-                val isSuccess = runCatchingOnService { onTargetDirsCreated() }
+                val isSuccess = createDirectory(mFilesDir) && runCatchingOnService { onTargetDirsCreated() }
                 entity.update(progress = 1f, state = if (isSuccess) OperationState.DONE else OperationState.ERROR)
             }
 
@@ -123,8 +123,7 @@ internal abstract class AbstractBackupService : AbstractMediumService() {
                 val m = media.mediaEntity
                 val dstDir = "${mFilesDir}/${m.archivesRelativeDir}"
                 var restoreEntity = mMediaDao.query(OpType.RESTORE, m.preserveId, m.name, m.indexInfo.compressionType, mTaskEntity.cloud, mTaskEntity.backupDir)
-                mRootService.mkdirs(dstDir)
-                if (onFileDirCreated(archivesRelativeDir = m.archivesRelativeDir)) {
+                if (createDirectory(dstDir) && onFileDirCreated(archivesRelativeDir = m.archivesRelativeDir)) {
                     backup(m = m, r = restoreEntity, t = media, dstDir = dstDir)
 
                     if (media.isSuccess) {

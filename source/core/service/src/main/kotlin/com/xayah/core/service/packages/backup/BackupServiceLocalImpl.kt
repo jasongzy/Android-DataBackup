@@ -15,6 +15,7 @@ import com.xayah.core.model.database.TaskEntity
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.service.util.CommonBackupUtil
 import com.xayah.core.service.util.PackagesBackupUtil
+import com.xayah.core.util.FileUtil
 import com.xayah.core.util.PathUtil
 import com.xayah.core.util.localBackupSaveDir
 import dagger.hilt.android.AndroidEntryPoint
@@ -82,4 +83,10 @@ internal class BackupServiceLocalImpl @Inject constructor() : AbstractBackupServ
     override val mRootDir by lazy { mContext.localBackupSaveDir() }
     override val mAppsDir by lazy { mPathUtil.getLocalBackupAppsDir() }
     override val mConfigsDir by lazy { mPathUtil.getLocalBackupConfigsDir() }
+
+    override suspend fun createDirectory(path: String): Boolean = when {
+        path == mAppsDir || path == mConfigsDir -> mRootService.mkdirsWithin(mRootDir, path)
+        FileUtil.isDescendant(mAppsDir, path) -> mRootService.mkdirsWithin(mAppsDir, path)
+        else -> false
+    }
 }

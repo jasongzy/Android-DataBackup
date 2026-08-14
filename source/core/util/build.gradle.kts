@@ -30,4 +30,6 @@ dependencies {
 
     // Work manager
     implementation(libs.androidx.work.runtime.ktx)
+
+    testImplementation(libs.junit)
 }

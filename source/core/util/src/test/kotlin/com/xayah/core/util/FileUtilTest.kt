@@ -1,0 +1,91 @@
+package com.xayah.core.util
+
+import java.nio.file.Files
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeNoException
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+
+class FileUtilTest {
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun normalizeAbsolutePathRejectsUnsafePaths() {
+        assertEquals("/storage/emulated/0/file", FileUtil.normalizeAbsolutePath("/storage/emulated/0/a/../file"))
+        assertEquals("/storage/emulated/0", FileUtil.normalizeAbsolutePath("/storage//emulated/0/."))
+        assertEquals(null, FileUtil.normalizeAbsolutePath("relative/path"))
+        assertEquals(null, FileUtil.normalizeAbsolutePath("/../../storage"))
+        assertEquals(null, FileUtil.normalizeAbsolutePath("/storage\\emulated\\0"))
+    }
+
+    @Test
+    fun isDescendantRequiresARealChildPath() {
+        assertTrue(FileUtil.isDescendant("/storage/emulated/0", "/storage/emulated/0/IridiumBackup"))
+        assertFalse(FileUtil.isDescendant("/storage/emulated/0", "/storage/emulated/01"))
+        assertFalse(FileUtil.isDescendant("/storage/emulated/0", "/storage/emulated/0"))
+        assertFalse(FileUtil.isDescendant("/storage/emulated/0", "/storage/emulated/0/../10"))
+    }
+
+    @Test
+    fun deleteRecursivelyDoesNotFollowSymbolicLinks() {
+        val external = temporaryFolder.newFolder("external").toPath()
+        val externalFile = Files.write(external.resolve("keep.txt"), "keep".toByteArray())
+        val workspace = temporaryFolder.newFolder("workspace").toPath()
+        Files.write(workspace.resolve("delete.txt"), "delete".toByteArray())
+        try {
+            Files.createSymbolicLink(workspace.resolve("shared"), external)
+        } catch (error: Exception) {
+            assumeNoException(error)
+        }
+
+        assertTrue(FileUtil.deleteRecursivelyApi26(workspace))
+        assertFalse(Files.exists(workspace))
+        assertTrue(Files.exists(externalFile))
+    }
+
+    @Test
+    fun deleteRecursivelyRejectsSymbolicLinkParents() {
+        val external = temporaryFolder.newFolder("external-parent").toPath()
+        val nested = Files.createDirectory(external.resolve("nested"))
+        val externalFile = Files.write(nested.resolve("keep.txt"), "keep".toByteArray())
+        val workspace = temporaryFolder.newFolder("workspace-parent").toPath()
+        try {
+            Files.createSymbolicLink(workspace.resolve("shared"), external)
+        } catch (error: Exception) {
+            assumeNoException(error)
+        }
+
+        assertFalse(FileUtil.deleteRecursivelyApi26(workspace.resolve("shared/nested")))
+        assertTrue(Files.exists(externalFile))
+    }
+
+    @Test
+    fun deleteRecursivelyRejectsCriticalRoots() {
+        assertFalse(FileUtil.deleteRecursively("/"))
+        assertFalse(FileUtil.deleteRecursively("/storage/emulated/0"))
+        assertFalse(FileUtil.deleteRecursively("/data/media/0/Android"))
+    }
+
+    @Test
+    fun clearEmptyDirectoriesKeepsFilesAndDoesNotFollowSymbolicLinks() {
+        val external = temporaryFolder.newFolder("external-empty").toPath()
+        val externalEmpty = Files.createDirectory(external.resolve("keep"))
+        val root = temporaryFolder.newFolder("empty-root").toPath()
+        Files.createDirectories(root.resolve("empty/nested"))
+        val retainedFile = Files.write(root.resolve("keep.txt"), "keep".toByteArray())
+        try {
+            Files.createSymbolicLink(root.resolve("external"), external)
+        } catch (error: Exception) {
+            assumeNoException(error)
+        }
+
+        assertTrue(FileUtil.clearEmptyDirectoriesRecursivelyApi26(root))
+        assertFalse(Files.exists(root.resolve("empty")))
+        assertTrue(Files.exists(retainedFile))
+        assertTrue(Files.exists(externalEmpty))
+    }
+}

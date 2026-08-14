@@ -91,6 +91,7 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
     }
 
     protected open suspend fun onTargetDirsCreated() {}
+    protected open suspend fun createDirectory(path: String): Boolean = mRootService.mkdirs(path)
     protected open suspend fun onAppDirCreated(archivesRelativeDir: String): Boolean = true
     abstract suspend fun backup(type: DataType, p: PackageEntity, previous: PackageEntity?, t: TaskDetailPackageEntity, dstDir: String)
     protected open suspend fun onConfigSaved(path: String, archivesRelativeDir: String): Boolean = true
@@ -121,9 +122,9 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
 
                 log { "Trying to create: $mAppsDir." }
                 log { "Trying to create: $mConfigsDir." }
-                mRootService.mkdirs(mAppsDir)
-                mRootService.mkdirs(mConfigsDir)
-                val isSuccess = runCatchingOnService { onTargetDirsCreated() }
+                val isSuccess = createDirectory(mAppsDir) &&
+                    createDirectory(mConfigsDir) &&
+                    runCatchingOnService { onTargetDirsCreated() }
                 entity.update(progress = 1f, state = if (isSuccess) OperationState.DONE else OperationState.ERROR)
             }
 
@@ -173,8 +174,7 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                 val dstDir = "${mAppsDir}/${revisionApp.archivesRelativeDir}"
                 val repositoryId = "${mTaskEntity.cloud}:${mTaskEntity.backupDir}"
                 val previousRevision = mAppBackupRepository.getLatestVerifiedLegacyRevision(revisionApp, repositoryId)
-                mRootService.mkdirs(dstDir)
-                if (onAppDirCreated(archivesRelativeDir = revisionApp.archivesRelativeDir)) {
+                if (createDirectory(dstDir) && onAppDirCreated(archivesRelativeDir = revisionApp.archivesRelativeDir)) {
                     backup(type = DataType.PACKAGE_APK, p = revisionApp, previous = previousRevision, t = pkg, dstDir = dstDir)
                     backup(type = DataType.PACKAGE_USER, p = revisionApp, previous = previousRevision, t = pkg, dstDir = dstDir)
                     backup(type = DataType.PACKAGE_USER_DE, p = revisionApp, previous = previousRevision, t = pkg, dstDir = dstDir)

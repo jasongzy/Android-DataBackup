@@ -41,7 +41,7 @@ class IndexViewModel @Inject constructor(
                 }.distinctBy { it.absolutePath }
                 val before = directories.sumOf { FileUtil.calculateSize(it.absolutePath) }
                 directories.forEach { directory ->
-                    directory.listFiles()?.forEach { it.deleteRecursively() }
+                    directory.listFiles()?.forEach { FileUtil.deleteRecursively(it.path) }
                 }
                 val after = directories.sumOf { FileUtil.calculateSize(it.absolutePath) }
                 val removed = Formatter.formatFileSize(context, (before - after).coerceAtLeast(0))

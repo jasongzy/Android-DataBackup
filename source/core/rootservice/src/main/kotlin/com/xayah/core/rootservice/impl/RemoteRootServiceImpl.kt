@@ -22,6 +22,9 @@ import android.os.StatFs
 import android.os.UserHandle
 import android.os.UserHandleHidden
 import android.os.UserManagerHidden
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import android.view.SurfaceControlHidden
 import androidx.core.content.pm.PermissionInfoCompat
 import com.android.server.display.DisplayControl
@@ -30,6 +33,7 @@ import com.xayah.core.datastore.ConstantUtil.DEFAULT_IDLE_TIMEOUT
 import com.xayah.core.hiddenapi.castTo
 import com.xayah.core.model.database.PackagePermission
 import com.xayah.core.rootservice.IRemoteRootService
+import com.xayah.core.rootservice.parcelables.DirectoryListingParcelable
 import com.xayah.core.rootservice.parcelables.PathParcelable
 import com.xayah.core.rootservice.parcelables.StatFsParcelable
 import com.xayah.core.rootservice.parcelables.StorageStatsParcelable
@@ -101,6 +105,10 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
         )
     }
 
+    override fun mkdirsWithin(root: String, path: String): Boolean = synchronized(lock) {
+        ensureDirectories(root, path)
+    }
+
     override fun copyRecursively(path: String, targetPath: String, overwrite: Boolean): Boolean = synchronized(lock) {
         tryOn(block = { File(path).copyRecursively(target = File(targetPath), overwrite = overwrite) }, onException = { false })
     }
@@ -142,11 +150,127 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
     }
 
     override fun deleteRecursively(path: String): Boolean = synchronized(lock) {
-        tryOn(block = { File(path).deleteRecursively() }, onException = { false })
+        FileUtil.deleteRecursively(path)
     }
 
     override fun listFilePaths(path: String, listFiles: Boolean, listDirs: Boolean): List<String> = synchronized(lock) {
         FileUtil.listFilePaths(path = path, listFiles = listFiles, listDirs = listDirs)
+    }
+
+    override fun restoreArchiveLinks(linkDir: String, destination: String): Int = synchronized(lock) {
+        val root = FileUtil.normalizeAbsolutePath(destination) ?: return@synchronized 0
+        var restored = restoreHardLinks(File(linkDir, "hardlinks"), root)
+        restored += restoreSymbolicLinks(File(linkDir, "symlinks"), root)
+        restored
+    }
+
+    private fun restoreHardLinks(file: File, root: String): Int {
+        if (!file.isFile) return 0
+        return file.readLines().count { mapping ->
+            val separator = mapping.indexOf('\t')
+            if (separator < 1) return@count false
+            val linkEntry = normalizeArchiveEntry(mapping.substring(0, separator)) ?: return@count false
+            val link = resolveArchiveEntry(root, linkEntry) ?: return@count false
+            val target = resolveHardLinkTarget(root, mapping.substring(separator + 1)) ?: return@count false
+            if (!prepareLinkDestination(root, link) || !isRegularFile(target)) return@count false
+            runCatching {
+                Os.link(target, link)
+                true
+            }.getOrDefault(false)
+        }
+    }
+
+    private fun restoreSymbolicLinks(source: File, root: String): Int {
+        if (!isDirectory(source.path)) return 0
+        var restored = 0
+        fun visit(file: File) {
+            val mode = lstatMode(file.path) ?: return
+            when {
+                OsConstants.S_ISLNK(mode) -> {
+                    val relative = source.toPath().relativize(file.toPath()).toString().replace(File.separatorChar, '/')
+                    val destination = resolveArchiveEntry(root, relative) ?: return
+                    if (!prepareLinkDestination(root, destination)) return
+                    runCatching { Os.symlink(Os.readlink(file.path), destination) }
+                        .onSuccess { restored++ }
+                }
+                OsConstants.S_ISDIR(mode) -> file.listFiles()?.forEach(::visit)
+            }
+        }
+        source.listFiles()?.forEach(::visit)
+        return restored
+    }
+
+    private fun prepareLinkDestination(root: String, path: String): Boolean {
+        val parent = File(path).parent ?: return false
+        if (!ensureDirectories(root, parent)) return false
+        val mode = lstatMode(path)
+        return when {
+            mode == null -> true
+            OsConstants.S_ISLNK(mode) -> File(path).delete()
+            else -> false
+        }
+    }
+
+    private fun ensureDirectories(root: String, path: String): Boolean {
+        val normalizedRoot = FileUtil.normalizeAbsolutePath(root) ?: return false
+        val normalizedPath = FileUtil.normalizeAbsolutePath(path) ?: return false
+        if (normalizedPath != normalizedRoot && !FileUtil.isDescendant(normalizedRoot, normalizedPath)) return false
+        val relative = normalizedPath.removePrefix(normalizedRoot).trimStart('/')
+        var current = normalizedRoot
+        if (lstatMode(current) == null && !File(current).mkdirs()) return false
+        if (!isDirectory(current)) return false
+        relative.split('/').filter(String::isNotEmpty).forEach { segment ->
+            current = "$current/$segment"
+            val mode = lstatMode(current)
+            if (mode == null) {
+                if (runCatching { Os.mkdir(current, 493) }.isFailure) return false
+            } else if (!OsConstants.S_ISDIR(mode)) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun resolveArchiveEntry(root: String, entry: String): String? {
+        val relative = normalizeArchiveEntry(entry) ?: return null
+        val resolved = FileUtil.normalizeAbsolutePath("$root/$relative") ?: return null
+        return resolved.takeIf { FileUtil.isDescendant(root, it) }
+    }
+
+    private fun resolveHardLinkTarget(root: String, target: String): String? {
+        if ('\u0000' in target || '\\' in target) return null
+        val path = if (target.startsWith('/')) target else "$root/$target"
+        return FileUtil.normalizeAbsolutePath(path)
+    }
+
+    private fun normalizeArchiveEntry(entry: String): String? {
+        if (entry.startsWith('/') || '\u0000' in entry || '\\' in entry) return null
+        val segments = entry.split('/').filter { it.isNotEmpty() && it != "." }
+        if (segments.isEmpty() || ".." in segments) return null
+        return segments.joinToString("/")
+    }
+
+    private fun isDirectory(path: String): Boolean = lstatMode(path)?.let(OsConstants::S_ISDIR) == true
+
+    private fun isRegularFile(path: String): Boolean = lstatMode(path)?.let(OsConstants::S_ISREG) == true
+
+    private fun lstatMode(path: String): Int? = try {
+        Os.lstat(path).st_mode
+    } catch (_: ErrnoException) {
+        null
+    }
+
+    override fun listFilePathsChecked(path: String, listFiles: Boolean, listDirs: Boolean): DirectoryListingParcelable = synchronized(lock) {
+        val directory = File(path)
+        val children = directory.listFiles()
+        if (children == null) {
+            DirectoryListingParcelable(directory.exists().not(), emptyList())
+        } else {
+            DirectoryListingParcelable(
+                true,
+                children.filter { (it.isFile && listFiles) || (it.isDirectory && listDirs) }.map { it.path },
+            )
+        }
     }
 
     private fun writeToParcel(block: (Parcel) -> Unit): ParcelFileDescriptor {
@@ -189,56 +313,10 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
         NativeLib.calculateSize(path)
     }
 
-    override fun clearEmptyDirectoriesRecursively(path: String) = synchronized(lock) {
-        tryOn {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                clearEmptyDirectoriesRecursivelyApi26(path)
-            } else {
-                clearEmptyDirectoriesRecursivelyApi24(path)
-            }
+    override fun clearEmptyDirectoriesRecursively(path: String) {
+        synchronized(lock) {
+            FileUtil.clearEmptyDirectoriesRecursively(path)
         }
-    }
-
-    private fun clearEmptyDirectoriesRecursivelyApi24(path: String) {
-        val dir = File(path)
-        if (dir.isDirectory) {
-            dir.listFiles()?.also { items ->
-                if (items.isEmpty()) {
-                    dir.delete()
-                } else {
-                    items.forEach {
-                        clearEmptyDirectoriesRecursivelyApi24(it.absolutePath)
-                    }
-                }
-            }
-        }
-    }
-
-    @TargetApi(Build.VERSION_CODES.O)
-    private fun clearEmptyDirectoriesRecursivelyApi26(path: String) {
-        Files.walkFileTree(Paths.get(path), object : SimpleFileVisitor<Path>() {
-            override fun preVisitDirectory(dir: Path?, attrs: BasicFileAttributes?): FileVisitResult {
-                if (dir != null && attrs != null) {
-                    if (Files.isDirectory(dir) && Files.list(dir).count() == 0L) {
-                        // Empty dir
-                        Files.delete(dir)
-                    }
-                }
-                return FileVisitResult.CONTINUE
-            }
-
-            override fun visitFile(file: Path?, attrs: BasicFileAttributes?): FileVisitResult {
-                return FileVisitResult.CONTINUE
-            }
-
-            override fun visitFileFailed(file: Path?, exc: IOException?): FileVisitResult {
-                return FileVisitResult.CONTINUE
-            }
-
-            override fun postVisitDirectory(dir: Path?, exc: IOException?): FileVisitResult {
-                return FileVisitResult.CONTINUE
-            }
-        })
     }
 
     override fun setAllPermissions(src: String): Unit = synchronized(lock) { File(src).setAllPermissions() }
@@ -515,7 +593,7 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
             "${PathUtil.getPackageUserDeDir(userId)}/$packageName/cache",
             "${PathUtil.getPackageUserDeDir(userId)}/$packageName/code_cache",
             "${PathUtil.getPackageDataDir(userId)}/$packageName/cache",
-        ).map { path -> File(path).let { file -> file.exists().not() || file.deleteRecursively() } }.all { it }
+        ).map { path -> FileUtil.deleteRecursively(path) }.all { it }
     }
 
     override fun setApplicationEnabledSetting(packageName: String, newState: Int, flags: Int, userId: Int, callingPackage: String?) = synchronized(lock) {
