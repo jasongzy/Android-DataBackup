@@ -88,4 +88,19 @@ class FileUtilTest {
         assertTrue(Files.exists(retainedFile))
         assertTrue(Files.exists(externalEmpty))
     }
+
+    @Test
+    fun clearEmptyDirectoriesRejectsSymbolicLinkParents() {
+        val external = temporaryFolder.newFolder("external-empty-parent").toPath()
+        val nested = Files.createDirectories(external.resolve("empty/nested"))
+        val workspace = temporaryFolder.newFolder("empty-parent").toPath()
+        try {
+            Files.createSymbolicLink(workspace.resolve("shared"), external)
+        } catch (error: Exception) {
+            assumeNoException(error)
+        }
+
+        assertFalse(FileUtil.clearEmptyDirectoriesRecursivelyApi26(workspace.resolve("shared/empty")))
+        assertTrue(Files.exists(nested))
+    }
 }

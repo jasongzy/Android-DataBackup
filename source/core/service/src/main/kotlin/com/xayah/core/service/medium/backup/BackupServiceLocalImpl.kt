@@ -69,8 +69,8 @@ internal class BackupServiceLocalImpl @Inject constructor() : AbstractBackupServ
     override val mConfigsDir by lazy { mPathUtil.getLocalBackupConfigsDir() }
 
     override suspend fun createDirectory(path: String): Boolean = when {
-        path == mFilesDir -> mRootService.mkdirsWithin(mRootDir, path)
-        FileUtil.isDescendant(mFilesDir, path) -> mRootService.mkdirsWithin(mFilesDir, path)
+        path == mFilesDir -> mRootService.mkdirs(path)
+        FileUtil.isDescendant(mFilesDir, path) -> mRootService.mkdirs(path)
         else -> false
     }
 }

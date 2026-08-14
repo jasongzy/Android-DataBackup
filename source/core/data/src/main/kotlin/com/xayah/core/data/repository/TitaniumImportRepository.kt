@@ -336,7 +336,7 @@ class TitaniumImportRepository @Inject constructor(
         val appsDir = pathUtil.getLocalBackupAppsDir()
         val destination = "$appsDir/$packageName/user_0@$createdAt"
         check(FileUtil.isDescendant(backupRoot, destination)) { "Invalid import destination" }
-        check(rootService.mkdirsWithin(backupRoot, destination)) { "Unsafe import destination" }
+        check(rootService.mkdirs(destination)) { "Unable to create import destination" }
         if (rootService.exists(PathUtil.getBackupManifestDst(destination))) {
             updateImportedNote(destination, note)
             if (!importIcon(properties, packageName)) {
