@@ -333,7 +333,10 @@ class TitaniumImportRepository @Inject constructor(
             ?: packageName
         val versionName = properties.getProperty("app_version_name").orEmpty()
         val versionCode = properties.getProperty("app_version_code")?.toLongOrNull() ?: 0
-        val note = buildImportNote(properties.getProperty("personal_note").orEmpty())
+        val note = buildImportNote(
+            personalNote = properties.getProperty("personal_note").orEmpty(),
+            isProtected = properties.getProperty("is_protected") == "1",
+        )
         val backupRoot = context.localBackupSaveDir()
         val appsDir = pathUtil.getLocalBackupAppsDir()
         val destination = "$appsDir/$packageName/user_0@$createdAt"
@@ -502,9 +505,10 @@ class TitaniumImportRepository @Inject constructor(
         }
     }
 
-    private fun buildImportNote(personalNote: String): String = buildList {
-        add(IMPORT_NOTE)
-        personalNote.trim().takeIf { it.isNotEmpty() && it != IMPORT_NOTE }?.let(::add)
+    private fun buildImportNote(personalNote: String, isProtected: Boolean): String = buildList {
+        val source = if (isProtected) "$IMPORT_NOTE (protected)" else IMPORT_NOTE
+        add(source)
+        personalNote.trim().takeIf { it.isNotEmpty() && it != IMPORT_NOTE && it != source }?.let(::add)
     }.joinToString("\n")
 
     private fun createPackage(
