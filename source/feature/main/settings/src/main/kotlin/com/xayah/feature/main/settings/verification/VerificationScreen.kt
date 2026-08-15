@@ -103,7 +103,7 @@ fun PageBackupVerification(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(SizeTokens.Level16),
-                enabled = !uiState.isRunning && !uiState.isCleaning,
+                enabled = uiState.total > 0 && !uiState.isRunning && !uiState.isCleaning,
                 onClick = viewModel::verify,
             ) {
                 Text(stringResource(if (uiState.isComplete) R.string.verify_again else R.string.verify_all_backups))

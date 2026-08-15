@@ -49,7 +49,7 @@ class VerificationViewModel @Inject constructor(
     }
 
     fun verify() {
-        if (_uiState.value.isRunning) return
+        if (_uiState.value.total == 0 || _uiState.value.isRunning || _uiState.value.isCleaning) return
         _uiState.value = VerificationUiState(isRunning = true, total = _uiState.value.total)
         viewModelScope.launch(Dispatchers.IO) {
             try {
