@@ -398,7 +398,7 @@ class AppBackupRepository @Inject constructor(
             rootService.exists(revisionDir).not() || rootService.deleteRecursively(revisionDir)
         }
         if (!deleted) return false
-        dao.deleteRevision(revision.id)
+        dao.deleteRevisionAndSync(revision)
         _verificationResults.value -= revision.id
         getLocalRevisionDir(revision)?.let { revisionDir ->
             val packageDir = PathUtil.getParentPath(revisionDir)

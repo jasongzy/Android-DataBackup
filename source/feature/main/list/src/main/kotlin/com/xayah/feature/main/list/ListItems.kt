@@ -154,7 +154,7 @@ fun AppItem(
     val hapticFeedback = LocalHapticFeedback.current
     val app = item.app
     val title = if (app.versionName.isEmpty()) app.label else "${app.label} · ${app.versionName}"
-    val backupSummary = item.latestRevisionAt?.let { timestamp ->
+    val backupSummary = item.latestRevisionAt?.takeIf { item.revisionCount > 0 }?.let { timestamp ->
         stringResource(
             com.xayah.feature.main.list.R.string.backup_summary,
             item.revisionCount,

@@ -7,6 +7,7 @@ import androidx.room.Upsert
 import com.xayah.core.model.AppBackupOverview
 import com.xayah.core.model.BackupAppEntity
 import com.xayah.core.model.BackupRevisionEntity
+import com.xayah.core.model.OpType
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -16,6 +17,7 @@ interface AppBackupDao {
         markUserAppsUninstalled(userId)
         upsertApps(apps)
         deleteUninstalledAppsWithoutRevisions(userId)
+        syncLastBackupTimes(OpType.BACKUP)
     }
 
     @Upsert
@@ -67,6 +69,7 @@ interface AppBackupDao {
         deleteRevisions(repositoryId)
         upsertApps(apps)
         upsertRevisions(revisions)
+        syncLastBackupTimes(OpType.BACKUP)
     }
 
     @Query("SELECT * FROM backup_revisions WHERE packageName = :packageName AND userId = :userId AND repositoryId = :repositoryId ORDER BY createdAt DESC LIMIT 1")
@@ -83,6 +86,42 @@ interface AppBackupDao {
 
     @Query("DELETE FROM backup_revisions WHERE revisionId = :revisionId")
     suspend fun deleteRevision(revisionId: String)
+
+    @Transaction
+    suspend fun deleteRevisionAndSync(revision: BackupRevisionEntity) {
+        deleteRevision(revision.id)
+        syncLastBackupTime(revision.packageName, revision.userId, OpType.BACKUP)
+    }
+
+    @Query(
+        """
+        UPDATE PackageEntity
+        SET extraInfo_lastBackupTime = COALESCE((
+            SELECT MAX(backup_revisions.createdAt)
+            FROM backup_revisions
+            WHERE backup_revisions.packageName = PackageEntity.indexInfo_packageName
+                AND backup_revisions.userId = PackageEntity.indexInfo_userId
+        ), 0)
+        WHERE indexInfo_opType = :opType
+            AND indexInfo_packageName = :packageName
+            AND indexInfo_userId = :userId
+        """
+    )
+    suspend fun syncLastBackupTime(packageName: String, userId: Int, opType: OpType)
+
+    @Query(
+        """
+        UPDATE PackageEntity
+        SET extraInfo_lastBackupTime = COALESCE((
+            SELECT MAX(backup_revisions.createdAt)
+            FROM backup_revisions
+            WHERE backup_revisions.packageName = PackageEntity.indexInfo_packageName
+                AND backup_revisions.userId = PackageEntity.indexInfo_userId
+        ), 0)
+        WHERE indexInfo_opType = :opType
+        """
+    )
+    suspend fun syncLastBackupTimes(opType: OpType)
 
     @Query(
         """

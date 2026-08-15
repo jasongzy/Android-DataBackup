@@ -75,7 +75,7 @@ class ListItemsViewModel @Inject constructor(
                 AppListItem(
                     app = app,
                     revisionCount = overview?.revisionCount ?: 0,
-                    latestRevisionAt = overview?.latestRevisionAt ?: app.lastBackupTime.takeIf { it > 0 },
+                    latestRevisionAt = overview?.latestRevisionAt,
                     hasApkBackup = overview?.hasApkBackup == true,
                     hasDataBackup = overview?.hasDataBackup == true,
                     latestApkVersionCode = overview?.latestApkVersionCode,
