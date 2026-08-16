@@ -15,8 +15,11 @@ import com.xayah.core.model.BackupVerificationStatus
 import com.xayah.core.model.DataType
 import com.xayah.core.model.DataState
 import com.xayah.core.model.OpType
+import com.xayah.core.model.PACKAGE_RESTORE_CONFIG_SCHEMA_VERSION
+import com.xayah.core.model.PackageRestoreConfig
 import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.database.PackageEntity
+import com.xayah.core.model.toPackageEntity
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.PathUtil
 import com.xayah.core.util.localBackupSaveDir
@@ -335,28 +338,21 @@ class AppBackupRepository @Inject constructor(
         }
         onProgress(0, revisionDirs.size, 0)
         revisionDirs.forEachIndexed { index, revisionDir ->
-            val app = rootService.readJson<PackageEntity>(PathUtil.getPackageRestoreConfigDst(revisionDir))
+            val config = rootService.readJson<PackageRestoreConfig>(PathUtil.getPackageRestoreConfigDst(revisionDir))
             val manifest = rootService.readJson<BackupManifest>(PathUtil.getBackupManifestDst(revisionDir))
             if (
-                app != null &&
+                config != null &&
                 manifest != null &&
+                config.schemaVersion == PACKAGE_RESTORE_CONFIG_SCHEMA_VERSION &&
                 manifest.schemaVersion == BACKUP_MANIFEST_SCHEMA_VERSION &&
-                app.packageName == manifest.packageName &&
-                app.userId == manifest.userId &&
-                app.preserveId == manifest.createdAt &&
-                app.packageInfo.versionName == manifest.versionName &&
-                app.packageInfo.versionCode == manifest.versionCode &&
+                config.packageName == manifest.packageName &&
+                config.userId == manifest.userId &&
+                config.createdAt == manifest.createdAt &&
+                config.versionName == manifest.versionName &&
+                config.versionCode == manifest.versionCode &&
                 manifest.files.isNullOrEmpty().not()
             ) {
-                rebuilt += app.copy(
-                    id = 0,
-                    indexInfo = app.indexInfo.copy(
-                        opType = OpType.RESTORE,
-                        cloud = "",
-                        backupDir = backupDir,
-                    ),
-                    extraInfo = app.extraInfo.copy(activated = false),
-                ) to manifest
+                rebuilt += config.toPackageEntity(cloud = "", backupDir = backupDir) to manifest
             }
             onProgress(index + 1, revisionDirs.size, rebuilt.size)
         }
@@ -365,10 +361,8 @@ class AppBackupRepository @Inject constructor(
             .distinctBy { (app, _) -> app.packageName to app.userId }
             .map { (app, _) ->
                 val existing = dao.getApp(app.packageName, app.userId)
-                app.toBackupApp(
-                    isInstalled = existing?.isInstalled == true,
-                    note = existing?.note.orEmpty(),
-                )
+                existing?.takeIf { it.isInstalled }
+                    ?: app.toBackupApp(isInstalled = false, note = existing?.note.orEmpty())
             }
         val revisions = rebuilt.map { (app, manifest) ->
             app.toRevision(

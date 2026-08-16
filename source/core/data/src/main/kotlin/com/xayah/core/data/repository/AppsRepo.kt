@@ -22,6 +22,7 @@ import com.xayah.core.model.DataState
 import com.xayah.core.model.DataType
 import com.xayah.core.model.DefaultPreserveId
 import com.xayah.core.model.OpType
+import com.xayah.core.model.PackageRestoreConfig
 import com.xayah.core.model.SettingsData
 import com.xayah.core.model.UserInfo
 import com.xayah.core.model.database.LabelAppCrossRefEntity
@@ -35,6 +36,8 @@ import com.xayah.core.model.database.PackageInfo
 import com.xayah.core.model.database.PackageStorageStats
 import com.xayah.core.model.database.PackageUpdateEntity
 import com.xayah.core.model.database.asExternalModel
+import com.xayah.core.model.toPackageEntity
+import com.xayah.core.model.toRestoreConfig
 import com.xayah.core.rootservice.parcelables.PathParcelable
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.ConfigsPackageRestoreName
@@ -503,18 +506,14 @@ class AppsRepo @Inject constructor(
             onLoad(index, paths.size, fileName)
             if (fileName == ConfigsPackageRestoreName) {
                 runCatching {
-                    rootService.readJson<PackageEntity>(pathParcelable.pathString).also { p ->
-                        p?.id = 0
-                        p?.extraInfo?.activated = false
-                        p?.indexInfo?.cloud = ""
-                        p?.indexInfo?.backupDir = context.localBackupSaveDir()
-                        parsePreserveAndUserId(pathParcelable).also { result ->
-                            result?.also { (pId, uId) ->
-                                p?.indexInfo?.preserveId = pId
-                                p?.indexInfo?.userId = uId
+                    rootService.readJson<PackageRestoreConfig>(pathParcelable.pathString)
+                        ?.toPackageEntity(cloud = "", backupDir = context.localBackupSaveDir())
+                        ?.also { p ->
+                            parsePreserveAndUserId(pathParcelable)?.let { (preserveId, userId) ->
+                                p.indexInfo.preserveId = preserveId
+                                p.indexInfo.userId = userId
                             }
-                        }
-                    }?.apply {
+                        }?.apply {
                         if (appsDao.query(packageName, indexInfo.opType, userId, preserveId, indexInfo.compressionType, indexInfo.cloud, indexInfo.backupDir) == null) {
                             appsDao.upsert(this)
                         }
@@ -544,18 +543,14 @@ class AppsRepo @Inject constructor(
                     if (fileName == ConfigsPackageRestoreName) {
                         runCatching {
                             cloudRepo.download(client = client, src = pathParcelable.pathString, dstDir = tmpDir) { path ->
-                                rootService.readJson<PackageEntity>(path).also { p ->
-                                    p?.id = 0
-                                    p?.extraInfo?.activated = false
-                                    p?.indexInfo?.cloud = entity.name
-                                    p?.indexInfo?.backupDir = remote
-                                    parsePreserveAndUserId(pathParcelable).also { result ->
-                                        result?.also { (pId, uId) ->
-                                            p?.indexInfo?.preserveId = pId
-                                            p?.indexInfo?.userId = uId
+                                rootService.readJson<PackageRestoreConfig>(path)
+                                    ?.toPackageEntity(cloud = entity.name, backupDir = remote)
+                                    ?.also { p ->
+                                        parsePreserveAndUserId(pathParcelable)?.let { (preserveId, userId) ->
+                                            p.indexInfo.preserveId = preserveId
+                                            p.indexInfo.userId = userId
                                         }
-                                    }
-                                }?.apply {
+                                    }?.apply {
                                     if (appsDao.query(packageName, indexInfo.opType, userId, preserveId, indexInfo.compressionType, indexInfo.cloud, indexInfo.backupDir) == null) {
                                         appsDao.upsert(this)
                                     }
@@ -663,7 +658,7 @@ class AppsRepo @Inject constructor(
         val appsDir = pathUtil.getLocalBackupAppsDir()
         val src = "${appsDir}/${app.archivesRelativeDir}"
         val dst = "${appsDir}/${protectedApp.archivesRelativeDir}"
-        rootService.writeJson(data = protectedApp, dst = PathUtil.getPackageRestoreConfigDst(src))
+        rootService.writeJson(data = protectedApp.toRestoreConfig(), dst = PathUtil.getPackageRestoreConfigDst(src))
         rootService.renameTo(src, dst)
         appsDao.update(protectedApp)
     }
@@ -677,7 +672,7 @@ class AppsRepo @Inject constructor(
             val dst = "${remoteAppsDir}/${protectedApp.archivesRelativeDir}"
             val tmpDir = pathUtil.getCloudTmpDir()
             val tmpJsonPath = PathUtil.getPackageRestoreConfigDst(tmpDir)
-            rootService.writeJson(data = protectedApp, dst = tmpJsonPath)
+            rootService.writeJson(data = protectedApp.toRestoreConfig(), dst = tmpJsonPath)
             cloudRepo.upload(client = client, src = tmpJsonPath, dstDir = src)
             rootService.deleteRecursively(tmpDir)
             client.renameTo(src, dst)

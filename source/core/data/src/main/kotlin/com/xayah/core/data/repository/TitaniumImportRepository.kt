@@ -19,6 +19,7 @@ import com.xayah.core.model.database.PackageExtraInfo
 import com.xayah.core.model.database.PackageIndexInfo
 import com.xayah.core.model.database.PackageInfo
 import com.xayah.core.model.database.PackageStorageStats
+import com.xayah.core.model.toRestoreConfig
 import com.xayah.core.datastore.readCompressionLevel
 import com.xayah.core.datastore.readCompressionType
 import com.xayah.core.model.util.getCompressPara
@@ -391,7 +392,9 @@ class TitaniumImportRepository @Inject constructor(
                 systemApp = properties.getProperty("app_is_system") == "1",
                 states = states,
             )
-            check(rootService.writeJson(app, PathUtil.getPackageRestoreConfigDst(destination)).isSuccess) { "Unable to write app metadata" }
+            check(rootService.writeJson(app.toRestoreConfig(), PathUtil.getPackageRestoreConfigDst(destination)).isSuccess) {
+                "Unable to write app metadata"
+            }
             checkNotNull(appBackupRepository.writeManifest(app, createdAt, destination, note)) { "Unable to write the backup manifest" }
             if (!importIcon(properties, packageName) && importedApk != null) {
                 appIconRepository.saveApkIcon(importedApk, pathUtil.getLocalBackupAppsDir(), packageName)

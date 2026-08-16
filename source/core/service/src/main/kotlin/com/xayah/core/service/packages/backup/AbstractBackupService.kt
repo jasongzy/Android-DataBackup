@@ -18,6 +18,7 @@ import com.xayah.core.model.database.Info
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.database.ProcessingInfoEntity
 import com.xayah.core.model.database.TaskDetailPackageEntity
+import com.xayah.core.model.toRestoreConfig
 import com.xayah.core.model.util.set
 import com.xayah.core.service.R
 import com.xayah.core.service.model.NecessaryInfo
@@ -196,7 +197,7 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                             extraInfo = revisionApp.extraInfo.copy(activated = false),
                         )
                         val configDst = PathUtil.getPackageRestoreConfigDst(dstDir = dstDir)
-                        val configSaved = mRootService.writeJson(data = restoreEntity, dst = configDst).isSuccess &&
+                        val configSaved = mRootService.writeJson(data = restoreEntity.toRestoreConfig(), dst = configDst).isSuccess &&
                             onConfigSaved(path = configDst, archivesRelativeDir = revisionApp.archivesRelativeDir)
                         val manifest = if (configSaved) {
                             mAppBackupRepository.writeManifest(revisionApp, revisionCreatedAt, dstDir)
