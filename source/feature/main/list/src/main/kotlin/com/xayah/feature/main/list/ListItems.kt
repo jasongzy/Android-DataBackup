@@ -264,7 +264,8 @@ fun AppItem(
                             Text("+${item.labels.size - labelLimit}", style = MaterialTheme.typography.labelSmall)
                         }
                     }
-                } else if (metadata != null) {
+                }
+                if (metadata != null) {
                     BodyMediumText(
                         text = metadata,
                         color = ThemedColorSchemeKeyTokens.Error.value,
