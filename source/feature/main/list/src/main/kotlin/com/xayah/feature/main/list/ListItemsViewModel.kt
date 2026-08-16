@@ -18,6 +18,7 @@ import com.xayah.core.model.AppKey
 import com.xayah.core.model.DataState
 import com.xayah.core.model.File
 import com.xayah.core.model.OpType
+import com.xayah.core.model.SortType
 import com.xayah.core.model.Target
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.ColoredLabel
@@ -207,18 +208,41 @@ class ListItemsViewModel @Inject constructor(
     }
 
     private fun List<AppListItem>.sorted(listData: ListData.Apps): List<AppListItem> {
+        val collator = Collator.getInstance()
+        val labelComparator = Comparator<AppListItem> { first, second ->
+            collator.compare(first.app.label, second.app.label)
+        }
         val comparator = when (listData.sortIndex) {
-            1 -> compareBy<AppListItem> { it.app.firstInstallTime }
-            2 -> compareBy { it.app.dataSizeBytes }
-            3 -> compareBy { it.app.lastUpdateTime }
-            4 -> compareBy { it.latestRevisionAt ?: 0L }
-            else -> {
-                val collator = Collator.getInstance()
-                Comparator { first, second -> collator.compare(first.app.label, second.app.label) }
+            1 -> compareValues(listData.sortType) { it.app.firstInstallTime.takeIf { time -> time > 0 } }
+            2 -> compareValues(listData.sortType) { item -> item.app.dataSizeBytes.takeIf { item.app.isInstalled } }
+            3 -> compareValues(listData.sortType) { it.app.lastUpdateTime.takeIf { time -> time > 0 } }
+            4 -> compareValues(listData.sortType) { it.latestRevisionAt?.takeIf { time -> time > 0 } }
+            else -> if (listData.sortType == SortType.ASCENDING) {
+                labelComparator
+            } else {
+                labelComparator.reversed()
             }
-        }.thenBy { it.app.packageName }
-        val ordered = if (listData.sortType == com.xayah.core.model.SortType.ASCENDING) comparator else comparator.reversed()
-        return sortedWith(ordered)
+        }
+        return sortedWith(
+            comparator
+                .then(labelComparator)
+                .thenBy { it.app.packageName }
+                .thenBy { it.app.userId }
+        )
+    }
+
+    private fun <T : Comparable<T>> compareValues(
+        sortType: SortType,
+        selector: (AppListItem) -> T?,
+    ): Comparator<AppListItem> = Comparator { first, second ->
+        val firstValue = selector(first)
+        val secondValue = selector(second)
+        when {
+            firstValue == null -> if (secondValue == null) 0 else 1
+            secondValue == null -> -1
+            sortType == SortType.ASCENDING -> firstValue.compareTo(secondValue)
+            else -> secondValue.compareTo(firstValue)
+        }
     }
 
     fun onChangeFlag(id: Long, flag: Int) {

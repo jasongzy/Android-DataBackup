@@ -29,7 +29,7 @@ interface AppBackupDao {
     @Query("SELECT * FROM backup_apps WHERE note != ''")
     suspend fun getAppsWithNotes(): List<BackupAppEntity>
 
-    @Query("UPDATE backup_apps SET isInstalled = 0 WHERE userId = :userId")
+    @Query("UPDATE backup_apps SET isInstalled = 0, firstInstallTime = 0, lastUpdateTime = 0 WHERE userId = :userId")
     suspend fun markUserAppsUninstalled(userId: Int)
 
     @Query(

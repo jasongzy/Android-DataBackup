@@ -181,7 +181,7 @@ fun AppItem(
             formattedUpdateTime,
         )
     } else null
-    val dataSize = if (showDataSize) {
+    val dataSize = if (showDataSize && app.isInstalled) {
         stringResource(
             com.xayah.feature.main.list.R.string.app_data_size,
             app.dataSizeBytes.toDouble().formatSize(),
