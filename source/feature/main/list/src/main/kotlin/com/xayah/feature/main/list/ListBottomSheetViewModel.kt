@@ -124,6 +124,12 @@ class ListBottomSheetViewModel @Inject constructor(
         }
     }
 
+    fun resetLabelFilter(label: String) {
+        viewModelScope.launchOnDefault {
+            listDataRepo.removeLabelFilter(label)
+        }
+    }
+
     fun setDataItems(selections: PackageDataStates) {
         viewModelScope.launchOnDefault {
             if (uiState.value is Success.Apps) {

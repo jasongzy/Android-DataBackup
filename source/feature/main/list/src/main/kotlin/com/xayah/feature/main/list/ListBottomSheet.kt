@@ -1,6 +1,9 @@
 package com.xayah.feature.main.list
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -28,7 +31,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -96,6 +103,7 @@ internal fun ListBottomSheet(
                 labelEntities = uiState.labelEntities,
                 labelFilters = uiState.labelFilters,
                 onClickLabel = viewModel::cycleLabelFilter,
+                onLongClickLabel = viewModel::resetLabelFilter,
                 setFilters = viewModel::setFilters,
                 onDismissRequest = onDismissRequest,
             )
@@ -124,6 +132,7 @@ internal fun ListBottomSheet(
                 labelEntities = uiState.labelEntities,
                 labelFilters = uiState.labelFilters,
                 onClickLabel = viewModel::cycleLabelFilter,
+                onLongClickLabel = viewModel::resetLabelFilter,
                 onDismissRequest = onDismissRequest,
             )
         }
@@ -198,7 +207,9 @@ private fun LabelsFlow(
     labelEntities: List<ColoredLabel>,
     labelFilters: Map<String, LabelFilterMode>,
     onClick: (String) -> Unit,
+    onLongClick: (String) -> Unit,
 ) {
+    val hapticFeedback = LocalHapticFeedback.current
     FlowRow(
         modifier = Modifier
             .fillMaxWidth()
@@ -209,6 +220,20 @@ private fun LabelsFlow(
         labelEntities.forEach { item ->
             val mode = labelFilters[item.label]
             FilterChip(
+                modifier = Modifier.pointerInput(item.label) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        awaitLongPressOrCancellation(down.id)?.let { change ->
+                            change.consume()
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onLongClick(item.label)
+                            do {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                event.changes.forEach { it.consume() }
+                            } while (event.changes.any { it.pressed })
+                        }
+                    }
+                },
                 onClick = { onClick(item.label) },
                 label = {
                     Text(
@@ -269,6 +294,7 @@ internal fun AppsFilterSheet(
     labelEntities: List<ColoredLabel>,
     labelFilters: Map<String, LabelFilterMode>,
     onClickLabel: (String) -> Unit,
+    onLongClickLabel: (String) -> Unit,
     setFilters: (Filters) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
@@ -343,6 +369,7 @@ internal fun AppsFilterSheet(
                     labelEntities = labelEntities,
                     labelFilters = labelFilters,
                     onClick = onClickLabel,
+                    onLongClick = onLongClickLabel,
                 )
             }
         }
@@ -357,13 +384,19 @@ internal fun FilesFilterSheet(
     labelEntities: List<ColoredLabel>,
     labelFilters: Map<String, LabelFilterMode>,
     onClickLabel: (String) -> Unit,
+    onLongClickLabel: (String) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     if (isShow) {
         ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState) {
             if (labelEntities.isNotEmpty()) {
                 Title(text = stringResource(id = R.string.labels))
-                LabelsFlow(labelEntities = labelEntities, labelFilters = labelFilters, onClick = onClickLabel)
+                LabelsFlow(
+                    labelEntities = labelEntities,
+                    labelFilters = labelFilters,
+                    onClick = onClickLabel,
+                    onLongClick = onLongClickLabel,
+                )
             }
         }
     }
