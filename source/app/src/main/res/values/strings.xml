@@ -428,6 +428,10 @@
     <string name="path_copied">Copied path: %1$s</string>
     <string name="further_operations">Further operations</string>
     <string name="copy_apk_path">Copy path</string>
+    <string name="copy_app_name">Copy app name</string>
+    <string name="copy_package_name">Copy package name</string>
+    <string name="app_name_copied">App name copied</string>
+    <string name="package_name_copied">Package name copied</string>
     <string name="data_path">Data path</string>
     <string name="open_path">Open path</string>
     <string name="permission_editor">Permissions</string>

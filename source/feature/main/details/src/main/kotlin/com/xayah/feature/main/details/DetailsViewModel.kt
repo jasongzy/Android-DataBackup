@@ -433,6 +433,22 @@ class DetailsViewModel @Inject constructor(
         Toast.makeText(context, context.getString(R.string.path_copied, path), Toast.LENGTH_SHORT).show()
     }
 
+    fun copyAppName() {
+        val app = (uiState.value as? Success.App)?.app ?: return
+        copyText(app.packageInfo.label, app.packageInfo.label, R.string.app_name_copied)
+    }
+
+    fun copyPackageName() {
+        val app = (uiState.value as? Success.App)?.app ?: return
+        copyText(app.packageInfo.label, app.packageName, R.string.package_name_copied)
+    }
+
+    private fun copyText(label: String, text: String, @StringRes message: Int) {
+        context.getSystemService(ClipboardManager::class.java)
+            .setPrimaryClip(ClipData.newPlainText(label, text))
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
     fun openPath(path: String) {
         allowFileUriExposure()
         val file = File(path)
@@ -543,9 +559,10 @@ class DetailsViewModel @Inject constructor(
         if (_furtherOperations.value == FurtherOperationsUiState.Loading) return
         viewModelScope.launch {
             val app = (uiState.value as? Success.App)?.app ?: return@launch
+            val installed = (uiState.value as? Success.App)?.isInstalled == true
             _furtherOperations.value = FurtherOperationsUiState.Loading
             val operations = withContext(Dispatchers.IO) {
-                runCatching { resolveFurtherOperations(app) }.getOrDefault(emptyList())
+                runCatching { resolveFurtherOperations(app, installed) }.getOrDefault(emptyList())
             }
             _furtherOperations.value = FurtherOperationsUiState.Content(operations)
         }
@@ -558,30 +575,32 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun resolveFurtherOperations(app: PackageEntity): List<FurtherOperation> {
+    private suspend fun resolveFurtherOperations(app: PackageEntity, installed: Boolean): List<FurtherOperation> {
         val operations = mutableListOf<FurtherOperation>()
-        val appInfoIntent = Intent(Intent.ACTION_SHOW_APP_INFO)
-        queryIntentActivities(appInfoIntent).forEach { resolveInfo ->
-            operations += resolveInfo.toFurtherOperation(
-                Intent(Intent.ACTION_SHOW_APP_INFO)
-                    .setComponent(resolveInfo.componentName)
-                    .putExtra(Intent.EXTRA_PACKAGE_NAME, app.packageName)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            )
-        }
+        if (installed) {
+            val appInfoIntent = Intent(Intent.ACTION_SHOW_APP_INFO)
+            queryIntentActivities(appInfoIntent).forEach { resolveInfo ->
+                operations += resolveInfo.toFurtherOperation(
+                    Intent(Intent.ACTION_SHOW_APP_INFO)
+                        .setComponent(resolveInfo.componentName)
+                        .putExtra(Intent.EXTRA_PACKAGE_NAME, app.packageName)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                )
+            }
 
-        rootService.getPackageSourceDir(app.packageName, app.userId).firstOrNull()?.let { source ->
-            allowFileUriExposure()
-            val sourceUri = android.net.Uri.fromFile(File(source))
-            val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(sourceUri, APK_MIME_TYPE)
-            queryIntentActivities(viewIntent).forEach { resolveInfo ->
-                if (isFileManager(resolveInfo.activityInfo.packageName)) {
-                    operations += resolveInfo.toFurtherOperation(
-                        Intent(Intent.ACTION_VIEW)
-                            .setPackage(resolveInfo.activityInfo.packageName)
-                            .setDataAndType(sourceUri, APK_MIME_TYPE)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    )
+            rootService.getPackageSourceDir(app.packageName, app.userId).firstOrNull()?.let { source ->
+                allowFileUriExposure()
+                val sourceUri = android.net.Uri.fromFile(File(source))
+                val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(sourceUri, APK_MIME_TYPE)
+                queryIntentActivities(viewIntent).forEach { resolveInfo ->
+                    if (isFileManager(resolveInfo.activityInfo.packageName)) {
+                        operations += resolveInfo.toFurtherOperation(
+                            Intent(Intent.ACTION_VIEW)
+                                .setPackage(resolveInfo.activityInfo.packageName)
+                                .setDataAndType(sourceUri, APK_MIME_TYPE)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        )
+                    }
                 }
             }
         }

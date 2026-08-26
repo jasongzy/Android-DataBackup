@@ -226,6 +226,8 @@ fun AppRevisionsRoute(
                         },
                         onSaveAppIcon = detailsViewModel::saveAppIcon,
                         onShareApk = detailsViewModel::shareApk,
+                        onCopyAppName = detailsViewModel::copyAppName,
+                        onCopyPackageName = detailsViewModel::copyPackageName,
                         furtherOperations = furtherOperations,
                         onLoadFurtherOperations = detailsViewModel::loadFurtherOperations,
                         onOpenFurtherOperation = detailsViewModel::openFurtherOperation,

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.Api
 import androidx.compose.material.icons.rounded.RemoveRedEye
 import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Update
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material.icons.rounded._123
@@ -131,6 +132,8 @@ fun AppDetails(
     onEditPermissions: () -> Unit,
     onSaveAppIcon: () -> Unit,
     onShareApk: () -> Unit,
+    onCopyAppName: () -> Unit,
+    onCopyPackageName: () -> Unit,
     furtherOperations: FurtherOperationsUiState,
     onLoadFurtherOperations: () -> Unit,
     onOpenFurtherOperation: (FurtherOperation) -> Unit,
@@ -181,10 +184,19 @@ fun AppDetails(
                 showFurtherOperations = false
                 onCopyDataPath(DataType.PACKAGE_APK)
             },
+            onCopyAppName = {
+                showFurtherOperations = false
+                onCopyAppName()
+            },
+            onCopyPackageName = {
+                showFurtherOperations = false
+                onCopyPackageName()
+            },
             onOpenFurtherOperation = { operation ->
                 showFurtherOperations = false
                 onOpenFurtherOperation(operation)
             },
+            isInstalled = uiState.isInstalled,
             uiState = furtherOperations,
         )
     }
@@ -209,10 +221,8 @@ fun AppDetails(
         Box(
             modifier = Modifier.combinedClickable(
                 onClick = {
-                    if (opType == OpType.BACKUP) {
-                        showFurtherOperations = true
-                        onLoadFurtherOperations()
-                    }
+                    showFurtherOperations = true
+                    onLoadFurtherOperations()
                 },
                 onLongClick = {
                     dialogState.confirm(
@@ -341,11 +351,36 @@ private fun FurtherOperationsBottomSheet(
     onDismiss: () -> Unit,
     onShareApk: () -> Unit,
     onCopyApkPath: () -> Unit,
+    onCopyAppName: () -> Unit,
+    onCopyPackageName: () -> Unit,
     onOpenFurtherOperation: (FurtherOperation) -> Unit,
+    isInstalled: Boolean,
     uiState: FurtherOperationsUiState,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Title(stringResource(R.string.further_operations))
+        if (isInstalled) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .paddingHorizontal(SizeTokens.Level24),
+                horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level8),
+            ) {
+                FilledTonalIconTextButton(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Rounded.Share,
+                    text = stringResource(R.string.share),
+                    onClick = onShareApk,
+                )
+                FilledTonalIconTextButton(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Rounded.ContentCopy,
+                    text = stringResource(R.string.copy_apk_path),
+                    onClick = onCopyApkPath,
+                )
+            }
+            Spacer(Modifier.height(SizeTokens.Level8))
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -354,15 +389,15 @@ private fun FurtherOperationsBottomSheet(
         ) {
             FilledTonalIconTextButton(
                 modifier = Modifier.weight(1f),
-                icon = Icons.Rounded.Share,
-                text = stringResource(R.string.share),
-                onClick = onShareApk,
+                icon = Icons.Rounded.TextFields,
+                text = stringResource(R.string.copy_app_name),
+                onClick = onCopyAppName,
             )
             FilledTonalIconTextButton(
                 modifier = Modifier.weight(1f),
-                icon = Icons.Rounded.ContentCopy,
-                text = stringResource(R.string.copy_apk_path),
-                onClick = onCopyApkPath,
+                icon = Icons.Rounded.Apps,
+                text = stringResource(R.string.copy_package_name),
+                onClick = onCopyPackageName,
             )
         }
         Spacer(Modifier.height(SizeTokens.Level12))

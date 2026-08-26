@@ -85,6 +85,8 @@ internal fun AppDetailsScreen(uiState: DetailsUiState, viewModel: DetailsViewMod
                                 },
                                 onSaveAppIcon = viewModel::saveAppIcon,
                                 onShareApk = viewModel::shareApk,
+                                onCopyAppName = viewModel::copyAppName,
+                                onCopyPackageName = viewModel::copyPackageName,
                                 furtherOperations = furtherOperations,
                                 onLoadFurtherOperations = viewModel::loadFurtherOperations,
                                 onOpenFurtherOperation = viewModel::openFurtherOperation,
