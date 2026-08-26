@@ -19,6 +19,7 @@ interface IRemoteRootService {
     boolean exists(String path);
     boolean createNewFile(String path);
     boolean deleteRecursively(String path);
+    boolean hasZipEntry(String path, in String[] entries);
     List<String> listFilePaths(String path, boolean listFiles, boolean listDirs);
     DirectoryListingParcelable listFilePathsChecked(String path, boolean listFiles, boolean listDirs);
     ParcelFileDescriptor readText(String path);

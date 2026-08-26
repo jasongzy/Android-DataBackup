@@ -332,6 +332,9 @@ internal fun AppsFilterSheet(
                 CompactOption(stringResource(R.string.unfrozen_apps), filters.unfrozenApps) {
                     setFilters(filters.copy(unfrozenApps = filters.unfrozenApps.not()))
                 }
+                CompactOption(stringResource(R.string.xposed), filters.xposedModules) {
+                    setFilters(filters.copy(xposedModules = filters.xposedModules.not()))
+                }
             }
             if (opType == OpType.BACKUP) {
                 CompactOptions {

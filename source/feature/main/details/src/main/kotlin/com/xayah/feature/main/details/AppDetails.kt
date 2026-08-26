@@ -490,6 +490,17 @@ private fun LabelsFlow(
                 label = { Text(stringResource(R.string.updated)) },
             )
         }
+        if (app.packageInfo.isXposedModule) {
+            FilterChip(
+                onClick = { },
+                selected = true,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = XposedPink,
+                    selectedLabelColor = XposedOnPink,
+                ),
+                label = { Text(stringResource(R.string.xposed)) },
+            )
+        }
         when (opType) {
             OpType.BACKUP -> {
                 if (app.extraInfo.enabled.not()) {
@@ -1084,6 +1095,9 @@ private fun LabelColorDialog(
         )
     }
 }
+
+private val XposedPink = Color(0xFFF48FB1)
+private val XposedOnPink = Color(0xFF3E001D)
 
 @Composable
 private fun NoteRow(note: String, onEdit: () -> Unit) {

@@ -1,5 +1,6 @@
 package com.xayah.core.database
 
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -26,8 +27,9 @@ import com.xayah.core.model.database.TaskDetailPackageEntity
 import com.xayah.core.model.database.TaskEntity
 
 @Database(
-    version = 9,
+    version = 10,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 9, to = 10)],
     entities = [
         PackageEntity::class,
         MediaEntity::class,

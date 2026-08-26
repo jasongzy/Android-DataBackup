@@ -159,7 +159,7 @@ internal class ArchiveExtractor(private val context: Context) {
             )
             "zstd" -> {
                 val errorFile = File(workspace, "zstd-${System.nanoTime()}.log")
-                val process = ProcessBuilder("${context.binDir()}/zstd", "-d", "-c", "--", source)
+                val process = ProcessBuilder("${context.binDir()}/zstd", "-d", "-f", "-c", "--", source)
                     .redirectError(errorFile)
                     .start()
                 ArchiveInput(process.inputStream, process, errorFile)

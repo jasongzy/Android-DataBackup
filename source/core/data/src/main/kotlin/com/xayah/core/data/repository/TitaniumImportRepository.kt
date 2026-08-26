@@ -51,6 +51,7 @@ class TitaniumImportRepository @Inject constructor(
     private val pathUtil: PathUtil,
     private val appBackupRepository: AppBackupRepository,
     private val appIconRepository: AppIconRepository,
+    private val xposedModuleDetector: XposedModuleDetector,
     private val labelsRepo: LabelsRepo,
 ) {
     enum class Status { IMPORTED, PARTIAL, SKIPPED, FAILED }
@@ -390,6 +391,7 @@ class TitaniumImportRepository @Inject constructor(
                 createdAt = createdAt,
                 compression = compression,
                 systemApp = properties.getProperty("app_is_system") == "1",
+                xposedModule = importedApk?.let { xposedModuleDetector.isModule(it) } == true,
                 states = states,
             )
             check(rootService.writeJson(app.toRestoreConfig(), PathUtil.getPackageRestoreConfigDst(destination)).isSuccess) {
@@ -522,6 +524,7 @@ class TitaniumImportRepository @Inject constructor(
         createdAt: Long,
         compression: CompressionType,
         systemApp: Boolean,
+        xposedModule: Boolean,
         states: Map<DataType, DataState>,
     ) = PackageEntity(
         id = 0,
@@ -533,6 +536,7 @@ class TitaniumImportRepository @Inject constructor(
             flags = if (systemApp) ApplicationInfo.FLAG_SYSTEM else 0,
             firstInstallTime = 0,
             lastUpdateTime = 0,
+            isXposedModule = xposedModule,
         ),
         extraInfo = PackageExtraInfo(0, false, emptyList(), "", createdAt, false, false, firstUpdated = false, enabled = true),
         dataStates = PackageDataStates(

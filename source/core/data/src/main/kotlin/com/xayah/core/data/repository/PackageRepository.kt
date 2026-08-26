@@ -207,6 +207,22 @@ class PackageRepository @Inject constructor(
     suspend fun upsert(item: PackageEntity) = packageDao.upsert(item)
     suspend fun upsert(items: List<PackageEntity>) = packageDao.upsert(items)
 
+    suspend fun updateRevisionXposedModule(
+        packageName: String,
+        userId: Int,
+        preserveId: Long,
+        cloud: String,
+        backupDir: String,
+        isXposedModule: Boolean,
+    ) = packageDao.updateRevisionXposedModule(
+        packageName = packageName,
+        userId = userId,
+        preserveId = preserveId,
+        cloud = cloud,
+        backupDir = backupDir,
+        isXposedModule = isXposedModule,
+    )
+
     suspend fun replaceLocalRestoreIndex(backupDir: String, items: List<PackageEntity>) {
         packageDao.replaceLocalRestoreIndex(backupDir, items)
     }

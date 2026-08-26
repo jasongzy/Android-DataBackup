@@ -126,9 +126,23 @@ class DetailsViewModel @Inject constructor(
                 appsRepo.getApp(checkNotNull(packageName), userId)
             }
             val appFlow = if (packageName != null) {
-                combine(installedAppFlow, appBackupRepository.observeApp(packageName, userId)) { installed, indexed ->
-                    installed?.let { AppDetailsSource(it, true, indexed?.note.orEmpty()) }
-                        ?: indexed?.let { AppDetailsSource(it.toPackageEntity(), false, it.note) }
+                val indexedAppFlow = combine(
+                    appBackupRepository.observeApp(packageName, userId),
+                    appsRepo.getRestoreApps(),
+                ) { indexed, restoreApps ->
+                    indexed?.let { app ->
+                        app to restoreApps.any {
+                            it.packageName == packageName &&
+                                it.userId == userId &&
+                                it.packageInfo.isXposedModule
+                        }
+                    }
+                }
+                combine(installedAppFlow, indexedAppFlow) { installed, indexedState ->
+                    installed?.let { AppDetailsSource(it, true, indexedState?.first?.note.orEmpty()) }
+                        ?: indexedState?.let { (indexed, isXposedModule) ->
+                            AppDetailsSource(indexed.toPackageEntity(isXposedModule), false, indexed.note)
+                        }
                 }
             } else {
                 installedAppFlow.combine(kotlinx.coroutines.flow.flowOf(null as BackupAppEntity?)) { installed, _ ->
@@ -915,7 +929,7 @@ private data class AppRuntimeInfo(
 
 private data class AppDetailsSource(val app: PackageEntity, val isInstalled: Boolean, val note: String = "")
 
-private fun BackupAppEntity.toPackageEntity() = PackageEntity(
+private fun BackupAppEntity.toPackageEntity(isXposedModule: Boolean) = PackageEntity(
     id = 0,
     indexInfo = PackageIndexInfo(OpType.RESTORE, packageName, userId, CompressionType.ZSTD, 0, "", ""),
     packageInfo = PackageInfo(
@@ -925,6 +939,7 @@ private fun BackupAppEntity.toPackageEntity() = PackageEntity(
         flags = if (isSystem) android.content.pm.ApplicationInfo.FLAG_SYSTEM else 0,
         firstInstallTime = firstInstallTime,
         lastUpdateTime = lastUpdateTime,
+        isXposedModule = isXposedModule,
     ),
     extraInfo = PackageExtraInfo(0, false, emptyList(), "", 0, false, false, true, false),
     dataStates = PackageDataStates(

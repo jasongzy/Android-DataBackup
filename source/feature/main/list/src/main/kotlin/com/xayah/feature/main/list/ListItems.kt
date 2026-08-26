@@ -214,7 +214,7 @@ fun AppItem(
                     },
                     maxLines = 1,
                 )
-                if (app.isFrozen || app.isUpdatedSystemApp || item.labels.isNotEmpty()) {
+                if (app.isFrozen || app.isUpdatedSystemApp || app.isXposedModule || item.labels.isNotEmpty()) {
                     Row(
                         modifier = Modifier.padding(top = SizeTokens.Level2),
                         horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level4),
@@ -247,7 +247,23 @@ fun AppItem(
                                 )
                             }
                         }
-                        val labelLimit = (3 - listOf(app.isFrozen, app.isUpdatedSystemApp).count { it }).coerceAtLeast(0)
+                        if (app.isXposedModule) {
+                            androidx.compose.material3.Surface(
+                                color = XposedPink,
+                                contentColor = XposedOnPink,
+                                shape = MaterialTheme.shapes.small,
+                            ) {
+                                Text(
+                                    modifier = Modifier.padding(horizontal = SizeTokens.Level6, vertical = SizeTokens.Level1),
+                                    text = stringResource(com.xayah.feature.main.list.R.string.xposed),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                        val labelLimit = (
+                            3 - listOf(app.isFrozen, app.isUpdatedSystemApp, app.isXposedModule).count { it }
+                        ).coerceAtLeast(0)
                         item.labels.take(labelLimit).forEach { label ->
                             val color = Color(label.colorArgb)
                             Text(
@@ -302,6 +318,9 @@ fun AppItem(
         }
     }
 }
+
+private val XposedPink = Color(0xFFF48FB1)
+private val XposedOnPink = Color(0xFF3E001D)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

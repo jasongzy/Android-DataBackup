@@ -56,6 +56,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.zip.ZipFile
 import kotlin.io.path.pathString
 
 internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRootService.Stub() {
@@ -121,6 +122,13 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
         tryWithBoolean {
             File(path).copyTo(target = File(targetPath), overwrite = overwrite)
         }
+    }
+
+    override fun hasZipEntry(path: String, entries: Array<out String>): Boolean = synchronized(lock) {
+        tryOn(
+            block = { ZipFile(path).use { archive -> entries.any { archive.getEntry(it) != null } } },
+            onException = { false },
+        )
     }
 
     override fun createHardLink(path: String, targetPath: String): Boolean = synchronized(lock) {
@@ -541,12 +549,12 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
 
     override fun getPackageArchiveInfo(path: String): PackageInfo? = synchronized(lock) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            systemContext.packageManager.getPackageArchiveInfo(path, PackageInfoFlags.of(PackageManager.GET_ACTIVITIES.toLong()))?.apply {
+            systemContext.packageManager.getPackageArchiveInfo(path, PackageInfoFlags.of(PackageManager.GET_META_DATA.toLong()))?.apply {
                 applicationInfo?.sourceDir = path
                 applicationInfo?.publicSourceDir = path
             }
         } else {
-            systemContext.packageManager.getPackageArchiveInfo(path, PackageManager.GET_ACTIVITIES)?.apply {
+            systemContext.packageManager.getPackageArchiveInfo(path, PackageManager.GET_META_DATA)?.apply {
                 applicationInfo?.sourceDir = path
                 applicationInfo?.publicSourceDir = path
             }

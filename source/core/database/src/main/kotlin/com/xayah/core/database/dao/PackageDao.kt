@@ -57,6 +57,20 @@ interface PackageDao {
     suspend fun query(packageName: String, opType: OpType, userId: Int, cloud: String, backupDir: String): List<PackageEntity>
 
     @Query(
+        "UPDATE PackageEntity SET packageInfo_isXposedModule = :isXposedModule WHERE" +
+                " indexInfo_packageName = :packageName AND indexInfo_opType = 'RESTORE' AND indexInfo_userId = :userId" +
+                " AND indexInfo_preserveId = :preserveId AND indexInfo_cloud = :cloud AND indexInfo_backupDir = :backupDir"
+    )
+    suspend fun updateRevisionXposedModule(
+        packageName: String,
+        userId: Int,
+        preserveId: Long,
+        cloud: String,
+        backupDir: String,
+        isXposedModule: Boolean,
+    ): Int
+
+    @Query(
         "SELECT indexInfo_packageName FROM PackageEntity WHERE" +
                 " indexInfo_opType = :opType AND indexInfo_userId = :userId" +
                 " AND extraInfo_blocked = 0"

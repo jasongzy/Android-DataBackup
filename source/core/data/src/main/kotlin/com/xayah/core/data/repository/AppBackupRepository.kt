@@ -36,6 +36,7 @@ class AppBackupRepository @Inject constructor(
     private val dao: AppBackupDao,
     private val packageRepository: PackageRepository,
     private val appIconRepository: AppIconRepository,
+    private val xposedModuleDetector: XposedModuleDetector,
     private val rootService: RemoteRootService,
     private val pathUtil: PathUtil,
 ) {
@@ -233,6 +234,7 @@ class AppBackupRepository @Inject constructor(
     suspend fun inspectRevision(revision: BackupRevisionEntity): VerificationResult {
         val result = inspectRevisionFiles(revision)
         val revisionDir = getLocalRevisionDir(revision)
+        revisionDir?.let { refreshXposedModule(revision, it) }
         val iconRepaired = if (revisionDir != null) {
             appIconRepository.repairFromBackup(
                 revisionDir = revisionDir,
@@ -242,6 +244,30 @@ class AppBackupRepository @Inject constructor(
         } else false
         return result.copy(iconRepaired = iconRepaired)
     }
+
+    private suspend fun refreshXposedModule(revision: BackupRevisionEntity, revisionDir: String) {
+        val isXposedModule = detectXposedModule(revision.packageName, revision.userId, revisionDir)
+            ?: return
+        packageRepository.getPackage(revision.packageName, OpType.BACKUP, revision.userId)?.let { app ->
+            if (app.packageInfo.isXposedModule != isXposedModule) {
+                app.packageInfo.isXposedModule = isXposedModule
+                packageRepository.upsert(app)
+            }
+        }
+        val preserveId = revision.artifactId.substringAfterLast('@').toLongOrNull() ?: return
+        packageRepository.updateRevisionXposedModule(
+            packageName = revision.packageName,
+            userId = revision.userId,
+            preserveId = preserveId,
+            cloud = revision.repositoryId.substringBefore(':'),
+            backupDir = revision.repositoryId.substringAfter(':'),
+            isXposedModule = isXposedModule,
+        )
+    }
+
+    private suspend fun detectXposedModule(packageName: String, userId: Int, revisionDir: String): Boolean? =
+        xposedModuleDetector.isInstalledModule(packageName, userId)
+            ?: xposedModuleDetector.isModuleInBackup(revisionDir)
 
     private suspend fun inspectRevisionFiles(revision: BackupRevisionEntity): VerificationResult {
         val appLabel = dao.getApp(revision.packageName, revision.userId)?.label ?: revision.packageName
@@ -352,7 +378,11 @@ class AppBackupRepository @Inject constructor(
                 config.versionCode == manifest.versionCode &&
                 manifest.files.isNullOrEmpty().not()
             ) {
-                rebuilt += config.toPackageEntity(cloud = "", backupDir = backupDir) to manifest
+                val app = config.toPackageEntity(cloud = "", backupDir = backupDir)
+                detectXposedModule(config.packageName, config.userId, revisionDir)?.let {
+                    app.packageInfo.isXposedModule = it
+                }
+                rebuilt += app to manifest
             }
             onProgress(index + 1, revisionDirs.size, rebuilt.size)
         }

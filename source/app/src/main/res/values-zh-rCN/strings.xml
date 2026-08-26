@@ -419,6 +419,7 @@
     <string name="copy_apk_path">复制路径</string>
     <string name="copy_app_name">复制应用名</string>
     <string name="copy_package_name">复制包名</string>
+    <string name="xposed">Xposed</string>
     <string name="app_name_copied">已复制应用名</string>
     <string name="package_name_copied">已复制包名</string>
     <string name="data_path">数据路径</string>

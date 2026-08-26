@@ -53,6 +53,7 @@
     <item name="ssaid" type="string" />
     <item name="system_app" type="string" />
     <item name="updated" type="string" />
+    <item name="xposed" type="string" />
     <item name="freeze" type="string" />
     <item name="unfreeze" type="string" />
     <item name="confirm_freeze" type="string" />

@@ -79,6 +79,7 @@ class AppsRepo @Inject constructor(
     private val cloudRepo: CloudRepository,
     private val appBackupRepository: AppBackupRepository,
     private val labelsRepo: LabelsRepo,
+    private val xposedModuleDetector: XposedModuleDetector,
 ) {
     fun getBackups(filters: Flow<Filters>): Flow<Set<String>> = combine(
         filters,
@@ -100,6 +101,9 @@ class AppsRepo @Inject constructor(
     fun getApp(packageName: String, userId: Int) =
         appsDao.queryFlow(packageName, OpType.BACKUP, userId, DefaultPreserveId)
             .flowOn(defaultDispatcher)
+
+    fun getRestoreApps(): Flow<List<PackageEntity>> =
+        packageRepo.queryPackagesFlow(OpType.RESTORE, blocked = false).flowOn(defaultDispatcher)
 
     fun getApps(
         opType: OpType,
@@ -131,6 +135,7 @@ class AppsRepo @Inject constructor(
             .filter { app ->
                 if (app.extraInfo.enabled) data.filters.unfrozenApps else data.filters.frozenApps
             }
+            .filter { app -> data.filters.xposedModules.not() || app.packageInfo.isXposedModule }
             .filter(packageRepo.getHasBackupsPredicate(value = data.filters.hasBackups, pkgUserSet = pSet))
             .filter(packageRepo.getHasNoBackupsPredicate(value = data.filters.hasNoBackups, pkgUserSet = pSet))
             .filter {
@@ -320,7 +325,7 @@ class AppsRepo @Inject constructor(
         labelsRepo.deleteOrphanedAppRefs()
     }
 
-    private fun initializeApp(settings: SettingsData, pm: PackageManager, userId: Int, info: android.content.pm.PackageInfo): PackageEntity {
+    private suspend fun initializeApp(settings: SettingsData, pm: PackageManager, userId: Int, info: android.content.pm.PackageInfo): PackageEntity {
         return PackageEntity(
             id = 0,
             indexInfo = PackageIndexInfo(
@@ -343,6 +348,7 @@ class AppsRepo @Inject constructor(
                 flags = info.applicationInfo?.flags ?: 0,
                 firstInstallTime = info.firstInstallTime,
                 lastUpdateTime = info.lastUpdateTime,
+                isXposedModule = xposedModuleDetector.isModule(info),
             ),
             extraInfo = PackageExtraInfo(
                 uid = info.applicationInfo?.uid ?: -1,
@@ -426,7 +432,11 @@ class AppsRepo @Inject constructor(
     }
 
     private suspend fun updateApp(pm: PackageManager, pkg: PackageEntity, userId: Int, userHandle: UserHandle?): PackageUpdateEntity? {
-        val info = rootService.getPackageInfoAsUser(pkg.packageName, PackageManager.GET_PERMISSIONS, userId)
+        val info = rootService.getPackageInfoAsUser(
+            pkg.packageName,
+            PackageManager.GET_PERMISSIONS or PackageManager.GET_META_DATA,
+            userId,
+        )
         val updateEntity = PackageUpdateEntity(pkg.id, pkg.packageInfo, pkg.extraInfo, pkg.storageStats)
         if (info != null) {
             updateEntity.packageInfo.label = info.applicationInfo?.loadLabel(pm).toString()
@@ -439,6 +449,7 @@ class AppsRepo @Inject constructor(
             updateEntity.packageInfo.flags = info.applicationInfo?.flags ?: 0
             updateEntity.packageInfo.firstInstallTime = info.firstInstallTime
             updateEntity.packageInfo.lastUpdateTime = info.lastUpdateTime
+            updateEntity.packageInfo.isXposedModule = xposedModuleDetector.isModule(info)
 
             updateEntity.extraInfo.firstUpdated = true
             val uid = info.applicationInfo?.uid ?: -1
@@ -466,7 +477,7 @@ class AppsRepo @Inject constructor(
     }
 
     private suspend fun getInstalledPackages(userId: Int) =
-        rootService.getInstalledPackagesAsUser(0, userId)
+        rootService.getInstalledPackagesAsUser(PackageManager.GET_META_DATA, userId)
             .filter { it.packageName != context.packageName }
             .distinctBy { it.packageName }
 

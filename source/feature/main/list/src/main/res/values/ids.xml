@@ -8,6 +8,7 @@
     <item name="system_apps" type="string" />
     <item name="non_system_apps" type="string" />
     <item name="updated" type="string" />
+    <item name="xposed" type="string" />
     <item name="frozen" type="string" />
     <item name="frozen_apps" type="string" />
     <item name="unfrozen_apps" type="string" />

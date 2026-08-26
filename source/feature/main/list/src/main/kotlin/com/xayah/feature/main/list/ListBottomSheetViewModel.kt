@@ -114,6 +114,9 @@ class ListBottomSheetViewModel @Inject constructor(
                 if (filters.unfrozenApps.not()) {
                     listDataRepo.unselectApps(state.appList.filterNot { it.isFrozen }.map { it.key })
                 }
+                if (filters.xposedModules) {
+                    listDataRepo.unselectApps(state.appList.filterNot { it.isXposedModule }.map { it.key })
+                }
             }
         }
     }

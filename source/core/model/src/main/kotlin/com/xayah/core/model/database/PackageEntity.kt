@@ -76,6 +76,7 @@ data class PackageInfo(
     var flags: Int,
     var firstInstallTime: Long,
     @ColumnInfo(defaultValue = "0") var lastUpdateTime: Long,
+    @ColumnInfo(defaultValue = "0") var isXposedModule: Boolean = false,
 )
 
 /**
@@ -282,6 +283,7 @@ fun PackageEntity.asExternalModel() = App(
     preserveId = preserveId,
     isSystemApp = isSystemApp,
     isUpdatedSystemApp = isUpdatedSystemApp,
+    isXposedModule = packageInfo.isXposedModule,
     isFrozen = extraInfo.enabled.not(),
     isInstalled = indexInfo.opType == OpType.BACKUP,
     firstInstallTime = packageInfo.firstInstallTime,

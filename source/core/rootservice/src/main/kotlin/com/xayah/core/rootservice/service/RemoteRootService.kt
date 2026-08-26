@@ -178,6 +178,9 @@ class RemoteRootService(private val context: Context) {
     suspend fun copyTo(path: String, targetPath: String, overwrite: Boolean): Boolean =
         runCatching { getService().copyTo(path, targetPath, overwrite) }.onFailure(onFailure).getOrElse { false }
 
+    suspend fun hasZipEntry(path: String, entries: List<String>): Boolean =
+        runCatching { getService().hasZipEntry(path, entries.toTypedArray()) }.onFailure(onFailure).getOrElse { false }
+
     suspend fun createHardLink(path: String, targetPath: String): Boolean =
         runCatching { getService().createHardLink(path, targetPath) }.onFailure(onFailure).getOrElse { false }
 
