@@ -92,8 +92,8 @@ class ListDataRepo @Inject constructor(
                 labelFilters = MutableStateFlow(
                     savedFilters.labelFilters.mapValues { (_, mode) -> mode.toLabelFilterMode() }
                 )
-                labelAppRefs = labelFilters.map {
-                    labelsRepo.getAppRefs(it.keys)
+                labelAppRefs = combine(labelFilters, labelsRepo.getAppRefsFlow()) { filters, refs ->
+                    refs.filter { it.label in filters }
                 }
 
                 showDataItemsSheet = MutableStateFlow(false)
@@ -152,8 +152,8 @@ class ListDataRepo @Inject constructor(
                     OpType.RESTORE -> combine(workRepo.isAppRefreshRunning(), workRepo.isLoadFileBackupsRunning()) { refresh, loadBackups -> refresh || loadBackups }
                 }
                 labelFilters = MutableStateFlow(emptyMap())
-                labelFileRefs = labelFilters.map {
-                    labelsRepo.getFileRefs(it.keys)
+                labelFileRefs = combine(labelFilters, labelsRepo.getFileRefsFlow()) { filters, refs ->
+                    refs.filter { it.label in filters }
                 }
 
                 listData = getFileListData()
