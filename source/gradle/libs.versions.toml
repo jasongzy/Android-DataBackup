@@ -5,9 +5,9 @@ buildTools = "36.0.0"
 minSdk = "24"
 targetSdk = "36"
 # __(API)____(version)_(abi)
-versionCode = "14"
+versionCode = "15"
 versionCodeAlpha = "23"
-versionName = "1.2.10"
+versionName = "1.2.11"
 
 # libraries
 accompanist = "0.30.1"
