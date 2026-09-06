@@ -116,7 +116,7 @@ class ListItemsViewModel @Inject constructor(
                     val appLabels = labelsByApp[overview.app.packageName to overview.app.userId].orEmpty().mapTo(mutableSetOf()) { it.label }
                     val included = listData.labelFilters.filterValues { it == LabelFilterMode.INCLUDE }.keys
                     val excluded = listData.labelFilters.filterValues { it == LabelFilterMode.EXCLUDE }.keys
-                    (included.isEmpty() || appLabels.any(included::contains)) && appLabels.none(excluded::contains)
+                    listData.filters.matchesIncludedLabels(appLabels, included) && appLabels.none(excluded::contains)
                 }
                 .map { overview ->
                     AppListItem(
@@ -158,7 +158,9 @@ class ListItemsViewModel @Inject constructor(
                         item.notes.contains(listData.searchQuery, ignoreCase = true)
                 }
                 .filter { if (it.app.isFrozen) listData.filters.frozenApps else listData.filters.unfrozenApps }
-                .filter { listData.filters.xposedModules.not() || it.app.isXposedModule }
+                .filter { listData.filters.matchesXposed(it.app.isXposedModule) }
+                .filter { !listData.filters.singleBackup || it.revisionCount == 1 }
+                .filter { !listData.filters.multipleBackups || it.revisionCount >= 2 }
                 .filter { opType != OpType.BACKUP || !listData.filters.hasApkBackup || it.hasApkBackup }
                 .filter { opType != OpType.BACKUP || !listData.filters.hasNoApkBackup || !it.hasApkBackup }
                 .filter { opType != OpType.BACKUP || !listData.filters.hasDataBackup || it.hasDataBackup }

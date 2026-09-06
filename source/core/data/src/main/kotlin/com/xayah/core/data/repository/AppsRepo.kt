@@ -135,7 +135,7 @@ class AppsRepo @Inject constructor(
             .filter { app ->
                 if (app.extraInfo.enabled) data.filters.unfrozenApps else data.filters.frozenApps
             }
-            .filter { app -> data.filters.xposedModules.not() || app.packageInfo.isXposedModule }
+            .filter { app -> data.filters.matchesXposed(app.packageInfo.isXposedModule) }
             .filter(packageRepo.getHasBackupsPredicate(value = data.filters.hasBackups, pkgUserSet = pSet))
             .filter(packageRepo.getHasNoBackupsPredicate(value = data.filters.hasNoBackups, pkgUserSet = pSet))
             .filter {
@@ -149,7 +149,7 @@ class AppsRepo @Inject constructor(
             .filter(packageRepo.getUserIdPredicateNew(userId = data.userList.getOrNull(data.userIndex)?.id))
             .filter { app ->
                 val appLabels = labelsByApp[Triple(app.packageName, app.userId, app.preserveId)].orEmpty()
-                (included.isEmpty() || appLabels.any(included::contains)) && appLabels.none(excluded::contains)
+                data.filters.matchesIncludedLabels(appLabels, included) && appLabels.none(excluded::contains)
             }
             .sortedWith(packageRepo.getSortComparatorNew(sortIndex = data.sortIndex, sortType = data.sortType))
             .toList()

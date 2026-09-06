@@ -4,4 +4,19 @@
     <string name="backup_summary">%1$d 个备份 · 最近 %2$s</string>
     <string name="no_backups">暂无备份</string>
     <string name="back_up_selected">备份</string>
+    <string name="unrestricted">不限</string>
+    <string name="installation_status">安装状态</string>
+    <string name="app_type">应用类型</string>
+    <string name="freeze_status">冻结状态</string>
+    <string name="module_type">模块类型</string>
+    <string name="backup_count">备份数量</string>
+    <string name="apk_backup">APK 备份</string>
+    <string name="data_backup">数据备份</string>
+    <string name="non_xposed">非 Xposed</string>
+    <string name="one_backup">1 个备份</string>
+    <string name="multiple_backups">多个备份</string>
+    <string name="include_matching">包含匹配</string>
+    <string name="match_any">任一</string>
+    <string name="match_all">全部</string>
+    <string name="reset_filters">还原默认</string>
 </resources>

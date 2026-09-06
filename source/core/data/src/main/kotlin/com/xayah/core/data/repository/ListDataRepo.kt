@@ -98,24 +98,7 @@ class ListDataRepo @Inject constructor(
 
                 showDataItemsSheet = MutableStateFlow(false)
                 filters = MutableStateFlow(
-                    Filters(
-                        cloud = cloudName,
-                        backupDir = backupDir,
-                        systemApps = savedFilters.systemApps,
-                        nonSystemApps = savedFilters.nonSystemApps,
-                        frozenApps = savedFilters.frozenApps,
-                        unfrozenApps = savedFilters.unfrozenApps,
-                        xposedModules = savedFilters.xposedModules,
-                        hasBackups = savedFilters.hasBackups,
-                        hasNoBackups = savedFilters.hasNoBackups,
-                        installedApps = savedFilters.installedApps,
-                        notInstalledApps = savedFilters.notInstalledApps,
-                        hasApkBackup = savedFilters.hasApkBackup,
-                        hasNoApkBackup = savedFilters.hasNoApkBackup,
-                        hasDataBackup = savedFilters.hasDataBackup,
-                        hasNoDataBackup = savedFilters.hasNoDataBackup,
-                        hasOutdatedApkBackup = savedFilters.hasOutdatedApkBackup,
-                    )
+                    savedFilters.toFilters(cloud = cloudName, backupDir = backupDir)
                 )
                 userIndex = MutableStateFlow(0)
                 userList = usersRepo.getUsers(opType)
@@ -210,6 +193,12 @@ class ListDataRepo @Inject constructor(
 
     suspend fun setFilters(block: (Filters) -> Filters) {
         filters.emit(block(filters.value))
+        saveDashboardFilters()
+    }
+
+    suspend fun resetFilters() {
+        filters.emit(DashboardFilterPreference().toFilters(filters.value.cloud, filters.value.backupDir))
+        labelFilters.emit(emptyMap())
         saveDashboardFilters()
     }
 
@@ -322,8 +311,11 @@ class ListDataRepo @Inject constructor(
                 frozenApps = current.frozenApps,
                 unfrozenApps = current.unfrozenApps,
                 xposedModules = current.xposedModules,
+                nonXposedModules = current.nonXposedModules,
                 hasBackups = current.hasBackups,
                 hasNoBackups = current.hasNoBackups,
+                singleBackup = current.singleBackup,
+                multipleBackups = current.multipleBackups,
                 installedApps = current.installedApps,
                 notInstalledApps = current.notInstalledApps,
                 hasApkBackup = current.hasApkBackup,
@@ -331,6 +323,7 @@ class ListDataRepo @Inject constructor(
                 hasDataBackup = current.hasDataBackup,
                 hasNoDataBackup = current.hasNoDataBackup,
                 hasOutdatedApkBackup = current.hasOutdatedApkBackup,
+                matchAllLabels = current.matchAllLabels,
                 labelFilters = labelFilters.value.mapValues { (_, mode) -> mode.toDashboardLabelFilterMode() },
             )
         )
@@ -363,6 +356,29 @@ private fun LabelFilterMode.toDashboardLabelFilterMode() = when (this) {
     LabelFilterMode.EXCLUDE -> DashboardLabelFilterMode.EXCLUDE
 }
 
+private fun DashboardFilterPreference.toFilters(cloud: String, backupDir: String) = Filters(
+    cloud = cloud,
+    backupDir = backupDir,
+    systemApps = systemApps,
+    nonSystemApps = nonSystemApps,
+    frozenApps = frozenApps,
+    unfrozenApps = unfrozenApps,
+    xposedModules = xposedModules,
+    nonXposedModules = nonXposedModules,
+    hasBackups = hasBackups,
+    hasNoBackups = hasNoBackups,
+    singleBackup = singleBackup,
+    multipleBackups = multipleBackups,
+    installedApps = installedApps,
+    notInstalledApps = notInstalledApps,
+    hasApkBackup = hasApkBackup,
+    hasNoApkBackup = hasNoApkBackup,
+    hasDataBackup = hasDataBackup,
+    hasNoDataBackup = hasNoDataBackup,
+    hasOutdatedApkBackup = hasOutdatedApkBackup,
+    matchAllLabels = matchAllLabels,
+)
+
 data class Filters(
     val cloud: String,
     val backupDir: String,
@@ -371,8 +387,11 @@ data class Filters(
     val frozenApps: Boolean,
     val unfrozenApps: Boolean,
     val xposedModules: Boolean,
+    val nonXposedModules: Boolean,
     val hasBackups: Boolean,
     val hasNoBackups: Boolean,
+    val singleBackup: Boolean,
+    val multipleBackups: Boolean,
     val installedApps: Boolean,
     val notInstalledApps: Boolean,
     val hasApkBackup: Boolean,
@@ -380,7 +399,14 @@ data class Filters(
     val hasDataBackup: Boolean,
     val hasNoDataBackup: Boolean,
     val hasOutdatedApkBackup: Boolean,
-)
+    val matchAllLabels: Boolean,
+) {
+    fun matchesXposed(isXposedModule: Boolean) =
+        xposedModules == nonXposedModules || xposedModules == isXposedModule
+
+    fun matchesIncludedLabels(labels: Set<String>, included: Set<String>) =
+        included.isEmpty() || if (matchAllLabels) labels.containsAll(included) else labels.any(included::contains)
+}
 
 sealed class ListData(
     open val selected: Long,

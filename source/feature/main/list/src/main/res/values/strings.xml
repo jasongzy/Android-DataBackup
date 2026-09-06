@@ -4,4 +4,19 @@
     <string name="backup_summary">%1$d backups · latest %2$s</string>
     <string name="no_backups">No backups</string>
     <string name="back_up_selected">Back up</string>
+    <string name="unrestricted">Any</string>
+    <string name="installation_status">Installation status</string>
+    <string name="app_type">App type</string>
+    <string name="freeze_status">Freeze status</string>
+    <string name="module_type">Module type</string>
+    <string name="backup_count">Backup count</string>
+    <string name="apk_backup">APK backup</string>
+    <string name="data_backup">Data backup</string>
+    <string name="non_xposed">Non-Xposed</string>
+    <string name="one_backup">1 backup</string>
+    <string name="multiple_backups">Multiple backups</string>
+    <string name="include_matching">Include matching</string>
+    <string name="match_any">Any</string>
+    <string name="match_all">All</string>
+    <string name="reset_filters">Reset filters</string>
 </resources>
