@@ -4,7 +4,6 @@
     <string name="app_data">应用数据</string>
     <string name="backup_revisions">备份记录</string>
     <string name="no_backup_revisions">暂无备份记录</string>
-    <string name="revision_details">%1$s · %2$s</string>
     <string name="back_up">备份</string>
     <string name="backup_scope">备份内容</string>
     <string name="restore_scope">恢复内容</string>

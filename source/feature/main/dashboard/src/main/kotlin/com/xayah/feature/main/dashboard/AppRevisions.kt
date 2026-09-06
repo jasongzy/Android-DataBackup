@@ -510,11 +510,7 @@ private fun RevisionItem(
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
-                text = stringResource(
-                    R.string.revision_details,
-                    revision.engine.name.lowercase(),
-                    contents,
-                ),
+                text = contents,
                 style = MaterialTheme.typography.bodySmall,
                 color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
             )
@@ -574,7 +570,7 @@ private fun RevisionDetailsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(DashboardDimens.ItemSpacing)) {
                 Text(revision.appVersionName.ifEmpty { revision.appVersionCode.toString() })
                 Text(stringResource(R.string.created_at, DateUtil.formatTimestamp(revision.createdAt, DateUtil.PATTERN_YMD_HMS)))
-                Text(stringResource(R.string.revision_details, revision.engine.name.lowercase(), contents))
+                Text(contents)
                 Text(size)
                 androidx.compose.foundation.layout.Row(
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,

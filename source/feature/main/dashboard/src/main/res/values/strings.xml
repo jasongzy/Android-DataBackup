@@ -5,7 +5,6 @@
     <string name="app_data">App data</string>
     <string name="backup_revisions">Backup revisions</string>
     <string name="no_backup_revisions">No backup revisions yet</string>
-    <string name="revision_details">%1$s · %2$s</string>
     <string name="back_up">Back up</string>
     <string name="backup_scope">Backup contents</string>
     <string name="restore_scope">Restore contents</string>
