@@ -98,6 +98,9 @@ class ListActionsViewModel @Inject constructor(
                     when (opType) {
                         OpType.BACKUP -> {
                             WorkManagerInitializer.fastInitializeAndUpdateApps(context)
+                            if ((uiState.value as Success.Apps).sortIndex == 2) {
+                                WorkManagerInitializer.updateAppSizes(context)
+                            }
                         }
 
                         OpType.RESTORE -> {

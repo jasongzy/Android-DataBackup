@@ -28,6 +28,7 @@ import com.xayah.core.model.UserInfo
 import com.xayah.core.model.database.LabelAppCrossRefEntity
 import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.database.PackageDataStatesEntity
+import com.xayah.core.model.database.PackageDisplayStatsEntity
 import com.xayah.core.model.database.PackageDataStats
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.database.PackageExtraInfo
@@ -408,6 +409,15 @@ class AppsRepo @Inject constructor(
         appsDao.queryUserIds(OpType.BACKUP).forEach { syncInstalledApps(it) }
     }
 
+    suspend fun updateLocalAppSizes(onUpdate: suspend (cur: Int, max: Int, content: String) -> Unit) {
+        val installedApps = appsDao.queryUserIds(OpType.BACKUP)
+            .flatMap { appsDao.queryPkgEntitiesByUserId(OpType.BACKUP, it) }
+        installedApps.forEachIndexed { index, app ->
+            onUpdate(index, installedApps.size, app.packageName)
+            calculateLocalAppSize(app)
+        }
+    }
+
     private suspend fun syncInstalledApps(userId: Int) {
         appBackupRepository.syncInstalledApps(
             userId = userId,
@@ -581,13 +591,19 @@ class AppsRepo @Inject constructor(
     }.withLog()
 
     suspend fun calculateLocalAppSize(app: PackageEntity) {
-        app.displayStats.apkBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_APK)
-        app.displayStats.userBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_USER)
-        app.displayStats.userDeBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_USER_DE)
-        app.displayStats.dataBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_DATA)
-        app.displayStats.obbBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_OBB)
-        app.displayStats.mediaBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_MEDIA)
-        appsDao.upsert(app)
+        appsDao.updateDisplayStats(
+            PackageDisplayStatsEntity(
+                id = app.id,
+                displayStats = PackageDataStats(
+                    apkBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_APK),
+                    userBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_USER),
+                    userDeBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_USER_DE),
+                    dataBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_DATA),
+                    obbBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_OBB),
+                    mediaBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_MEDIA),
+                ),
+            )
+        )
     }
 
     private suspend fun calculateLocalAppDataSize(p: PackageEntity, dataType: DataType): Long {

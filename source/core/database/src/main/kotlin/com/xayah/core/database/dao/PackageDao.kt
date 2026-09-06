@@ -9,6 +9,7 @@ import androidx.room.Upsert
 import com.xayah.core.model.CompressionType
 import com.xayah.core.model.OpType
 import com.xayah.core.model.database.PackageDataStatesEntity
+import com.xayah.core.model.database.PackageDisplayStatsEntity
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.database.PackageUpdateEntity
 import kotlinx.coroutines.flow.Flow
@@ -140,6 +141,9 @@ interface PackageDao {
 
     @Update(PackageEntity::class)
     suspend fun updatePackageDataStates(items: List<PackageDataStatesEntity>)
+
+    @Update(PackageEntity::class)
+    suspend fun updateDisplayStats(item: PackageDisplayStatsEntity)
 
     @Update(PackageEntity::class)
     suspend fun update(items: List<PackageUpdateEntity>)

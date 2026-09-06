@@ -12,7 +12,7 @@
     <string name="network_desc">Used to get app update information, app analytics</string>
     <string name="application">App</string>
     <string name="application_subtitle" translatable="false">android.permission.QUERY_ALL_PACKAGES\nandroid.permission.PACKAGE_USAGE_STATS</string>
-    <string name="application_desc">Obtain application package information, used to generate backup list and obtain application data size</string>
+    <string name="application_desc">Obtain application package information, used to generate backup list and obtain total application size</string>
     <string name="storage">Storage</string>
     <string name="storage_subtitle" translatable="false">android.permission.READ_EXTERNAL_STORAGE\nandroid.permission.WRITE_EXTERNAL_STORAGE\nandroid.permission.MANAGE_EXTERNAL_STORAGE</string>
     <string name="storage_desc">Used for backup configuration, archive read and write</string>
@@ -153,7 +153,7 @@
     <string name="settings">Settings</string>
     <string name="alphabet" translatable="false">A-Z</string>
     <string name="installation_time">Installation time</string>
-    <string name="data_size">Data size</string>
+    <string name="data_size">Total size</string>
     <string name="selected">Selected</string>
     <string name="not_selected">Not selected</string>
     <string name="third_party">Third party</string>
@@ -286,7 +286,7 @@
     <string name="unfrozen_apps">Not frozen</string>
     <string name="updated_at">Updated: %1$s</string>
     <string name="installed_at">Installed: %1$s</string>
-    <string name="app_data_size">Data size: %1$s</string>
+    <string name="app_data_size">Total size: %1$s</string>
     <string name="set_them_later_in_settings">You can set them later in settings</string>
     <string name="backup_settings">Backup settings</string>
     <string name="verify_all_backups">Verify all backups</string>
@@ -479,6 +479,7 @@
     <string name="refresh">Refresh</string>
     <string name="initializing_app_list">Refreshing app list</string>
     <string name="updating_app_list">Updating app list</string>
+    <string name="calculating_app_total_size">Calculating app total size</string>
     <string name="loading_backups">Loading backups</string>
     <string name="updating_file_list">Updating file list</string>
     <string name="labels">Labels</string>

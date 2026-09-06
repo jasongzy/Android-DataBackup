@@ -300,6 +300,11 @@ data class PackageDataStatesEntity(
     @Embedded(prefix = "dataStates_") var dataStates: PackageDataStates,
 )
 
+data class PackageDisplayStatsEntity(
+    var id: Long,
+    @Embedded(prefix = "displayStats_") var displayStats: PackageDataStats,
+)
+
 // Part update entity
 data class PackageUpdateEntity(
     var id: Long,

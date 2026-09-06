@@ -111,7 +111,12 @@ class ListViewModel @Inject constructor(
         viewModelScope.launchOnDefault {
             if ((uiState.value as? ListUiState.Success)?.isUpdating == true || opType != OpType.BACKUP) return@launchOnDefault
             when (target) {
-                Target.Apps -> WorkManagerInitializer.fastInitializeAndUpdateApps(context)
+                Target.Apps -> {
+                    WorkManagerInitializer.fastInitializeAndUpdateApps(context)
+                    if (initial.not() && (listDataRepo.getListData().first() as? ListData.Apps)?.sortIndex == 2) {
+                        WorkManagerInitializer.updateAppSizes(context)
+                    }
+                }
                 Target.Files -> WorkManagerInitializer.fastInitializeAndUpdateFiles(context)
             }
         }
@@ -174,6 +179,10 @@ class ListViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    override fun onCleared() {
+        WorkManagerInitializer.cancelAppSizeUpdate(context)
     }
 
     fun restoreSelected(navController: NavHostController) {

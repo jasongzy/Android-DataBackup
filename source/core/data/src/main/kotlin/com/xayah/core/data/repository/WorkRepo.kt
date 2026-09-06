@@ -63,12 +63,14 @@ class WorkRepo @Inject constructor(
 
 const val APP_REFRESH_WORK_NAME = "DbAppRefreshWork"
 const val APP_REFRESH_WORK_TAG = "DbAppRefresh"
+const val APP_SIZE_REFRESH_WORK_NAME = "DbAppSizeRefreshWork"
 const val APP_REFRESH_FOLLOW_UP_WORK_NAME = "DbAppRefreshFollowUpWork"
 const val FAST_INIT_AND_UPDATE_FILES_WORK_NAME = "DbFastInitAndUpdateFilesWork"
 const val LOAD_APP_BACKUPS_WORK_NAME = "DbLoadAppBackupsWork"
 const val LOAD_FILE_BACKUPS_WORK_NAME = "DbLoadFileBackupsWork"
 
 const val INPUT_DATA_KEY_REGULAR = "InputDataKeyRegular"
+const val INPUT_DATA_KEY_PROCESS_SESSION = "InputDataKeyProcessSession"
 const val INPUT_DATA_KEY_CLOUD_NAME = "InputDataKeyCloudName"
 const val WORK_PROGRESS_CURRENT = "WorkProgressCurrent"
 const val WORK_PROGRESS_MAX = "WorkProgressMax"

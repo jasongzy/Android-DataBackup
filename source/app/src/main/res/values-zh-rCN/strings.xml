@@ -10,7 +10,7 @@
     <string name="network">网络</string>
     <string name="network_desc">用于获取应用更新信息, 应用分析</string>
     <string name="application">应用</string>
-    <string name="application_desc">获取应用包名信息，用于生成备份列表、获取应用数据大小</string>
+    <string name="application_desc">获取应用包名信息，用于生成备份列表、获取应用总体积</string>
     <string name="storage">存储</string>
     <string name="storage_desc">用于备份配置、存档读写</string>
     <string name="loading">加载中</string>
@@ -148,7 +148,7 @@
     <string name="cloud_accounts_desc">管理云端账户</string>
     <string name="settings">设置</string>
     <string name="installation_time">安装时间</string>
-    <string name="data_size">数据大小</string>
+    <string name="data_size">总体积</string>
     <string name="selected">已选中</string>
     <string name="not_selected">未选中</string>
     <string name="third_party">第三方</string>
@@ -278,7 +278,7 @@
     <string name="unfrozen_apps">未冻结</string>
     <string name="updated_at">更新时间：%1$s</string>
     <string name="installed_at">安装时间：%1$s</string>
-    <string name="app_data_size">数据大小：%1$s</string>
+    <string name="app_data_size">总体积：%1$s</string>
     <string name="set_them_later_in_settings">你可以稍后在设置中找到它们</string>
     <string name="backup_settings">备份设置</string>
     <string name="verify_all_backups">校验全部备份</string>
@@ -468,6 +468,7 @@
     <string name="refresh">刷新</string>
     <string name="initializing_app_list">正在刷新应用列表</string>
     <string name="updating_app_list">正在更新应用列表</string>
+    <string name="calculating_app_total_size">正在统计应用总体积</string>
     <string name="loading_backups">正在加载备份</string>
     <string name="updating_file_list">正在更新文件列表</string>
     <string name="labels">标签</string>

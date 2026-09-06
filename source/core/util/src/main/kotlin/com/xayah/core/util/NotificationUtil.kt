@@ -115,13 +115,14 @@ object NotificationUtil {
         progress: Int = 0,
         indeterminate: Boolean = false,
         ongoing: Boolean = true,
+        notificationId: Int = progressNotificationId,
     ): ForegroundInfo {
         createChannelIfNecessary(context)
         val notification = builder.setContentTitle(title).setContentText(content).setProgress(max, progress, indeterminate).setOngoing(ongoing)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            ForegroundInfo(progressNotificationId, notification.build(), FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            ForegroundInfo(notificationId, notification.build(), FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
-            ForegroundInfo(progressNotificationId, notification.build())
+            ForegroundInfo(notificationId, notification.build())
         }
     }
 
