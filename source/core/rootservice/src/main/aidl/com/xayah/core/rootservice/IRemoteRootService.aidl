@@ -1,5 +1,6 @@
 package com.xayah.core.rootservice;
 
+import android.content.Intent;
 import com.xayah.core.rootservice.parcelables.StatFsParcelable;
 import com.xayah.core.rootservice.parcelables.StorageStatsParcelable;
 import com.xayah.core.rootservice.parcelables.DirectoryListingParcelable;
@@ -7,6 +8,7 @@ import com.xayah.core.rootservice.parcelables.ArchiveExtractionParcelable;
 import com.xayah.core.model.database.PackagePermission;
 
 interface IRemoteRootService {
+    boolean startActivity(in Intent intent, int userId);
     StatFsParcelable readStatFs(String path);
     boolean mkdirs(String path);
     boolean mkdirsWithin(String root, String path);

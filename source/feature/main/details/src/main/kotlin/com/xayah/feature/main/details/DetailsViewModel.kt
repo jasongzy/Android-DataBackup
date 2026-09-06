@@ -579,9 +579,16 @@ class DetailsViewModel @Inject constructor(
     }
 
     fun openFurtherOperation(operation: FurtherOperation) {
-        val launched = runCatching { context.startActivity(operation.intent) }.isSuccess
-        if (!launched) {
-            viewModelScope.launch { showToast(R.string.external_action_failed) }
+        viewModelScope.launch {
+            val userId = (uiState.value as? Success.App)?.app?.userId ?: return@launch
+            val launched = if (operation.intent.data?.scheme == "file") {
+                withContext(Dispatchers.Main.immediate) {
+                    runCatching { context.startActivity(operation.intent) }.isSuccess
+                }
+            } else {
+                rootService.startActivity(operation.intent, userId)
+            }
+            if (!launched) showToast(R.string.external_action_failed)
         }
     }
 

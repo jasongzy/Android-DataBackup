@@ -22,6 +22,7 @@ import com.xayah.core.rootservice.parcelables.PathParcelable
 import com.xayah.core.rootservice.parcelables.StatFsParcelable
 import com.xayah.core.rootservice.parcelables.StorageStatsParcelable
 import com.xayah.core.rootservice.util.ExceptionUtil.tryOnScope
+import com.xayah.core.rootservice.util.withIOContext
 import com.xayah.core.rootservice.util.withMainContext
 import com.xayah.core.util.GsonUtil
 import com.xayah.core.util.FileUtil
@@ -163,6 +164,14 @@ class RemoteRootService(private val context: Context) {
                 }
             }
         )
+    }
+
+    suspend fun startActivity(intent: Intent, userId: Int = 0): Boolean = withIOContext {
+        val launchIntent = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val rooted = runCatching { getService().startActivity(launchIntent, userId) }.onFailure(onFailure).getOrDefault(false)
+        rooted || withMainContext {
+            runCatching { context.startActivity(launchIntent) }.isSuccess
+        }
     }
 
     suspend fun readStatFs(path: String): StatFsParcelable = runCatching { getService().readStatFs(path) }.onFailure(onFailure).getOrElse { StatFsParcelable() }

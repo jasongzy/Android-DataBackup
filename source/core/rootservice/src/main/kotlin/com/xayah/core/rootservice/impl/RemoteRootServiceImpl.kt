@@ -7,6 +7,7 @@ import android.app.AppOpsManager
 import android.app.AppOpsManagerHidden
 import android.app.usage.StorageStatsManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.IPackageManager
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -75,6 +76,18 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
     }
 
     private fun getSystemContext(): Context = ActivityThread.systemMain().systemContext
+
+    override fun startActivity(intent: Intent, userId: Int): Boolean = runCatching {
+        val process = ProcessBuilder(
+            "/system/bin/am",
+            "start",
+            "--user",
+            userId.toString(),
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).toUri(Intent.URI_INTENT_SCHEME),
+        ).redirectErrorStream(true).start()
+        process.inputStream.bufferedReader().use { it.readText() }
+        process.waitFor() == 0
+    }.getOrDefault(false)
 
     @TargetApi(Build.VERSION_CODES.O)
     private fun getStorageStatsManager(): StorageStatsManager = systemContext.getSystemService(Context.STORAGE_STATS_SERVICE) as StorageStatsManager

@@ -647,7 +647,7 @@ class AppsRepo @Inject constructor(
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
             .setComponent(info.componentName)
 
-        context.startActivity(intent)
+        rootService.startActivity(intent, userId)
     }
 
     private fun getArchiveSrc(dstDir: String, dataType: DataType, ct: CompressionType) = "${dstDir}/${dataType.type}.${ct.suffix}"
