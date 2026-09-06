@@ -2,13 +2,11 @@ package com.xayah.feature.main.processing.packages.backup
 
 import android.content.Context
 import androidx.compose.material3.ExperimentalMaterial3Api
-import com.xayah.core.data.repository.AppsRepo
 import com.xayah.core.data.repository.BackupRequestStore
 import com.xayah.core.data.repository.CloudRepository
 import com.xayah.core.data.repository.TaskRepository
 import com.xayah.core.datastore.saveCloudActivatedAccountName
 import com.xayah.core.model.StorageMode
-import com.xayah.core.model.TaskType
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.util.formatSize
 import com.xayah.core.network.client.getCloud
@@ -43,9 +41,8 @@ import javax.inject.Inject
 class BackupViewModelImpl @Inject constructor(
     @ApplicationContext private val mContext: Context,
     mRootService: RemoteRootService,
-    private val taskRepo: TaskRepository,
+    taskRepo: TaskRepository,
     private val mCloudRepo: CloudRepository,
-    private val appsRepo: AppsRepo,
     private val backupRequestStore: BackupRequestStore,
     mLocalService: ProcessingServiceProxyLocalImpl,
     mCloudService: ProcessingServiceProxyCloudImpl,
@@ -55,11 +52,7 @@ class BackupViewModelImpl @Inject constructor(
             is UpdateApps -> {
                 val requestedPackages = backupRequestStore.packages.value
                 _packages.value = requestedPackages
-                val packages = requestedPackages.map { app ->
-                    app.copy(dataStats = appsRepo.calculateLocalAppDataStats(app))
-                }
-                _packages.value = packages
-                _packagesSize.value = taskRepo.getRawBytes(TaskType.PACKAGE, packages).formatSize()
+                _packagesSize.value = requestedPackages.sumOf { it.selectedDisplayStatsBytes }.toDouble().formatSize()
             }
 
             is SetCloudEntity -> {

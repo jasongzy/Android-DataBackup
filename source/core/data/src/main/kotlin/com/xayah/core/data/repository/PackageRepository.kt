@@ -6,7 +6,6 @@ import com.xayah.core.data.util.srcDir
 import com.xayah.core.database.dao.PackageDao
 import com.xayah.core.datastore.readCompressionType
 import com.xayah.core.datastore.readReloadDumpApk
-import com.xayah.core.model.BackupManifest
 import com.xayah.core.model.CompressionType
 import com.xayah.core.model.DataState
 import com.xayah.core.model.DataType
@@ -77,23 +76,6 @@ class PackageRepository @Inject constructor(
     suspend fun queryPackages(opType: OpType, cloud: String, backupDir: String) = packageDao.queryPackages(opType, cloud, backupDir)
     suspend fun queryActivated(opType: OpType) = packageDao.queryActivated(opType)
     suspend fun queryActivated(opType: OpType, cloud: String, backupDir: String) = packageDao.queryActivated(opType, cloud, backupDir)
-    suspend fun calculateSelectedLocalArchiveSize(app: PackageEntity): Long {
-        val revisionDir = "${pathUtil.getLocalBackupAppsDir()}/${app.archivesRelativeDir}"
-        val manifest = rootService.readJson<BackupManifest>(PathUtil.getBackupManifestDst(revisionDir)) ?: return 0L
-        return manifest.files.orEmpty().sumOf { file ->
-            val included = when (file.name.substringBefore('.')) {
-                DataType.PACKAGE_APK.type -> app.apkSelected
-                DataType.PACKAGE_USER.type -> app.userSelected
-                DataType.PACKAGE_USER_DE.type -> app.userDeSelected
-                DataType.PACKAGE_DATA.type -> app.dataSelected
-                DataType.PACKAGE_OBB.type -> app.obbSelected
-                DataType.PACKAGE_MEDIA.type -> app.mediaSelected
-                else -> true
-            }
-            if (included) file.sizeBytes else 0L
-        }
-    }
-
     private suspend fun extractArchive(source: String, destination: String, compression: String): ShellResult {
         val workspace = "${context.cacheDir}/archive-${UUID.randomUUID()}"
         return try {

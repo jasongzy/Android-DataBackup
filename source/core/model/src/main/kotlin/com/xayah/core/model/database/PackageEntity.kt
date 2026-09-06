@@ -253,6 +253,14 @@ data class PackageEntity(
     val displayStatsBytes: Double
         get() = (displayStats.apkBytes + displayStats.userBytes + displayStats.userDeBytes + displayStats.dataBytes + displayStats.obbBytes + displayStats.mediaBytes).toDouble()
 
+    val selectedDisplayStatsBytes: Long
+        get() = (if (apkSelected) displayStats.apkBytes else 0L) +
+            (if (userSelected) displayStats.userBytes else 0L) +
+            (if (userDeSelected) displayStats.userDeBytes else 0L) +
+            (if (dataSelected) displayStats.dataBytes else 0L) +
+            (if (obbSelected) displayStats.obbBytes else 0L) +
+            (if (mediaSelected) displayStats.mediaBytes else 0L)
+
     val storageStatsFormat: String
         get() = storageStatsBytes.formatSize()
 

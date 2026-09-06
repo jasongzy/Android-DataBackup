@@ -96,6 +96,9 @@ class AppBackupRepository @Inject constructor(
 
     fun observeRevisions(): Flow<List<BackupRevisionEntity>> = dao.observeRevisions()
 
+    suspend fun getRevisionSizeBytes(repositoryId: String, artifactIds: List<String>): Long =
+        if (artifactIds.isEmpty()) 0 else dao.getRevisionSizeBytes(repositoryId, artifactIds)
+
     suspend fun upsertImportedApps(apps: List<BackupAppEntity>) {
         val merged = apps.map { imported ->
             dao.getApp(imported.packageName, imported.userId)

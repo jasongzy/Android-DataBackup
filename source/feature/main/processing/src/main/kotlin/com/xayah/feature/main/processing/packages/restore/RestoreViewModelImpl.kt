@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.lifecycle.SavedStateHandle
 import androidx.navigation.NavController
+import com.xayah.core.data.repository.AppBackupRepository
 import com.xayah.core.data.repository.CloudRepository
 import com.xayah.core.data.repository.PackageRepository
 import com.xayah.core.data.repository.TaskRepository
@@ -49,6 +50,7 @@ class RestoreViewModelImpl @Inject constructor(
     private val mRootService: RemoteRootService,
     mTaskRepo: TaskRepository,
     private val mPkgRepo: PackageRepository,
+    private val appBackupRepository: AppBackupRepository,
     private val mCloudRepo: CloudRepository,
     mLocalService: ProcessingServiceProxyLocalImpl,
     mCloudService: ProcessingServiceProxyCloudImpl,
@@ -72,20 +74,10 @@ class RestoreViewModelImpl @Inject constructor(
                 LogUtil.log { "RestoreViewModelImpl.UpdateApps" to "Query activated apps, cloud: $cloud, backupDir: $backupSaveDir" }
                 LogUtil.log { "RestoreViewModelImpl.UpdateApps" to "Queried apps count: ${packages.size}" }
                 _packages.value = packages
-                val bytes = if (cloud.isEmpty()) {
-                    packages.sumOf { mPkgRepo.calculateSelectedLocalArchiveSize(it) }
-                } else {
-                    packages.sumOf { app ->
-                        with(app) {
-                            (if (apkSelected) displayStats.apkBytes else 0L) +
-                                (if (userSelected) displayStats.userBytes else 0L) +
-                                (if (userDeSelected) displayStats.userDeBytes else 0L) +
-                                (if (dataSelected) displayStats.dataBytes else 0L) +
-                                (if (obbSelected) displayStats.obbBytes else 0L) +
-                                (if (mediaSelected) displayStats.mediaBytes else 0L)
-                        }
-                    }
-                }
+                val bytes = appBackupRepository.getRevisionSizeBytes(
+                    repositoryId = "$cloud:$backupSaveDir",
+                    artifactIds = packages.map { it.archivesRelativeDir },
+                )
                 _packagesSize.value = bytes.toDouble().formatSize()
             }
 
