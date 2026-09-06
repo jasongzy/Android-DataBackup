@@ -39,6 +39,7 @@ sealed class MainRoutes(val route: String) {
     data object Restore : MainRoutes(route = "main_restore")
     data object Reload : MainRoutes(route = "main_reload")
     data object BackupVerification : MainRoutes(route = "main_backup_verification")
+    data object BackupRetention : MainRoutes(route = "main_backup_retention")
     data object TitaniumImport : MainRoutes(route = "main_titanium_import")
     data object BackupSettings : MainRoutes(route = "main_backup_settings")
     data object RestoreSettings : MainRoutes(route = "main_restore_settings")

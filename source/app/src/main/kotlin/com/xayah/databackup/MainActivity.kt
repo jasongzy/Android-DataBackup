@@ -44,9 +44,10 @@ import com.xayah.feature.main.settings.about.PageTranslatorsSettings
 import com.xayah.feature.main.settings.backup.PageBackupSettings
 import com.xayah.feature.main.settings.blacklist.PageBlackList
 import com.xayah.feature.main.settings.language.PageLanguageSelector
+import com.xayah.feature.main.settings.retention.PageBackupRetention
 import com.xayah.feature.main.settings.restore.PageRestoreSettings
-import com.xayah.feature.main.settings.verification.PageBackupVerification
 import com.xayah.feature.main.settings.titanium.PageTitaniumImport
+import com.xayah.feature.main.settings.verification.PageBackupVerification
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -134,6 +135,9 @@ class MainActivity : AppCompatActivity() {
                         }
                         composable(MainRoutes.BackupVerification.route) {
                             PageBackupVerification()
+                        }
+                        composable(MainRoutes.BackupRetention.route) {
+                            PageBackupRetention()
                         }
                         composable(MainRoutes.TitaniumImport.route) {
                             PageTitaniumImport()

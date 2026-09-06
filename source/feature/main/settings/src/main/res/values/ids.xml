@@ -44,6 +44,23 @@
     <item name="cleanup_failed" type="string" />
     <item name="cleanup_result" type="string" />
     <item name="no_backups_to_verify" type="string" />
+    <item name="clean_old_backups" type="string" />
+    <item name="clean_old_backups_desc" type="string" />
+    <item name="backups_to_keep" type="string" />
+    <item name="protected_backups_retained" type="string" />
+    <item name="scan_old_backups" type="string" />
+    <item name="old_backups_found" type="string" />
+    <item name="no_old_backups" type="string" />
+    <item name="delete_old_backups" type="string" />
+    <item name="confirm_delete_old_backups" type="string" />
+    <item name="old_backup_cleanup_progress" type="string" />
+    <item name="old_backup_cleanup_result" type="string" />
+    <item name="latest_backup" type="string" />
+    <item name="retention_backup_details" type="string" />
+    <item name="expand_backups" type="string" />
+    <item name="collapse_backups" type="string" />
+    <item name="_protected" type="string" />
+    <item name="no_note" type="string" />
     <item name="verification_backup_details" type="string" />
     <item name="import_from_titanium" type="string" />
     <item name="import_from_titanium_desc" type="string" />

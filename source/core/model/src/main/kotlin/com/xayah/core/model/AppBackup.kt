@@ -92,6 +92,32 @@ data class BackupRevisionEntity(
     val id: String = UUID.randomUUID().toString(),
 )
 
+private val protectedWord = Regex("""(?<![a-z])protected(?![a-z])""", RegexOption.IGNORE_CASE)
+
+fun BackupRevisionEntity.isProtectedByNote(): Boolean = protectedWord.containsMatchIn(note)
+
+data class RetentionRevision(
+    val revision: BackupRevisionEntity,
+    val removable: Boolean,
+)
+
+fun findRetentionRevisions(
+    revisions: List<BackupRevisionEntity>,
+    retainCount: Int,
+): List<RetentionRevision> {
+    require(retainCount >= 1)
+    return revisions.groupBy { AppKey(it.packageName, it.userId) }
+        .values
+        .flatMap { appRevisions ->
+            val sorted = appRevisions.sortedByDescending { it.createdAt }
+            val removableIds = sorted.drop(retainCount)
+                .filterNot(BackupRevisionEntity::isProtectedByNote)
+                .mapTo(mutableSetOf(), BackupRevisionEntity::id)
+            if (sorted.size <= retainCount) emptyList()
+            else sorted.map { RetentionRevision(it, it.id in removableIds) }
+        }
+}
+
 data class AppBackupOverview(
     @Embedded val app: BackupAppEntity,
     val revisionCount: Int,

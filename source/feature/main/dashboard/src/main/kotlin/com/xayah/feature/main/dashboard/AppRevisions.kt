@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.DeleteForever
@@ -52,9 +54,11 @@ import com.xayah.core.model.database.PackageDataStates.Companion.setSelected
 import com.xayah.core.model.database.PackageDataStates.Companion.getSelected
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.util.formatSize
+import com.xayah.core.model.isProtectedByNote
 import com.xayah.core.ui.component.DataChips
 import com.xayah.core.ui.component.TooltipIconButton
 import com.xayah.core.ui.route.MainRoutes
+import com.xayah.core.ui.token.SizeTokens
 import com.xayah.core.ui.theme.ThemedColorSchemeKeyTokens
 import com.xayah.core.ui.theme.value
 import com.xayah.core.ui.util.LocalNavController
@@ -498,10 +502,17 @@ private fun RevisionItem(
             modifier = Modifier.padding(DashboardDimens.ItemPadding),
             verticalArrangement = Arrangement.spacedBy(DashboardDimens.ItemSpacing),
         ) {
-            Text(
-                text = revision.appVersionName.ifEmpty { revision.appVersionCode.toString() },
-                style = MaterialTheme.typography.titleMedium,
-            )
+            androidx.compose.foundation.layout.Row(
+                horizontalArrangement = Arrangement.spacedBy(DashboardDimens.ItemSpacing),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = revision.appVersionName.ifEmpty { revision.appVersionCode.toString() },
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                if (revision.isProtectedByNote()) ProtectedMarker()
+            }
             Text(
                 text = DateUtils.getRelativeTimeSpanString(revision.createdAt).toString(),
                 style = MaterialTheme.typography.bodyMedium,
@@ -568,6 +579,7 @@ private fun RevisionDetailsDialog(
                 Text(stringResource(R.string.created_at, DateUtil.formatTimestamp(revision.createdAt, DateUtil.PATTERN_YMD_HMS)))
                 Text(contents)
                 Text(size)
+                if (revision.isProtectedByNote()) ProtectedMarker()
                 androidx.compose.foundation.layout.Row(
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
@@ -633,6 +645,27 @@ private fun RevisionDetailsDialog(
             }
         },
     )
+}
+
+@Composable
+private fun ProtectedMarker() {
+    val color = ThemedColorSchemeKeyTokens.YellowPrimary.value
+    androidx.compose.foundation.layout.Row(
+        horizontalArrangement = Arrangement.spacedBy(DashboardDimens.ItemSpacing),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Lock,
+            contentDescription = null,
+            modifier = Modifier.size(SizeTokens.Level16),
+            tint = color,
+        )
+        Text(
+            text = stringResource(R.string._protected),
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+        )
+    }
 }
 
 private fun BackupVerificationStatus.stringRes() = when (this) {

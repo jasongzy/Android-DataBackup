@@ -19,6 +19,7 @@ import com.xayah.core.model.PACKAGE_RESTORE_CONFIG_SCHEMA_VERSION
 import com.xayah.core.model.PackageRestoreConfig
 import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.database.PackageEntity
+import com.xayah.core.model.findRetentionRevisions
 import com.xayah.core.model.toPackageEntity
 import com.xayah.core.rootservice.service.RemoteRootService
 import com.xayah.core.util.PathUtil
@@ -78,6 +79,11 @@ class AppBackupRepository @Inject constructor(
     data class RebuildResult(
         val appLabel: String,
         val revision: BackupRevisionEntity,
+    )
+    data class RetentionCandidate(
+        val appLabel: String,
+        val revision: BackupRevisionEntity,
+        val removable: Boolean,
     )
 
     fun observeApps(): Flow<List<AppBackupOverview>> = dao.observeApps()
@@ -439,6 +445,16 @@ class AppBackupRepository @Inject constructor(
     }
 
     suspend fun getLocalRevisionCount(): Int = dao.getRevisions(":${context.localBackupSaveDir()}").size
+
+    suspend fun getLocalRetentionCandidates(retainCount: Int): List<RetentionCandidate> {
+        require(retainCount >= 1)
+        return findRetentionRevisions(dao.getRevisions(":${context.localBackupSaveDir()}"), retainCount)
+            .groupBy { AppKey(it.revision.packageName, it.revision.userId) }
+            .flatMap { (key, revisions) ->
+                val appLabel = dao.getApp(key.packageName, key.userId)?.label ?: key.packageName
+                revisions.map { RetentionCandidate(appLabel, it.revision, it.removable) }
+            }
+    }
 
     suspend fun updateRevisionNote(revision: BackupRevisionEntity, note: String): Boolean {
         val normalized = note.trim()
