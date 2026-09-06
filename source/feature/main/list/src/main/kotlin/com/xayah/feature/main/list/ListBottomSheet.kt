@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.ArrowDropUp
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,7 +65,6 @@ import com.xayah.core.ui.component.IconButton
 import com.xayah.core.ui.component.ModalBottomSheet
 import com.xayah.core.ui.component.Title
 import com.xayah.core.ui.component.TitleLargeText
-import com.xayah.core.ui.component.TitleSort
 import com.xayah.core.ui.component.paddingHorizontal
 import com.xayah.core.ui.token.SizeTokens
 import com.xayah.core.util.localBackupSaveDir
@@ -335,10 +336,30 @@ private fun optionalSelection(index: Int) = when (index) {
 }
 
 @Composable
-private fun SortOptions(selected: Int, items: List<String>, onSelect: (Int) -> Unit) {
+private fun SortOptions(
+    selected: Int,
+    sortType: SortType,
+    items: List<String>,
+    onSelect: (Int) -> Unit,
+    onToggle: () -> Unit,
+) {
     CompactOptions {
         items.forEachIndexed { index, item ->
-            CompactOption(text = item, selected = selected == index, onClick = { onSelect(index) })
+            val isSelected = selected == index
+            FilterChip(
+                selected = isSelected,
+                onClick = { if (isSelected) onToggle() else onSelect(index) },
+                label = { Text(item) },
+                trailingIcon = if (isSelected) {
+                    {
+                        Icon(
+                            imageVector = if (sortType == SortType.ASCENDING) Icons.Outlined.ArrowDropUp else Icons.Outlined.ArrowDropDown,
+                            contentDescription = null,
+                            modifier = Modifier.size(FilterChipDefaults.IconSize),
+                        )
+                    }
+                } else null,
+            )
         }
     }
 }
@@ -558,13 +579,15 @@ internal fun SortSheet(
 ) {
     if (isShow) {
         ModalBottomSheet(onDismissRequest = onDismissRequest) {
-            TitleSort(text = stringResource(R.string.sort), sortType = sortType, onSort = onSortByType)
+            Title(text = stringResource(R.string.sort))
             SortOptions(
                 selected = selected,
+                sortType = sortType,
                 items = stringArrayResource(
                     if (target == Target.Apps) R.array.backup_sort_type_items_apps else R.array.backup_sort_type_items_files
                 ).toList(),
                 onSelect = onSortByIndex,
+                onToggle = onSortByType,
             )
         }
     }
