@@ -1,7 +1,6 @@
 package com.xayah.feature.main.dashboard
 
 import android.text.format.DateUtils
-import android.text.format.Formatter
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,7 +38,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,6 +51,7 @@ import com.xayah.core.model.database.PackageDataStates
 import com.xayah.core.model.database.PackageDataStates.Companion.setSelected
 import com.xayah.core.model.database.PackageDataStates.Companion.getSelected
 import com.xayah.core.model.database.PackageEntity
+import com.xayah.core.model.util.formatSize
 import com.xayah.core.ui.component.DataChips
 import com.xayah.core.ui.component.TooltipIconButton
 import com.xayah.core.ui.route.MainRoutes
@@ -490,8 +489,6 @@ private fun RevisionItem(
         if (revision.contentMask and 1 != 0) add(stringResource(R.string.apk))
         if (revision.contentMask and 62 != 0) add(stringResource(R.string.app_data))
     }.joinToString()
-    val context = LocalContext.current
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -515,7 +512,7 @@ private fun RevisionItem(
                 color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
             )
             Text(
-                text = Formatter.formatFileSize(context, revision.sizeBytes),
+                text = revision.sizeBytes.toDouble().formatSize(),
                 style = MaterialTheme.typography.bodySmall,
                 color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value,
             )
@@ -553,7 +550,6 @@ private fun RevisionDetailsDialog(
     onVerify: () -> Unit,
     onEditNote: () -> Unit,
 ) {
-    val context = LocalContext.current
     val contents = buildList {
         if (revision.contentMask and 1 != 0) add(stringResource(R.string.apk))
         if (revision.contentMask and 2 != 0) add("USER")
@@ -562,7 +558,7 @@ private fun RevisionDetailsDialog(
         if (revision.contentMask and 16 != 0) add("OBB")
         if (revision.contentMask and 32 != 0) add("MEDIA")
     }.joinToString()
-    val size = Formatter.formatFileSize(context, revision.sizeBytes)
+    val size = revision.sizeBytes.toDouble().formatSize()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.revision_info)) },

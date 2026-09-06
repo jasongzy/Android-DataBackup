@@ -1,12 +1,12 @@
 package com.xayah.feature.main.settings
 
 import android.content.Context
-import android.text.format.Formatter
 import android.widget.Toast
 import com.xayah.core.util.FileUtil
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.xayah.core.data.repository.DirectoryRepository
 import com.xayah.core.model.database.DirectoryEntity
+import com.xayah.core.model.util.formatSize
 import com.xayah.core.work.WorkManagerInitializer
 import com.xayah.core.ui.viewmodel.BaseViewModel
 import com.xayah.core.ui.viewmodel.IndexUiEffect
@@ -44,7 +44,7 @@ class IndexViewModel @Inject constructor(
                     directory.listFiles()?.forEach { FileUtil.deleteRecursively(it.path) }
                 }
                 val after = directories.sumOf { FileUtil.calculateSize(it.absolutePath) }
-                val removed = Formatter.formatFileSize(context, (before - after).coerceAtLeast(0))
+                val removed = (before - after).coerceAtLeast(0).toDouble().formatSize()
                 withMainContext {
                     Toast.makeText(context, context.getString(R.string.cache_cleared_amount, removed), Toast.LENGTH_SHORT).show()
                 }

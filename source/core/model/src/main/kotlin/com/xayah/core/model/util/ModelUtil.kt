@@ -21,22 +21,18 @@ import com.xayah.core.model.database.TaskDetailMediaEntity
 import com.xayah.core.model.database.TaskDetailPackageEntity
 import com.xayah.core.model.database.TaskEntity
 import java.text.DecimalFormat
-import kotlin.math.pow
 
-fun Double.formatSize(unitValue: Int = 1024): String = run {
+fun Double.formatSize(): String = run {
     var unit = "Bytes"
     var size = this
-    val gb = unitValue.toDouble().pow(3)
-    val mb = unitValue.toDouble().pow(2)
-    val kb = unitValue.toDouble()
-    if (this > gb) {
-        size = this / gb
+    if (this >= 1_000_000_000) {
+        size = this / 1_000_000_000
         unit = "GB"
-    } else if (this > mb) {
-        size = this / mb
+    } else if (this >= 1_000_000) {
+        size = this / 1_000_000
         unit = "MB"
-    } else if (this > kb) {
-        size = this / kb
+    } else if (this >= 1_000) {
+        size = this / 1_000
         unit = "KB"
     }
     if (size == 0.0) "0.00 $unit" else "${DecimalFormat("#.00").format(size)} $unit"
