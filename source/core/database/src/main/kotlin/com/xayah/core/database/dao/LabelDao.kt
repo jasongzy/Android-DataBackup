@@ -30,28 +30,28 @@ interface LabelDao {
     @Upsert(entity = LabelFileCrossRefEntity::class)
     suspend fun upsertFileRefs(items: List<LabelFileCrossRefEntity>)
 
-    @Query("SELECT * FROM LabelEntity")
+    @Query("SELECT * FROM LabelEntity ORDER BY label")
     fun queryLabelsFlow(): Flow<List<LabelEntity>>
 
-    @Query("SELECT * FROM LabelEntity")
+    @Query("SELECT * FROM LabelEntity ORDER BY label")
     suspend fun queryLabels(): List<LabelEntity>
 
-    @Query("SELECT * FROM LabelAppCrossRefEntity WHERE label in (:labels)")
+    @Query("SELECT * FROM LabelAppCrossRefEntity WHERE label in (:labels) ORDER BY label")
     suspend fun queryAppRefs(labels: Set<String>): List<LabelAppCrossRefEntity>
 
-    @Query("SELECT * FROM LabelFileCrossRefEntity WHERE label in (:labels)")
+    @Query("SELECT * FROM LabelFileCrossRefEntity WHERE label in (:labels) ORDER BY label")
     suspend fun queryFileRefs(labels: Set<String>): List<LabelFileCrossRefEntity>
 
-    @Query("SELECT * FROM LabelAppCrossRefEntity")
+    @Query("SELECT * FROM LabelAppCrossRefEntity ORDER BY label")
     suspend fun queryAppRefs(): List<LabelAppCrossRefEntity>
 
-    @Query("SELECT * FROM LabelFileCrossRefEntity")
+    @Query("SELECT * FROM LabelFileCrossRefEntity ORDER BY label")
     suspend fun queryFileRefs(): List<LabelFileCrossRefEntity>
 
-    @Query("SELECT * FROM LabelAppCrossRefEntity")
+    @Query("SELECT * FROM LabelAppCrossRefEntity ORDER BY label")
     fun queryAppRefsFlow(): Flow<List<LabelAppCrossRefEntity>>
 
-    @Query("SELECT * FROM LabelFileCrossRefEntity")
+    @Query("SELECT * FROM LabelFileCrossRefEntity ORDER BY label")
     fun queryFileRefsFlow(): Flow<List<LabelFileCrossRefEntity>>
 
     @Query("DELETE FROM LabelEntity WHERE label = :label")
