@@ -71,7 +71,6 @@ internal fun AppDetailsScreen(uiState: DetailsUiState, viewModel: DetailsViewMod
                                 onUpdateAppNote = viewModel::updateAppNote,
                                 onUninstall = viewModel::uninstallApp,
                                 onClearData = viewModel::clearAppData,
-                                onCopyDataPath = viewModel::copyDataPath,
                                 onResolveDataPath = viewModel::resolveDataPath,
                                 onCopyPath = viewModel::copyPath,
                                 onOpenPath = viewModel::openPath,

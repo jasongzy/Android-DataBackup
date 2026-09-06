@@ -125,7 +125,6 @@ fun AppDetails(
     onUpdateAppNote: (String) -> Unit,
     onUninstall: () -> Unit,
     onClearData: () -> Unit,
-    onCopyDataPath: (DataType) -> Unit,
     onResolveDataPath: (DataType, (String) -> Unit) -> Unit,
     onCopyPath: (String) -> Unit,
     onOpenPath: (String) -> Unit,
@@ -176,13 +175,13 @@ fun AppDetails(
     if (showFurtherOperations) {
         FurtherOperationsBottomSheet(
             onDismiss = { showFurtherOperations = false },
+            onLaunch = {
+                showFurtherOperations = false
+                onLaunch()
+            },
             onShareApk = {
                 showFurtherOperations = false
                 onShareApk()
-            },
-            onCopyApkPath = {
-                showFurtherOperations = false
-                onCopyDataPath(DataType.PACKAGE_APK)
             },
             onCopyAppName = {
                 showFurtherOperations = false
@@ -311,7 +310,7 @@ private fun DataPathBottomSheet(
     onOpen: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Title(stringResource(R.string.data_path))
+        Title(stringResource(R.string.path))
         SelectionContainer {
             BodyMediumText(
                 modifier = Modifier
@@ -349,8 +348,8 @@ private fun DataPathBottomSheet(
 @Composable
 private fun FurtherOperationsBottomSheet(
     onDismiss: () -> Unit,
+    onLaunch: () -> Unit,
     onShareApk: () -> Unit,
-    onCopyApkPath: () -> Unit,
     onCopyAppName: () -> Unit,
     onCopyPackageName: () -> Unit,
     onOpenFurtherOperation: (FurtherOperation) -> Unit,
@@ -368,15 +367,15 @@ private fun FurtherOperationsBottomSheet(
             ) {
                 FilledTonalIconTextButton(
                     modifier = Modifier.weight(1f),
-                    icon = Icons.Rounded.Share,
-                    text = stringResource(R.string.share),
-                    onClick = onShareApk,
+                    icon = Icons.Rounded.RocketLaunch,
+                    text = stringResource(R.string.open_app),
+                    onClick = onLaunch,
                 )
                 FilledTonalIconTextButton(
                     modifier = Modifier.weight(1f),
-                    icon = Icons.Rounded.ContentCopy,
-                    text = stringResource(R.string.copy_apk_path),
-                    onClick = onCopyApkPath,
+                    icon = Icons.Rounded.Share,
+                    text = stringResource(R.string.share),
+                    onClick = onShareApk,
                 )
             }
             Spacer(Modifier.height(SizeTokens.Level8))

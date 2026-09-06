@@ -431,13 +431,13 @@
     <string name="confirm_clear_data">确定清空此应用的全部数据吗？此操作无法撤销。</string>
     <string name="path_copied">已复制路径：%1$s</string>
     <string name="further_operations">进一步操作</string>
-    <string name="copy_apk_path">复制路径</string>
+    <string name="open_app">打开</string>
     <string name="copy_app_name">复制应用名</string>
     <string name="copy_package_name">复制包名</string>
     <string name="xposed">Xposed</string>
     <string name="app_name_copied">已复制应用名</string>
     <string name="package_name_copied">已复制包名</string>
-    <string name="data_path">数据路径</string>
+    <string name="path">路径</string>
     <string name="open_path">打开路径</string>
     <string name="permission_editor">权限</string>
     <string name="permission_granted">权限已授予</string>

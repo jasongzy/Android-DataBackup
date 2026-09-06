@@ -80,12 +80,12 @@
     <item name="cancel" type="string" />
     <item name="share" type="string" />
     <item name="further_operations" type="string" />
-    <item name="copy_apk_path" type="string" />
+    <item name="open_app" type="string" />
     <item name="copy_app_name" type="string" />
     <item name="copy_package_name" type="string" />
     <item name="app_name_copied" type="string" />
     <item name="package_name_copied" type="string" />
-    <item name="data_path" type="string" />
+    <item name="path" type="string" />
     <item name="copy" type="string" />
     <item name="open_path" type="string" />
     <item name="permission_editor" type="string" />

@@ -442,13 +442,13 @@
     <string name="confirm_clear_data">Clear all data for this app? This cannot be undone.</string>
     <string name="path_copied">Copied path: %1$s</string>
     <string name="further_operations">Further operations</string>
-    <string name="copy_apk_path">Copy path</string>
+    <string name="open_app">Open</string>
     <string name="copy_app_name">Copy app name</string>
     <string name="copy_package_name">Copy package name</string>
     <string name="xposed">Xposed</string>
     <string name="app_name_copied">App name copied</string>
     <string name="package_name_copied">Package name copied</string>
-    <string name="data_path">Data path</string>
+    <string name="path">Path</string>
     <string name="open_path">Open path</string>
     <string name="permission_editor">Permissions</string>
     <string name="permission_granted">Permission granted</string>

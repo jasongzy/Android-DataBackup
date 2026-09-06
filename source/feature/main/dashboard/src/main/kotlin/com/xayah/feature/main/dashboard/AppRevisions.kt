@@ -215,7 +215,6 @@ fun AppRevisionsRoute(
                         onUpdateAppNote = detailsViewModel::updateAppNote,
                         onUninstall = detailsViewModel::uninstallApp,
                         onClearData = detailsViewModel::clearAppData,
-                        onCopyDataPath = detailsViewModel::copyDataPath,
                         onResolveDataPath = detailsViewModel::resolveDataPath,
                         onCopyPath = detailsViewModel::copyPath,
                         onOpenPath = detailsViewModel::openPath,

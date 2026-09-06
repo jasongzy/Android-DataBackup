@@ -415,10 +415,6 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
-    fun copyDataPath(dataType: DataType) {
-        resolveDataPath(dataType, ::copyPath)
-    }
-
     fun resolveDataPath(dataType: DataType, onResolved: (String) -> Unit) {
         viewModelScope.launchOnDefault {
             val app = (uiState.value as? Success.App)?.app ?: return@launchOnDefault
