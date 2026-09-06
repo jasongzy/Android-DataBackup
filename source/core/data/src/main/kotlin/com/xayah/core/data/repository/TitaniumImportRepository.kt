@@ -394,6 +394,7 @@ class TitaniumImportRepository @Inject constructor(
                 xposedModule = importedApk?.let { xposedModuleDetector.isModule(it) } == true,
                 states = states,
             )
+            app.displayStats = appBackupRepository.calculateDisplayStats(destination, compression, app.dataStates)
             check(rootService.writeJson(app.toRestoreConfig(), PathUtil.getPackageRestoreConfigDst(destination)).isSuccess) {
                 "Unable to write app metadata"
             }

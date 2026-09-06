@@ -12,16 +12,19 @@ import com.xayah.core.model.BackupManifest
 import com.xayah.core.model.BackupManifestFile
 import com.xayah.core.model.BackupRevisionEntity
 import com.xayah.core.model.BackupVerificationStatus
-import com.xayah.core.model.DataType
+import com.xayah.core.model.CompressionType
 import com.xayah.core.model.DataState
+import com.xayah.core.model.DataType
 import com.xayah.core.model.OpType
 import com.xayah.core.model.PACKAGE_RESTORE_CONFIG_SCHEMA_VERSION
 import com.xayah.core.model.PackageRestoreConfig
 import com.xayah.core.model.database.PackageDataStates
+import com.xayah.core.model.database.PackageDataStats
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.findRetentionRevisions
 import com.xayah.core.model.toPackageEntity
 import com.xayah.core.rootservice.service.RemoteRootService
+import com.xayah.core.util.ConfigsPackageRestoreName
 import com.xayah.core.util.PathUtil
 import com.xayah.core.util.localBackupSaveDir
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -243,7 +246,10 @@ class AppBackupRepository @Inject constructor(
     suspend fun inspectRevision(revision: BackupRevisionEntity): VerificationResult {
         val result = inspectRevisionFiles(revision)
         val revisionDir = getLocalRevisionDir(revision)
-        revisionDir?.let { refreshXposedModule(revision, it) }
+        revisionDir?.let {
+            refreshXposedModule(revision, it)
+            if (result.status == BackupVerificationStatus.VALID) refreshDisplayStats(revision, it)
+        }
         val iconRepaired = if (revisionDir != null) {
             appIconRepository.repairFromBackup(
                 revisionDir = revisionDir,
@@ -252,6 +258,49 @@ class AppBackupRepository @Inject constructor(
             )
         } else false
         return result.copy(iconRepaired = iconRepaired)
+    }
+
+    internal suspend fun calculateDisplayStats(
+        revisionDir: String,
+        compression: CompressionType,
+        states: PackageDataStates,
+    ) = PackageDataStats().apply {
+        suspend fun size(type: DataType, selected: Boolean) = if (selected) {
+            rootService.calculateSize("$revisionDir/${type.type}.${compression.suffix}")
+        } else 0L
+
+        apkBytes = size(DataType.PACKAGE_APK, states.apkState == DataState.Selected)
+        userBytes = size(DataType.PACKAGE_USER, states.userState == DataState.Selected)
+        userDeBytes = size(DataType.PACKAGE_USER_DE, states.userDeState == DataState.Selected)
+        dataBytes = size(DataType.PACKAGE_DATA, states.dataState == DataState.Selected)
+        obbBytes = size(DataType.PACKAGE_OBB, states.obbState == DataState.Selected)
+        mediaBytes = size(DataType.PACKAGE_MEDIA, states.mediaState == DataState.Selected)
+    }
+
+    private suspend fun refreshDisplayStats(revision: BackupRevisionEntity, revisionDir: String) {
+        val configPath = PathUtil.getPackageRestoreConfigDst(revisionDir)
+        val config = rootService.readJson<PackageRestoreConfig>(configPath) ?: return
+        val stats = calculateDisplayStats(revisionDir, config.compressionType, config.dataStates)
+        if (config.displayStats == stats) return
+        val manifestPath = PathUtil.getBackupManifestDst(revisionDir)
+        val manifest = rootService.readJson<BackupManifest>(manifestPath) ?: return
+        if (!rootService.writeJson(config.copy(displayStats = stats), configPath).isSuccess) return
+        val configDigest = rootService.calculateSHA256(configPath) ?: return
+        val configFile = BackupManifestFile(
+            name = ConfigsPackageRestoreName,
+            sizeBytes = rootService.calculateSize(configPath),
+            sha256 = configDigest,
+        )
+        val files = (manifest.files.orEmpty().filterNot { it.name == ConfigsPackageRestoreName } + configFile)
+            .sortedBy(BackupManifestFile::name)
+        if (!rootService.writeJson(manifest.copy(files = files), manifestPath).isSuccess) return
+        dao.upsertRevision(revision.copy(sizeBytes = files.sumOf(BackupManifestFile::sizeBytes)))
+        packageRepository.getRevisions(revision.packageName, revision.userId, revision.createdAt)
+            .firstOrNull {
+                it.indexInfo.cloud.isEmpty() &&
+                    it.indexInfo.backupDir == context.localBackupSaveDir()
+            }
+            ?.let { packageRepository.upsert(it.copy(displayStats = stats)) }
     }
 
     private suspend fun refreshXposedModule(revision: BackupRevisionEntity, revisionDir: String) {
