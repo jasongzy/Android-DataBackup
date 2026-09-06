@@ -125,14 +125,6 @@ class PackageRepository @Inject constructor(
         value || p.isSystemApp.not()
     }
 
-    fun getHasBackupsPredicate(value: Boolean, pkgUserSet: Set<String>): (PackageEntity) -> Boolean = { p ->
-        value || p.pkgUserKey !in pkgUserSet
-    }
-
-    fun getHasNoBackupsPredicate(value: Boolean, pkgUserSet: Set<String>): (PackageEntity) -> Boolean = { p ->
-        value || p.pkgUserKey in pkgUserSet
-    }
-
     fun getInstalledPredicate(value: Boolean, pkgUserSet: Set<String>): (PackageEntity) -> Boolean = { p ->
         value || p.pkgUserKey !in pkgUserSet
     }

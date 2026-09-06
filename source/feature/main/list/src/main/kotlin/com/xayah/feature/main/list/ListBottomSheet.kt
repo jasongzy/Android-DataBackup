@@ -458,13 +458,15 @@ internal fun AppsFilterSheet(
                     FilterGroup(
                         title = stringResource(R.string.backup_count),
                         selected = when {
-                            filters.singleBackup -> 2
-                            filters.multipleBackups -> 3
-                            !filters.hasBackups && filters.hasNoBackups -> 1
+                            filters.singleBackup -> 3
+                            filters.multipleBackups -> 4
+                            filters.hasBackups && !filters.hasNoBackups -> 1
+                            !filters.hasBackups && filters.hasNoBackups -> 2
                             else -> 0
                         },
                         options = listOf(
                             stringResource(R.string.unrestricted),
+                            stringResource(R.string.apps_which_have_backups),
                             stringResource(R.string.apps_which_have_no_backups),
                             stringResource(R.string.one_backup),
                             stringResource(R.string.multiple_backups),
@@ -472,17 +474,17 @@ internal fun AppsFilterSheet(
                     ) { index ->
                         setFilters(
                             filters.copy(
-                                hasBackups = index != 1,
-                                hasNoBackups = index == 0 || index == 1,
-                                singleBackup = index == 2,
-                                multipleBackups = index == 3,
+                                hasBackups = index != 2,
+                                hasNoBackups = index == 0 || index == 2,
+                                singleBackup = index == 3,
+                                multipleBackups = index == 4,
                             )
                         )
                     }
                     FilterGroup(
                         title = stringResource(R.string.apk_backup),
                         selected = when {
-                            filters.hasOutdatedApkBackup -> 3
+                            filters.hasNonMatchingApkBackup -> 3
                             filters.hasApkBackup -> 1
                             filters.hasNoApkBackup -> 2
                             else -> 0
@@ -491,14 +493,14 @@ internal fun AppsFilterSheet(
                             stringResource(R.string.unrestricted),
                             stringResource(R.string.has_apk_backup),
                             stringResource(R.string.has_no_apk_backup),
-                            stringResource(R.string.has_outdated_apk_backup),
+                            stringResource(R.string.has_non_matching_apk_backup),
                         ),
                     ) { index ->
                         setFilters(
                             filters.copy(
                                 hasApkBackup = index == 1,
                                 hasNoApkBackup = index == 2,
-                                hasOutdatedApkBackup = index == 3,
+                                hasNonMatchingApkBackup = index == 3,
                             )
                         )
                     }

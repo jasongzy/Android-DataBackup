@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -107,7 +108,7 @@ class ListDataRepo @Inject constructor(
                 listData = getAppListData()
                 pkgUserSet = when (opType) {
                     OpType.BACKUP -> {
-                        appsRepo.getBackups(filters)
+                        flowOf(emptySet())
                     }
 
                     OpType.RESTORE -> {
@@ -322,7 +323,7 @@ class ListDataRepo @Inject constructor(
                 hasNoApkBackup = current.hasNoApkBackup,
                 hasDataBackup = current.hasDataBackup,
                 hasNoDataBackup = current.hasNoDataBackup,
-                hasOutdatedApkBackup = current.hasOutdatedApkBackup,
+                hasNonMatchingApkBackup = current.hasNonMatchingApkBackup,
                 matchAllLabels = current.matchAllLabels,
                 labelFilters = labelFilters.value.mapValues { (_, mode) -> mode.toDashboardLabelFilterMode() },
             )
@@ -375,7 +376,7 @@ private fun DashboardFilterPreference.toFilters(cloud: String, backupDir: String
     hasNoApkBackup = hasNoApkBackup,
     hasDataBackup = hasDataBackup,
     hasNoDataBackup = hasNoDataBackup,
-    hasOutdatedApkBackup = hasOutdatedApkBackup,
+    hasNonMatchingApkBackup = hasNonMatchingApkBackup,
     matchAllLabels = matchAllLabels,
 )
 
@@ -398,7 +399,7 @@ data class Filters(
     val hasNoApkBackup: Boolean,
     val hasDataBackup: Boolean,
     val hasNoDataBackup: Boolean,
-    val hasOutdatedApkBackup: Boolean,
+    val hasNonMatchingApkBackup: Boolean,
     val matchAllLabels: Boolean,
 ) {
     fun matchesXposed(isXposedModule: Boolean) =

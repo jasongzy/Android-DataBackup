@@ -98,6 +98,6 @@ data class AppBackupOverview(
     val latestRevisionAt: Long?,
     val hasApkBackup: Boolean,
     val hasDataBackup: Boolean,
-    val latestApkVersionCode: Long?,
+    val hasMatchingApkBackup: Boolean,
     val revisionNotes: String,
 )

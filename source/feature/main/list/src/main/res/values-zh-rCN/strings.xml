@@ -13,7 +13,7 @@
     <string name="apk_backup">APK 备份</string>
     <string name="data_backup">数据备份</string>
     <string name="non_xposed">非 Xposed</string>
-    <string name="one_backup">1 个备份</string>
+    <string name="one_backup">单一备份</string>
     <string name="multiple_backups">多个备份</string>
     <string name="include_matching">包含匹配</string>
     <string name="match_any">任一</string>

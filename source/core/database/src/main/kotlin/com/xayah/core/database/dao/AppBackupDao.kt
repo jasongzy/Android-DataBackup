@@ -148,7 +148,9 @@ interface AppBackupDao {
             MAX(backup_revisions.createdAt) AS latestRevisionAt,
             MAX(CASE WHEN (backup_revisions.contentMask & 1) != 0 THEN 1 ELSE 0 END) AS hasApkBackup,
             MAX(CASE WHEN (backup_revisions.contentMask & 62) != 0 THEN 1 ELSE 0 END) AS hasDataBackup,
-            MAX(CASE WHEN (backup_revisions.contentMask & 1) != 0 THEN backup_revisions.appVersionCode END) AS latestApkVersionCode,
+            MAX(CASE WHEN (backup_revisions.contentMask & 1) != 0
+                AND backup_revisions.appVersionName = backup_apps.versionName
+                AND backup_revisions.appVersionCode = backup_apps.versionCode THEN 1 ELSE 0 END) AS hasMatchingApkBackup,
             COALESCE(GROUP_CONCAT(backup_revisions.note, char(10)), '') AS revisionNotes
         FROM backup_apps
         LEFT JOIN backup_revisions

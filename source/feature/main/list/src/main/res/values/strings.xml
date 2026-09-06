@@ -13,7 +13,7 @@
     <string name="apk_backup">APK backup</string>
     <string name="data_backup">Data backup</string>
     <string name="non_xposed">Non-Xposed</string>
-    <string name="one_backup">1 backup</string>
+    <string name="one_backup">Single backup</string>
     <string name="multiple_backups">Multiple backups</string>
     <string name="include_matching">Include matching</string>
     <string name="match_any">Any</string>

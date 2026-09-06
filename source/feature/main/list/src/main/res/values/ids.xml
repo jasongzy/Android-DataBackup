@@ -46,7 +46,7 @@
     <item name="has_no_apk_backup" type="string" />
     <item name="has_data_backup" type="string" />
     <item name="has_no_data_backup" type="string" />
-    <item name="has_outdated_apk_backup" type="string" />
+    <item name="has_non_matching_apk_backup" type="string" />
     <item name="edit_labels" type="string" />
     <item name="add_label_to_selected" type="string" />
     <item name="remove_label_from_selected" type="string" />

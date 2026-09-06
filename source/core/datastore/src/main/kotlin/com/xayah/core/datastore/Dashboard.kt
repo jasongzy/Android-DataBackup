@@ -25,7 +25,7 @@ private val KeyDashboardHasApkBackup = booleanPreferencesKey("dashboard_filter_h
 private val KeyDashboardHasNoApkBackup = booleanPreferencesKey("dashboard_filter_has_no_apk_backup")
 private val KeyDashboardHasDataBackup = booleanPreferencesKey("dashboard_filter_has_data_backup")
 private val KeyDashboardHasNoDataBackup = booleanPreferencesKey("dashboard_filter_has_no_data_backup")
-private val KeyDashboardHasOutdatedApkBackup = booleanPreferencesKey("dashboard_filter_has_outdated_apk_backup")
+private val KeyDashboardHasNonMatchingApkBackup = booleanPreferencesKey("dashboard_filter_has_non_matching_apk_backup")
 private val KeyDashboardMatchAllLabels = booleanPreferencesKey("dashboard_filter_match_all_labels")
 private val KeyDashboardLabelFilters = stringSetPreferencesKey("dashboard_label_filters")
 
@@ -59,7 +59,7 @@ data class DashboardFilterPreference(
     val hasNoApkBackup: Boolean = false,
     val hasDataBackup: Boolean = false,
     val hasNoDataBackup: Boolean = false,
-    val hasOutdatedApkBackup: Boolean = false,
+    val hasNonMatchingApkBackup: Boolean = false,
     val matchAllLabels: Boolean = false,
     val labelFilters: Map<String, DashboardLabelFilterMode> = emptyMap(),
 )
@@ -100,7 +100,7 @@ fun Context.readDashboardFilterPreference() = dataStore.data.map { preferences -
         hasNoApkBackup = preferences[KeyDashboardHasNoApkBackup] ?: false,
         hasDataBackup = preferences[KeyDashboardHasDataBackup] ?: false,
         hasNoDataBackup = preferences[KeyDashboardHasNoDataBackup] ?: false,
-        hasOutdatedApkBackup = preferences[KeyDashboardHasOutdatedApkBackup] ?: false,
+        hasNonMatchingApkBackup = preferences[KeyDashboardHasNonMatchingApkBackup] ?: false,
         matchAllLabels = preferences[KeyDashboardMatchAllLabels] ?: false,
         labelFilters = preferences[KeyDashboardLabelFilters].orEmpty().mapNotNull { entry ->
             val separator = entry.indexOf(':')
@@ -130,7 +130,7 @@ suspend fun Context.saveDashboardFilterPreference(preference: DashboardFilterPre
         preferences[KeyDashboardHasNoApkBackup] = preference.hasNoApkBackup
         preferences[KeyDashboardHasDataBackup] = preference.hasDataBackup
         preferences[KeyDashboardHasNoDataBackup] = preference.hasNoDataBackup
-        preferences[KeyDashboardHasOutdatedApkBackup] = preference.hasOutdatedApkBackup
+        preferences[KeyDashboardHasNonMatchingApkBackup] = preference.hasNonMatchingApkBackup
         preferences[KeyDashboardMatchAllLabels] = preference.matchAllLabels
         preferences[KeyDashboardLabelFilters] = preference.labelFilters.mapTo(mutableSetOf()) { (label, mode) ->
             "${mode.name}:$label"

@@ -86,7 +86,7 @@ class ListItemsViewModel @Inject constructor(
                     latestRevisionAt = overview?.latestRevisionAt,
                     hasApkBackup = overview?.hasApkBackup == true,
                     hasDataBackup = overview?.hasDataBackup == true,
-                    latestApkVersionCode = overview?.latestApkVersionCode,
+                    hasMatchingApkBackup = overview?.hasMatchingApkBackup == true,
                     labels = labelsByApp[app.packageName to app.userId].orEmpty(),
                     notes = listOf(overview?.app?.note, overview?.revisionNotes).filterNotNull().joinToString("\n"),
                 )
@@ -102,13 +102,7 @@ class ListItemsViewModel @Inject constructor(
                 }
                 .filter { selectedUserId == null || it.app.userId == selectedUserId }
                 .filter { it.app.packageName to it.app.userId !in installedKeys }
-                .filter { overview ->
-                    listData.filters.notInstalledApps && if (overview.revisionCount > 0) {
-                        listData.filters.hasBackups
-                    } else {
-                        listData.filters.hasNoBackups
-                    }
-                }
+                .filter { listData.filters.notInstalledApps }
                 .filter { overview ->
                     if (overview.app.isSystem) listData.filters.systemApps else listData.filters.nonSystemApps
                 }
@@ -144,7 +138,7 @@ class ListItemsViewModel @Inject constructor(
                         latestRevisionAt = overview.latestRevisionAt,
                         hasApkBackup = overview.hasApkBackup,
                         hasDataBackup = overview.hasDataBackup,
-                        latestApkVersionCode = overview.latestApkVersionCode,
+                        hasMatchingApkBackup = overview.hasMatchingApkBackup,
                         labels = labelsByApp[overview.app.packageName to overview.app.userId].orEmpty(),
                         notes = listOf(overview.app.note, overview.revisionNotes).joinToString("\n"),
                     )
@@ -159,6 +153,8 @@ class ListItemsViewModel @Inject constructor(
                 }
                 .filter { if (it.app.isFrozen) listData.filters.frozenApps else listData.filters.unfrozenApps }
                 .filter { listData.filters.matchesXposed(it.app.isXposedModule) }
+                .filter { listData.filters.hasBackups || it.revisionCount == 0 }
+                .filter { listData.filters.hasNoBackups || it.revisionCount > 0 }
                 .filter { !listData.filters.singleBackup || it.revisionCount == 1 }
                 .filter { !listData.filters.multipleBackups || it.revisionCount >= 2 }
                 .filter { opType != OpType.BACKUP || !listData.filters.hasApkBackup || it.hasApkBackup }
@@ -166,11 +162,10 @@ class ListItemsViewModel @Inject constructor(
                 .filter { opType != OpType.BACKUP || !listData.filters.hasDataBackup || it.hasDataBackup }
                 .filter { opType != OpType.BACKUP || !listData.filters.hasNoDataBackup || !it.hasDataBackup }
                 .filter { item ->
-                    opType != OpType.BACKUP || !listData.filters.hasOutdatedApkBackup || (
+                    opType != OpType.BACKUP || !listData.filters.hasNonMatchingApkBackup || (
                         item.app.isInstalled &&
                             item.hasApkBackup &&
-                            item.latestApkVersionCode != null &&
-                            item.app.versionCode > item.latestApkVersionCode
+                            !item.hasMatchingApkBackup
                         )
                 }
                 .toList()
@@ -326,7 +321,7 @@ data class AppListItem(
     val latestRevisionAt: Long?,
     val hasApkBackup: Boolean,
     val hasDataBackup: Boolean,
-    val latestApkVersionCode: Long?,
+    val hasMatchingApkBackup: Boolean,
     val labels: List<ColoredLabel>,
     val notes: String,
 )

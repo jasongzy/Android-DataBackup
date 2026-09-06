@@ -531,7 +531,7 @@
     <string name="has_no_apk_backup">No APK backup</string>
     <string name="has_data_backup">Data backup exists</string>
     <string name="has_no_data_backup">No data backup</string>
-    <string name="has_outdated_apk_backup">Exists and is not latest</string>
+    <string name="has_non_matching_apk_backup">APK backup exists but does not match installed version</string>
     <string name="no_labels_here">No labels here.</string>
     <string name="backup_configs">Backup configs</string>
     <string name="backup_configs_desc">Export configurations to backup directory</string>

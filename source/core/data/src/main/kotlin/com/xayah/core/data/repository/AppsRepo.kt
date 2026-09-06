@@ -82,13 +82,6 @@ class AppsRepo @Inject constructor(
     private val labelsRepo: LabelsRepo,
     private val xposedModuleDetector: XposedModuleDetector,
 ) {
-    fun getBackups(filters: Flow<Filters>): Flow<Set<String>> = combine(
-        filters,
-        appsDao.queryPackagesFlow(opType = OpType.RESTORE).flowOn(defaultDispatcher),
-    ) { f, p ->
-        p.filter { it.indexInfo.cloud == f.cloud && it.indexInfo.backupDir == f.backupDir }.map { it.pkgUserKey }.toSet()
-    }
-
     fun getInstalledApps(users: Flow<List<UserInfo>>): Flow<Set<String>> = users.map { u ->
         val set = mutableSetOf<String>()
         u.forEach {
@@ -137,8 +130,6 @@ class AppsRepo @Inject constructor(
                 if (app.extraInfo.enabled) data.filters.unfrozenApps else data.filters.frozenApps
             }
             .filter { app -> data.filters.matchesXposed(app.packageInfo.isXposedModule) }
-            .filter(packageRepo.getHasBackupsPredicate(value = data.filters.hasBackups, pkgUserSet = pSet))
-            .filter(packageRepo.getHasNoBackupsPredicate(value = data.filters.hasNoBackups, pkgUserSet = pSet))
             .filter {
                 if (opType == OpType.BACKUP) data.filters.installedApps
                 else packageRepo.getInstalledPredicate(value = data.filters.installedApps, pkgUserSet = pSet)(it)
