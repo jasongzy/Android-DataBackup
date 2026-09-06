@@ -94,7 +94,7 @@ fun PagePackagesRestoreProcessingSetup(localNavController: NavHostController, vi
                 horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level12, Alignment.End),
             ) {
                 Button(
-                    enabled = !isCheckingKeystoreRisk,
+                    enabled = packages.isNotEmpty() && !isCheckingKeystoreRisk,
                     onClick = {
                         viewModel.continueRestore(restoreUser, localNavController)
                     }) {

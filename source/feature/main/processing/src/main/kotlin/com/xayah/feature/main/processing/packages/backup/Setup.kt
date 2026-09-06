@@ -94,7 +94,8 @@ fun PagePackagesBackupProcessingSetup(localNavController: NavHostController, vie
                 horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level12, Alignment.End),
             ) {
                 Button(
-                    enabled = uiState.storageType == StorageMode.Local || (uiState.cloudEntity != null && isTesting.not()),
+                    enabled = packages.isNotEmpty() &&
+                        (uiState.storageType == StorageMode.Local || (uiState.cloudEntity != null && isTesting.not())),
                     onClick = {
                         viewModel.emitIntentOnIO(FinishSetup(navController = localNavController))
                     }) {

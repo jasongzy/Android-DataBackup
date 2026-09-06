@@ -71,8 +71,9 @@ class RestoreViewModelImpl @Inject constructor(
                 val packages = mPkgRepo.queryActivated(OpType.RESTORE, cloud, backupSaveDir)
                 LogUtil.log { "RestoreViewModelImpl.UpdateApps" to "Query activated apps, cloud: $cloud, backupDir: $backupSaveDir" }
                 LogUtil.log { "RestoreViewModelImpl.UpdateApps" to "Queried apps count: ${packages.size}" }
+                _packages.value = packages
                 val bytes = if (cloud.isEmpty()) {
-                    packages.sumOf { mPkgRepo.calculateSelectedLocalArchiveSize(it) }.toDouble()
+                    packages.sumOf { mPkgRepo.calculateSelectedLocalArchiveSize(it) }
                 } else {
                     packages.sumOf { app ->
                         with(app) {
@@ -83,10 +84,9 @@ class RestoreViewModelImpl @Inject constructor(
                                 (if (obbSelected) displayStats.obbBytes else 0L) +
                                 (if (mediaSelected) displayStats.mediaBytes else 0L)
                         }
-                    }.toDouble()
+                    }
                 }
-                _packages.value = packages
-                _packagesSize.value = bytes.formatSize()
+                _packagesSize.value = bytes.toDouble().formatSize()
             }
 
             is SetCloudEntity -> {
@@ -170,7 +170,7 @@ class RestoreViewModelImpl @Inject constructor(
     }.flowOnIO()
     private val _isTesting: MutableStateFlow<Boolean> = MutableStateFlow(false)
     private val _packages: MutableStateFlow<List<PackageEntity>> = MutableStateFlow(listOf())
-    private val _packagesSize: MutableStateFlow<String> = MutableStateFlow("")
+    private val _packagesSize: MutableStateFlow<String> = MutableStateFlow(mContext.getString(R.string.loading))
     private val _restoreUsers: MutableStateFlow<List<DialogRadioItem<Any>>> = MutableStateFlow(listOf(DialogRadioItem(enum = Any(), title = mContext.getString(R.string.backup_user))))
     private val _keystoreRiskPackages = MutableStateFlow<List<KeystoreRiskPackage>>(emptyList())
     private val _isCheckingKeystoreRisk = MutableStateFlow(false)
@@ -178,7 +178,7 @@ class RestoreViewModelImpl @Inject constructor(
     val accounts: StateFlow<List<DialogRadioItem<Any>>> = _accounts.stateInScope(listOf())
     val isTesting: StateFlow<Boolean> = _isTesting.stateInScope(false)
     val packages: StateFlow<List<PackageEntity>> = _packages.stateInScope(listOf())
-    val packagesSize: StateFlow<String> = _packagesSize.stateInScope("")
+    val packagesSize: StateFlow<String> = _packagesSize.stateInScope(mContext.getString(R.string.loading))
     val restoreUsers: StateFlow<List<DialogRadioItem<Any>>> = _restoreUsers.stateInScope(listOf(DialogRadioItem(enum = Any(), title = mContext.getString(R.string.backup_user))))
     val keystoreRiskPackages: StateFlow<List<KeystoreRiskPackage>> = _keystoreRiskPackages
     val isCheckingKeystoreRisk: StateFlow<Boolean> = _isCheckingKeystoreRisk

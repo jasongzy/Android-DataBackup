@@ -585,33 +585,38 @@ class AppsRepo @Inject constructor(
         appsDao.updateDisplayStats(
             PackageDisplayStatsEntity(
                 id = app.id,
-                displayStats = PackageDataStats(
-                    apkBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_APK),
-                    userBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_USER),
-                    userDeBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_USER_DE),
-                    dataBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_DATA),
-                    obbBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_OBB),
-                    mediaBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_MEDIA),
-                ),
+                displayStats = calculateLocalAppDataStats(app),
             )
         )
     }
 
+    suspend fun calculateLocalAppDataStats(app: PackageEntity) = PackageDataStats(
+        apkBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_APK),
+        userBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_USER),
+        userDeBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_USER_DE),
+        dataBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_DATA),
+        obbBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_OBB),
+        mediaBytes = calculateLocalAppDataSize(app, DataType.PACKAGE_MEDIA),
+    )
+
     private suspend fun calculateLocalAppDataSize(p: PackageEntity, dataType: DataType): Long {
-        val src = getLocalAppDataSrcDir(p, dataType)
-        return if (rootService.exists(src)) rootService.calculateSize(src) else 0
+        if (dataType == DataType.PACKAGE_APK) {
+            return rootService.getPackageSourceDir(p.packageName, p.userId).sumOf { rootService.calculateSize(it) }
+        }
+        val src = "${dataType.srcDir(p.userId)}/${p.packageName}"
+        if (!rootService.exists(src)) return 0L
+        val excluded = when (dataType) {
+            DataType.PACKAGE_USER, DataType.PACKAGE_USER_DE ->
+                listOf(".ota", "cache", "lib", "code_cache", "no_backup").map { "$src/$it" }
+            DataType.PACKAGE_DATA, DataType.PACKAGE_OBB, DataType.PACKAGE_MEDIA ->
+                rootService.listFilePaths(src).filter { path ->
+                    val name = PathUtil.getFileName(path)
+                    name == "cache" || name.startsWith("Backup_")
+                }
+            else -> emptyList()
+        }
+        return (rootService.calculateSize(src) - excluded.sumOf { rootService.calculateSize(it) }).coerceAtLeast(0L)
     }
-
-    private fun getDataSrcDir(dataType: DataType, userId: Int) = dataType.srcDir(userId)
-
-    private fun getDataSrc(srcDir: String, packageName: String) = "$srcDir/$packageName"
-
-    private suspend fun getPackageSourceDir(packageName: String, userId: Int) = rootService.getPackageSourceDir(packageName, userId).let { list ->
-        if (list.isNotEmpty()) PathUtil.getParentPath(list[0]) else ""
-    }
-
-    private suspend fun getLocalAppDataSrcDir(p: PackageEntity, dataType: DataType) =
-        if (dataType == DataType.PACKAGE_APK) getPackageSourceDir(packageName = p.packageName, userId = p.userId) else getDataSrc(srcDir = getDataSrcDir(dataType = dataType, userId = p.userId), packageName = p.packageName)
 
     /**
      * @author <a href="https://github.com/MuntashirAkon">@MuntashirAkon</a>

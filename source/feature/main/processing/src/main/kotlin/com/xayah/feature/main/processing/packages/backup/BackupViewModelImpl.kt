@@ -2,11 +2,13 @@ package com.xayah.feature.main.processing.packages.backup
 
 import android.content.Context
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.xayah.core.data.repository.AppsRepo
 import com.xayah.core.data.repository.BackupRequestStore
 import com.xayah.core.data.repository.CloudRepository
 import com.xayah.core.data.repository.TaskRepository
 import com.xayah.core.datastore.saveCloudActivatedAccountName
 import com.xayah.core.model.StorageMode
+import com.xayah.core.model.TaskType
 import com.xayah.core.model.database.PackageEntity
 import com.xayah.core.model.util.formatSize
 import com.xayah.core.network.client.getCloud
@@ -41,22 +43,23 @@ import javax.inject.Inject
 class BackupViewModelImpl @Inject constructor(
     @ApplicationContext private val mContext: Context,
     mRootService: RemoteRootService,
-    mTaskRepo: TaskRepository,
+    private val taskRepo: TaskRepository,
     private val mCloudRepo: CloudRepository,
+    private val appsRepo: AppsRepo,
     private val backupRequestStore: BackupRequestStore,
     mLocalService: ProcessingServiceProxyLocalImpl,
     mCloudService: ProcessingServiceProxyCloudImpl,
-) : AbstractPackagesProcessingViewModel(mContext, mRootService, mTaskRepo, mLocalService, mCloudService) {
+) : AbstractPackagesProcessingViewModel(mContext, mRootService, taskRepo, mLocalService, mCloudService) {
     override suspend fun onOtherEvent(state: IndexUiState, intent: ProcessingUiIntent) {
         when (intent) {
             is UpdateApps -> {
-                val packages = backupRequestStore.packages.value
-                var bytes = 0.0
-                packages.forEach {
-                    bytes += it.storageStatsBytes
+                val requestedPackages = backupRequestStore.packages.value
+                _packages.value = requestedPackages
+                val packages = requestedPackages.map { app ->
+                    app.copy(dataStats = appsRepo.calculateLocalAppDataStats(app))
                 }
                 _packages.value = packages
-                _packagesSize.value = bytes.formatSize()
+                _packagesSize.value = taskRepo.getRawBytes(TaskType.PACKAGE, packages).formatSize()
             }
 
             is SetCloudEntity -> {
@@ -114,10 +117,10 @@ class BackupViewModelImpl @Inject constructor(
     }.flowOnIO()
     private val _isTesting: MutableStateFlow<Boolean> = MutableStateFlow(false)
     private val _packages: MutableStateFlow<List<PackageEntity>> = MutableStateFlow(listOf())
-    private val _packagesSize: MutableStateFlow<String> = MutableStateFlow("")
+    private val _packagesSize: MutableStateFlow<String> = MutableStateFlow(mContext.getString(R.string.loading))
 
     val accounts: StateFlow<List<DialogRadioItem<Any>>> = _accounts.stateInScope(listOf())
     val isTesting: StateFlow<Boolean> = _isTesting.stateInScope(false)
     val packages: StateFlow<List<PackageEntity>> = _packages.stateInScope(listOf())
-    val packagesSize: StateFlow<String> = _packagesSize.stateInScope("")
+    val packagesSize: StateFlow<String> = _packagesSize.stateInScope(mContext.getString(R.string.loading))
 }

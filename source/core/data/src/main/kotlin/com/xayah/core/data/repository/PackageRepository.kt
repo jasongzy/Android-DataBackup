@@ -6,6 +6,7 @@ import com.xayah.core.data.util.srcDir
 import com.xayah.core.database.dao.PackageDao
 import com.xayah.core.datastore.readCompressionType
 import com.xayah.core.datastore.readReloadDumpApk
+import com.xayah.core.model.BackupManifest
 import com.xayah.core.model.CompressionType
 import com.xayah.core.model.DataState
 import com.xayah.core.model.DataType
@@ -78,17 +79,18 @@ class PackageRepository @Inject constructor(
     suspend fun queryActivated(opType: OpType, cloud: String, backupDir: String) = packageDao.queryActivated(opType, cloud, backupDir)
     suspend fun calculateSelectedLocalArchiveSize(app: PackageEntity): Long {
         val revisionDir = "${pathUtil.getLocalBackupAppsDir()}/${app.archivesRelativeDir}"
-        return DataType.entries.sumOf { type ->
-            val selected = when (type) {
-                DataType.PACKAGE_APK -> app.apkSelected
-                DataType.PACKAGE_USER -> app.userSelected
-                DataType.PACKAGE_USER_DE -> app.userDeSelected
-                DataType.PACKAGE_DATA -> app.dataSelected
-                DataType.PACKAGE_OBB -> app.obbSelected
-                DataType.PACKAGE_MEDIA -> app.mediaSelected
-                else -> false
+        val manifest = rootService.readJson<BackupManifest>(PathUtil.getBackupManifestDst(revisionDir)) ?: return 0L
+        return manifest.files.orEmpty().sumOf { file ->
+            val included = when (file.name.substringBefore('.')) {
+                DataType.PACKAGE_APK.type -> app.apkSelected
+                DataType.PACKAGE_USER.type -> app.userSelected
+                DataType.PACKAGE_USER_DE.type -> app.userDeSelected
+                DataType.PACKAGE_DATA.type -> app.dataSelected
+                DataType.PACKAGE_OBB.type -> app.obbSelected
+                DataType.PACKAGE_MEDIA.type -> app.mediaSelected
+                else -> true
             }
-            if (selected) rootService.calculateSize(getArchiveDst(revisionDir, type, app.indexInfo.compressionType)) else 0L
+            if (included) file.sizeBytes else 0L
         }
     }
 
