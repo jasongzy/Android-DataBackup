@@ -201,6 +201,12 @@ class ListActionsViewModel @Inject constructor(
         }
     }
 
+    fun selectRange(visibleAppKeys: List<AppKey>) {
+        viewModelScope.launchOnDefault {
+            listDataRepo.selectApps(keysInSelectedRange(visibleAppKeys, listDataRepo.getSelectedAppKeys().value))
+        }
+    }
+
     fun blockSelected() {
         viewModelScope.launchOnDefault {
             when (uiState.value) {
@@ -308,6 +314,12 @@ class ListActionsViewModel @Inject constructor(
     private suspend fun showToast(message: Int) = withContext(Dispatchers.Main.immediate) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
+}
+
+internal fun keysInSelectedRange(orderedKeys: List<AppKey>, selectedKeys: Set<AppKey>): List<AppKey> {
+    val first = orderedKeys.indexOfFirst(selectedKeys::contains)
+    val last = orderedKeys.indexOfLast(selectedKeys::contains)
+    return if (first >= 0 && last > first) orderedKeys.subList(first, last + 1) else emptyList()
 }
 
 sealed interface ListActionsUiState {

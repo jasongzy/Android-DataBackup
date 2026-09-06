@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.LinearScale
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RestartAlt
@@ -95,7 +96,11 @@ internal fun ListActions(
         )
 
         if (uiState.selectionMode) {
-            ListAction(viewModel, visibleAppKeys)
+            ListAction(
+                viewModel = viewModel,
+                visibleAppKeys = visibleAppKeys,
+                rangeSelectionEnabled = target == Target.Apps && uiState.selected >= 2,
+            )
         }
 
         var moreExpanded by remember { mutableStateOf(false) }
@@ -182,7 +187,11 @@ private fun SortAction(onSort: () -> Unit) {
 }
 
 @Composable
-private fun ListAction(viewModel: ListActionsViewModel, visibleAppKeys: List<AppKey>) {
+private fun ListAction(
+    viewModel: ListActionsViewModel,
+    visibleAppKeys: List<AppKey>,
+    rangeSelectionEnabled: Boolean,
+) {
     var checkListExpanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
         IconButton(icon = Icons.Rounded.Checklist, tooltip = stringResource(R.string.selection_options)) {
@@ -203,6 +212,10 @@ private fun ListAction(viewModel: ListActionsViewModel, visibleAppKeys: List<App
             ReverseItem {
                 checkListExpanded = false
                 viewModel.reverseAll(visibleAppKeys)
+            }
+            SelectRangeItem(enabled = rangeSelectionEnabled) {
+                checkListExpanded = false
+                viewModel.selectRange(visibleAppKeys)
             }
         }
     }
@@ -325,6 +338,16 @@ private fun ReverseItem(onClick: () -> Unit) {
     DropdownMenuItem(
         text = stringResource(id = R.string.reverse_selection),
         leadingIcon = Icons.Rounded.RestartAlt,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun SelectRangeItem(enabled: Boolean, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = stringResource(id = R.string.select_range),
+        leadingIcon = Icons.Rounded.LinearScale,
+        enabled = enabled,
         onClick = onClick,
     )
 }

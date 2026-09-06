@@ -37,4 +37,6 @@ dependencies {
 
     // PickYou
     implementation(libs.pickyou)
+
+    testImplementation(libs.junit)
 }

@@ -19,4 +19,5 @@
     <string name="match_any">任一</string>
     <string name="match_all">全部</string>
     <string name="reset_filters">还原默认</string>
+    <string name="select_range">区间选择</string>
 </resources>
