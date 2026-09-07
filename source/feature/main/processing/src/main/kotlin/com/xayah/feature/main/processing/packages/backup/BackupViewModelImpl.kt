@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.xayah.core.data.repository.BackupRequestStore
 import com.xayah.core.data.repository.CloudRepository
+import com.xayah.core.data.repository.ListDataRepo
 import com.xayah.core.data.repository.TaskRepository
 import com.xayah.core.datastore.saveCloudActivatedAccountName
 import com.xayah.core.model.StorageMode
@@ -44,6 +45,7 @@ class BackupViewModelImpl @Inject constructor(
     taskRepo: TaskRepository,
     private val mCloudRepo: CloudRepository,
     private val backupRequestStore: BackupRequestStore,
+    private val listDataRepo: ListDataRepo,
     mLocalService: ProcessingServiceProxyLocalImpl,
     mCloudService: ProcessingServiceProxyCloudImpl,
 ) : AbstractPackagesProcessingViewModel(mContext, mRootService, taskRepo, mLocalService, mCloudService) {
@@ -76,6 +78,7 @@ class BackupViewModelImpl @Inject constructor(
                         client.testConnection()
                         emitEffect(IndexUiEffect.DismissSnackbar)
                         withMainContext {
+                            listDataRepo.clearAppSelection()
                             intent.navController.popBackStack()
                             intent.navController.navigateSingle(MainRoutes.PackagesBackupProcessing.route)
                         }
@@ -87,6 +90,7 @@ class BackupViewModelImpl @Inject constructor(
                     _isTesting.value = false
                 } else {
                     withMainContext {
+                        listDataRepo.clearAppSelection()
                         intent.navController.popBackStack()
                         intent.navController.navigateSingle(MainRoutes.PackagesBackupProcessing.route)
                     }

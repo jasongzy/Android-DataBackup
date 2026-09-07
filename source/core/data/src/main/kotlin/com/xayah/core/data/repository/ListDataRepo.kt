@@ -228,6 +228,7 @@ class ListDataRepo @Inject constructor(
     }
 
     suspend fun retainAppSelection(keys: Collection<AppKey>) {
+        if (searchQuery.value.isNotEmpty()) return
         selectedAppKeys.emit(selectedAppKeys.value.intersect(keys.toSet()))
     }
 

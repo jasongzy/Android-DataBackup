@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.navigation.NavController
 import com.xayah.core.data.repository.AppBackupRepository
 import com.xayah.core.data.repository.CloudRepository
+import com.xayah.core.data.repository.ListDataRepo
 import com.xayah.core.data.repository.PackageRepository
 import com.xayah.core.data.repository.TaskRepository
 import com.xayah.core.model.OpType
@@ -52,6 +53,7 @@ class RestoreViewModelImpl @Inject constructor(
     private val mPkgRepo: PackageRepository,
     private val appBackupRepository: AppBackupRepository,
     private val mCloudRepo: CloudRepository,
+    private val listDataRepo: ListDataRepo,
     mLocalService: ProcessingServiceProxyLocalImpl,
     mCloudService: ProcessingServiceProxyCloudImpl,
     private val args: SavedStateHandle,
@@ -106,6 +108,7 @@ class RestoreViewModelImpl @Inject constructor(
                         client.testConnection()
                         emitEffect(IndexUiEffect.DismissSnackbar)
                         withMainContext {
+                            listDataRepo.clearAppSelection()
                             intent.navController.popBackStack()
                             intent.navController.navigateSingle(MainRoutes.PackagesRestoreProcessing.route)
                         }
@@ -117,6 +120,7 @@ class RestoreViewModelImpl @Inject constructor(
                     _isTesting.value = false
                 } else {
                     withMainContext {
+                        listDataRepo.clearAppSelection()
                         intent.navController.popBackStack()
                         intent.navController.navigateSingle(MainRoutes.PackagesRestoreProcessing.route)
                     }

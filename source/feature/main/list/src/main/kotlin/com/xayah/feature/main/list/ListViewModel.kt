@@ -139,7 +139,6 @@ class ListViewModel @Inject constructor(
                 try {
                     val ids = listDataRepo.getSelectedInstalledAppIds()
                     backupRequestStore.prepare(ids)
-                    listDataRepo.clearAppSelection()
                     val hasDirectory = directoryRepository.querySelectedByDirectoryTypeFlow().first() != null
                     navController.navigateSingle(
                         if (hasDirectory) MainRoutes.PackagesBackupProcessingGraph.route else MainRoutes.Directory.route
@@ -158,7 +157,6 @@ class ListViewModel @Inject constructor(
                     OpType.RESTORE -> {
                         viewModelScope.launch {
                             appsRepo.replaceSelection(opType, listDataRepo.getSelectedInstalledAppIds())
-                            listDataRepo.clearAppSelection()
                             navController.navigateSingle(
                                 MainRoutes.PackagesRestoreProcessingGraph.getRoute(
                                     cloudName = cloudName.ifEmptyEncodeURLWithSpace(),
@@ -201,7 +199,6 @@ class ListViewModel @Inject constructor(
                 val selection = appBackupRepository.selectLatestLocalRevisionsForRestore(
                     listDataRepo.getSelectedAppKeys().value
                 ) ?: return@launch
-                listDataRepo.clearAppSelection()
                 navController.navigateSingle(
                     MainRoutes.PackagesRestoreProcessingGraph.getRoute(
                         cloudName = selection.cloudName.ifEmptyEncodeURLWithSpace(),
