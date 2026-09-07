@@ -5,6 +5,16 @@ import com.xayah.core.common.util.trim
 import com.xayah.core.util.SymbolUtil
 import com.xayah.core.util.model.ShellResult
 
+internal fun ShellResult.acceptFileChangedWarnings(): ShellResult = apply {
+    val errors = out.filterNot { it.startsWith("Total bytes written:") }
+    if (
+        code == 1 && errors.isNotEmpty() &&
+        errors.all { it.startsWith("tar: ") && it.endsWith(": file changed as we read it") }
+    ) {
+        code = 0
+    }
+}
+
 object Tar {
     private suspend fun execute(vararg args: String): ShellResult = BaseUtil.execute("tar", *args)
 
@@ -34,7 +44,7 @@ object Tar {
                     shellQuote(src),
                     ">",
                     shellQuote(dst),
-                )
+                ).acceptFileChangedWarnings()
             } else {
                 // tar --totals "$exclusion" $h -cpf - -C "$srcDir" -- "$src" | $extra > "$dst"
                 execute(
@@ -51,7 +61,7 @@ object Tar {
                     extra,
                     ">",
                     shellQuote(dst),
-                )
+                ).acceptFileChangedWarnings()
             }
         }
 
