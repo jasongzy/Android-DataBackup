@@ -157,7 +157,8 @@ enum class ThemeType {
 enum class KillAppOption {
     DISABLED,
     OPTION_I,
-    OPTION_II;
+    OPTION_II,
+    OPTION_III;
 
     companion object
 }

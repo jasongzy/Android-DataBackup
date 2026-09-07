@@ -91,6 +91,7 @@ fun PageBackupSettings() {
                             desc = when (index) {
                                 1 -> context.getString(R.string.kill_app_option_i_desc)
                                 2 -> context.getString(R.string.kill_app_option_ii_desc)
+                                3 -> context.getString(R.string.kill_app_option_iii_desc)
                                 else -> null
                             },
                         )

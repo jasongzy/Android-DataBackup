@@ -1,12 +1,18 @@
 package com.xayah.core.model
 
 import com.xayah.core.model.util.formatSize
+import com.xayah.core.model.util.indexOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UnitTest {
+    @Test
+    fun testKillAppOptionIndex() {
+        assertEquals(KillAppOption.OPTION_III, KillAppOption.indexOf(3))
+    }
+
     @Test
     fun testFormatSize() {
         assertEquals("999.00 Bytes", 999.0.formatSize())

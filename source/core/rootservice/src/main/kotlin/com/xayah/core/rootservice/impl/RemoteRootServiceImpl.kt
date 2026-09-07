@@ -1,6 +1,7 @@
 package com.xayah.core.rootservice.impl
 
 import android.annotation.TargetApi
+import android.app.ActivityManager
 import android.app.ActivityManagerHidden
 import android.app.ActivityThread
 import android.app.AppOpsManager
@@ -611,6 +612,39 @@ internal class RemoteRootServiceImpl(private val context: Context) : IRemoteRoot
 
     override fun forceStopPackageAsUser(packageName: String, userId: Int) = synchronized(lock) {
         activityManager.forceStopPackageAsUser(packageName, userId)
+    }
+
+    override fun pausePackage(packageName: String, userId: Int): IntArray = synchronized(lock) {
+        if (packageName == context.packageName) return@synchronized intArrayOf()
+        val processManager = systemContext.getSystemService(ActivityManager::class.java)
+        val pids = checkNotNull(processManager.runningAppProcesses)
+            .filter { process ->
+                process.uid / 100000 == userId && process.pkgList?.contains(packageName) == true
+            }
+            .map { process -> process.pid }
+            .toIntArray()
+        val paused = mutableListOf<Int>()
+        try {
+            pids.forEach { pid ->
+                Os.kill(pid, OsConstants.SIGSTOP)
+                paused.add(pid)
+            }
+        } catch (error: Throwable) {
+            paused.forEach { pid -> runCatching { Os.kill(pid, OsConstants.SIGCONT) } }
+            throw error
+        }
+        paused.toIntArray()
+    }
+
+    override fun resumeProcesses(pids: IntArray): Unit = synchronized(lock) {
+        var error: Throwable? = null
+        pids.forEach { pid ->
+            val failure = runCatching { Os.kill(pid, OsConstants.SIGCONT) }.exceptionOrNull()
+            if (error == null && failure != null && (failure !is ErrnoException || failure.errno != OsConstants.ESRCH)) {
+                error = failure
+            }
+        }
+        if (error != null) throw error
     }
 
     override fun uninstallPackageAsUser(packageName: String, userId: Int): Boolean = synchronized(lock) {

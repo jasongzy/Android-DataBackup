@@ -9,6 +9,7 @@ import com.xayah.core.datastore.readBackupItself
 import com.xayah.core.datastore.readKillAppOption
 import com.xayah.core.datastore.saveLastBackupTime
 import com.xayah.core.model.DataType
+import com.xayah.core.model.KillAppOption
 import com.xayah.core.model.OpType
 import com.xayah.core.model.OperationState
 import com.xayah.core.model.ProcessingInfoType
@@ -28,7 +29,9 @@ import com.xayah.core.util.DateUtil
 import com.xayah.core.util.NotificationUtil
 import com.xayah.core.util.PathUtil
 import com.xayah.core.util.command.PreparationUtil
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 internal abstract class AbstractBackupService : AbstractPackagesService() {
     override suspend fun onInitializingPreprocessingEntities(entities: MutableList<ProcessingInfoEntity>) {
@@ -147,7 +150,25 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
         log { "Kill app option: $killAppOption" }
 
         mPkgEntities.forEachIndexed { index, pkg ->
-            executeAtLeast {
+            val pausedPids = if (killAppOption == KillAppOption.OPTION_III) {
+                log { "Trying to pause ${pkg.packageEntity.packageName}." }
+                mRootService.pausePackage(pkg.packageEntity.packageName, pkg.packageEntity.userId) ?: run {
+                    log { "Failed to pause ${pkg.packageEntity.packageName}, falling back to force-stop." }
+                    killApp(killAppOption, pkg)
+                    intArrayOf()
+                }
+            } else {
+                killApp(killAppOption, pkg)
+                intArrayOf()
+            }
+            executeAtLeast(finalizer = {
+                if (pausedPids.isNotEmpty()) {
+                    withContext(NonCancellable) {
+                        log { "Resuming ${pkg.packageEntity.packageName}." }
+                        mRootService.resumeProcesses(pausedPids)
+                    }
+                }
+            }) {
                 NotificationUtil.notify(
                     mContext,
                     mNotificationBuilder,
@@ -157,8 +178,6 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                     index
                 )
                 log { "Current package: ${pkg.packageEntity}" }
-
-                killApp(killAppOption, pkg)
 
                 pkg.update(state = OperationState.PROCESSING)
                 val installedApp = pkg.packageEntity

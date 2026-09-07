@@ -48,7 +48,7 @@ internal abstract class AbstractPackagesService : AbstractProcessingService() {
                 BaseUtil.killPackage(context = mContext, userId = pkg.packageEntity.userId, packageName = pkg.packageEntity.packageName)
             }
 
-            KillAppOption.OPTION_II -> {
+            KillAppOption.OPTION_II, KillAppOption.OPTION_III -> {
                 log { "Trying to kill ${pkg.packageEntity.packageName}." }
                 mRootService.forceStopPackageAsUser(pkg.packageEntity.packageName, pkg.packageEntity.userId)
             }

@@ -90,9 +90,17 @@ internal abstract class AbstractProcessingService : Service() {
     /**
      * To wait for animation.
      */
-    protected suspend fun executeAtLeast(minTime: Int = 1000, block: suspend () -> Unit) {
+    protected suspend fun executeAtLeast(
+        minTime: Int = 1000,
+        finalizer: suspend () -> Unit = {},
+        block: suspend () -> Unit,
+    ) {
         val startTimestamp = DateUtil.getTimestamp()
-        block()
+        try {
+            block()
+        } finally {
+            finalizer()
+        }
         val endTimestamp = DateUtil.getTimestamp()
         val diff = endTimestamp - startTimestamp
         if (diff < minTime) {
