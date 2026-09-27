@@ -445,6 +445,8 @@
     <string name="clear_cache">Clear cache</string>
     <string name="clear_cache_desc">Delete temporary files created by this app</string>
     <string name="cache_cleared_amount">Cleared %1$s of cache</string>
+    <string name="cache_already_clear">No cache to clear</string>
+    <string name="cache_clear_failed">Could not clear cache</string>
     <string name="confirm_clear_data">Clear all data for this app? This cannot be undone.</string>
     <string name="path_copied">Copied path: %1$s</string>
     <string name="further_operations">Further operations</string>

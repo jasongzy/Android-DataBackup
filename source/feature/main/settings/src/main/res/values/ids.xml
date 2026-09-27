@@ -136,6 +136,8 @@
     <item name="clear_cache" type="string" />
     <item name="clear_cache_desc" type="string" />
     <item name="cache_cleared_amount" type="string" />
+    <item name="cache_already_clear" type="string" />
+    <item name="cache_clear_failed" type="string" />
     <item name="files" type="string" />
     <item name="about" type="string" />
     <item name="about_app" type="string" />

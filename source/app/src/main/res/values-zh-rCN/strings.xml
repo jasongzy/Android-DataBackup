@@ -434,6 +434,8 @@
     <string name="clear_cache">清除缓存</string>
     <string name="clear_cache_desc">删除本应用产生的临时文件</string>
     <string name="cache_cleared_amount">已清理 %1$s 缓存</string>
+    <string name="cache_already_clear">没有可清理的缓存</string>
+    <string name="cache_clear_failed">缓存清理失败</string>
     <string name="confirm_clear_data">确定清空此应用的全部数据吗？此操作无法撤销。</string>
     <string name="path_copied">已复制路径：%1$s</string>
     <string name="further_operations">进一步操作</string>
