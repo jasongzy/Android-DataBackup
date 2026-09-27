@@ -1,11 +1,20 @@
 set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR})
 
+# Select and validate the embedded headers for the target ABI
+set(TAR_EMBEDDED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/embedded/${ANDROID_ABI}")
+foreach (TAR_HEADER_DIR tar-config tar-gnu tar-lib)
+    if (NOT IS_DIRECTORY "${TAR_EMBEDDED_DIR}/${TAR_HEADER_DIR}")
+        message(FATAL_ERROR "Missing tar headers for ANDROID_ABI='${ANDROID_ABI}': ${TAR_EMBEDDED_DIR}/${TAR_HEADER_DIR}")
+    endif ()
+endforeach ()
+
 add_compile_options(
         -DHAVE_CONFIG_H
         -O3
         -fPIC
         -ffunction-sections
         -fdata-sections
+        -U_FORTIFY_SOURCE
         -D_FORTIFY_SOURCE=0
         -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=/src
 )
@@ -16,13 +25,26 @@ add_link_options(
         -Wl,--gc-sections
         -Wl,--build-id=none
         -Wl,--hash-style=both
-        -Wl,-allow-multiple-definition
 
         # lld bug: https://bugs.llvm.org/show_bug.cgi?id=36295
         # error: symbol __aeabi_*@@LIBC_N has undefined version LIBC_N
         -Wl,-Bsymbolic
         -Wl,--exclude-libs,ALL
         -Wl,-soname,ld-android.so
+)
+
+# Android API 24 needs the glob implementation
+set(ANDROID_GLOB_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../termux-packages/termux-packages/packages/libandroid-glob)
+add_library(android-glob STATIC ${ANDROID_GLOB_SOURCE_DIR}/glob.c)
+target_include_directories(android-glob PUBLIC ${ANDROID_GLOB_SOURCE_DIR})
+
+# Match the symbol patching and the embedded gnulib headers
+add_compile_definitions(
+        tzalloc=tzalloc_gnu
+        tzfree=tzfree_gnu
+        localtime_rz=localtime_rz_gnu
+        mktime_z=mktime_z_gnu
+        copy_file_range=copy_file_range_gnu
 )
 
 # libgnu.a
@@ -70,12 +92,9 @@ add_library(libgnu STATIC
         tar/gnu/c32isxdigit.c
         tar/gnu/c32tolower.c
         tar/gnu/c32width.c
-        tar/gnu/calloc.c
         tar/gnu/canonicalize-lgpl.c
         tar/gnu/careadlinkat.c
         tar/gnu/chdir-long.c
-        tar/gnu/chmod.c
-        tar/gnu/chown.c
         tar/gnu/cloexec.c
         tar/gnu/close-stream.c
         tar/gnu/closeout.c
@@ -84,18 +103,14 @@ add_library(libgnu STATIC
         tar/gnu/dirname.c
         tar/gnu/dup-safer-flag.c
         tar/gnu/dup-safer.c
-        tar/gnu/dup2.c
         tar/gnu/error.c
         tar/gnu/euidaccess.c
         tar/gnu/exclude.c
         tar/gnu/exitfail.c
-        tar/gnu/fchmodat.c
-        tar/gnu/fchownat.c
         tar/gnu/fcntl.c
         tar/gnu/fd-hook.c
         tar/gnu/fd-safer-flag.c
         tar/gnu/fd-safer.c
-        tar/gnu/fdopendir.c
         tar/gnu/fdutimensat.c
         tar/gnu/file-has-acl.c
         tar/gnu/filenamecat-lgpl.c
@@ -110,12 +125,10 @@ add_library(libgnu STATIC
         tar/gnu/get-permissions.c
         tar/gnu/getcwd-lgpl.c
         tar/gnu/getcwd.c
-        tar/gnu/getdelim.c
         tar/gnu/getdtablesize.c
-        tar/gnu/getgroups.c
-        tar/gnu/getline.c
         tar/gnu/getopt.c
         tar/gnu/getopt1.c
+        tar/gnu/getrandom.c
         tar/gnu/gettime.c
         tar/gnu/group-member.c
         tar/gnu/hard-locale.c
@@ -125,17 +138,14 @@ add_library(libgnu STATIC
         tar/gnu/imaxtostr.c
         tar/gnu/inttostr.c
         tar/gnu/lchmod.c
-        tar/gnu/lchown.c
         tar/gnu/localcharset.c
-        tar/gnu/localeconv.c
-        tar/gnu/malloc.c
         tar/gnu/malloc/dynarray_at_failure.c
         tar/gnu/malloc/dynarray_emplace_enlarge.c
         tar/gnu/malloc/dynarray_finalize.c
-        tar/gnu/malloc/dynarray_resize_clear.c
         tar/gnu/malloc/dynarray_resize.c
-        tar/gnu/malloc/scratch_buffer_grow_preserve.c
+        tar/gnu/malloc/dynarray_resize_clear.c
         tar/gnu/malloc/scratch_buffer_grow.c
+        tar/gnu/malloc/scratch_buffer_grow_preserve.c
         tar/gnu/malloc/scratch_buffer_set_array_size.c
         tar/gnu/malloca.c
         tar/gnu/mbchar.c
@@ -145,8 +155,6 @@ add_library(libgnu STATIC
         tar/gnu/mbsrtowcs-state.c
         tar/gnu/mbsrtowcs.c
         tar/gnu/mbuiter.c
-        tar/gnu/memchr.c
-        tar/gnu/mkdir.c
         tar/gnu/mktime.c
         tar/gnu/modechange.c
         tar/gnu/nl_langinfo.c
@@ -167,7 +175,6 @@ add_library(libgnu STATIC
         tar/gnu/progname.c
         tar/gnu/quotearg.c
         tar/gnu/rawmemchr.c
-        tar/gnu/realloc.c
         tar/gnu/reallocarray.c
         tar/gnu/regex.c
         tar/gnu/renameatu.c
@@ -181,20 +188,12 @@ add_library(libgnu STATIC
         tar/gnu/se-selinux.c
         tar/gnu/selinux-at.c
         tar/gnu/set-permissions.c
-        tar/gnu/setenv.c
-        tar/gnu/setlocale_null.c
         tar/gnu/setlocale-lock.c
-        tar/gnu/sleep.c
+        tar/gnu/setlocale_null.c
         tar/gnu/stat-time.c
         tar/gnu/stdopen.c
-        tar/gnu/strerror-override.c
-        tar/gnu/strerror.c
         tar/gnu/stripslash.c
         tar/gnu/strnlen1.c
-        tar/gnu/strtol.c
-        tar/gnu/strtoll.c
-        tar/gnu/strtoul.c
-        tar/gnu/strtoull.c
         tar/gnu/tempname.c
         tar/gnu/time_rz.c
         tar/gnu/timegm.c
@@ -218,15 +217,11 @@ add_library(libgnu STATIC
         tar/gnu/unistd.c
         tar/gnu/uniwidth/width.c
         tar/gnu/unlinkdir.c
-        tar/gnu/unsetenv.c
         tar/gnu/utimens.c
         tar/gnu/vasnprintf.c
         tar/gnu/version-etc-fsf.c
         tar/gnu/version-etc.c
-        tar/gnu/wcrtomb.c
         tar/gnu/wctype-h.c
-        tar/gnu/wcwidth.c
-        tar/gnu/xalloc-die.c
         tar/gnu/xasprintf.c
         tar/gnu/xgetcwd.c
         tar/gnu/xmalloc.c
@@ -236,14 +231,57 @@ add_library(libgnu STATIC
         tar/gnu/xstrtoumax.c
         tar/gnu/xvasprintf.c
 )
+
+# Match the replacement decisions in each ABI's embedded gnulib headers.
+# The three non-x86_64 ABIs share these decisions; x86_64 uses libc for them.
+# Compiling unrenamed wrappers can override libc or recurse into themselves.
+if (ANDROID_ABI STREQUAL "x86_64")
+    target_sources(libgnu PRIVATE tar/gnu/futimens.c)
+else ()
+    target_sources(libgnu PRIVATE
+            tar/gnu/calloc.c
+            tar/gnu/chmod.c
+            tar/gnu/chown.c
+            tar/gnu/dup2.c
+            tar/gnu/fchmodat.c
+            tar/gnu/fchownat.c
+            tar/gnu/fdopendir.c
+            tar/gnu/getdelim.c
+            tar/gnu/getgroups.c
+            tar/gnu/getline.c
+            tar/gnu/lchown.c
+            tar/gnu/localeconv.c
+            tar/gnu/malloc.c
+            tar/gnu/memchr.c
+            tar/gnu/mkdir.c
+            tar/gnu/realloc.c
+            tar/gnu/setenv.c
+            tar/gnu/sleep.c
+            tar/gnu/strerror-override.c
+            tar/gnu/strerror.c
+            tar/gnu/strtol.c
+            tar/gnu/strtoll.c
+            tar/gnu/strtoul.c
+            tar/gnu/strtoull.c
+            tar/gnu/unsetenv.c
+            tar/gnu/wcrtomb.c
+            tar/gnu/wcwidth.c
+    )
+endif ()
+
 target_compile_definitions(libgnu
         PRIVATE
         HAVE_CONFIG_H
 )
+
+# tar/src/exit.c supplies xalloc_die with tar's fatal-exit handling.
+# Do not link gnulib's fallback implementation as well.
+target_compile_options(libgnu PRIVATE -Werror=infinite-recursion)
+
 target_include_directories(libgnu
         PRIVATE
-        tar-config
-        tar-gnu-embedded
+        "${TAR_EMBEDDED_DIR}/tar-config"
+        "${TAR_EMBEDDED_DIR}/tar-gnu"
         tar/gnu
 )
 
@@ -262,12 +300,13 @@ target_compile_definitions(libtar
 )
 target_include_directories(libtar
         PRIVATE
-        tar-config
-        tar-gnu-embedded
-        tar-lib-embedded
+        "${TAR_EMBEDDED_DIR}/tar-config"
+        "${TAR_EMBEDDED_DIR}/tar-gnu"
+        "${TAR_EMBEDDED_DIR}/tar-lib"
         tar/gnu
         tar/lib
 )
+target_link_libraries(libtar PRIVATE android-glob)
 
 # tar.a
 add_library(tar STATIC
@@ -302,9 +341,9 @@ target_compile_definitions(tar
 )
 target_include_directories(tar
         PRIVATE
-        tar-config
-        tar-gnu-embedded
-        tar-lib-embedded
+        "${TAR_EMBEDDED_DIR}/tar-config"
+        "${TAR_EMBEDDED_DIR}/tar-gnu"
+        "${TAR_EMBEDDED_DIR}/tar-lib"
         tar/gnu
         tar/lib
         tar/src

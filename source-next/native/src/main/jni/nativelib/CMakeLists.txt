@@ -18,9 +18,14 @@ add_link_options(
 # libnativelib.so
 add_library(nativelib SHARED
         nativelib.cpp
+        owner.cpp
+        inode.cpp
+        selinux.cpp
 )
 
 target_link_libraries(nativelib
+        xdl
         android
         log
+        dl
 )

@@ -212,7 +212,7 @@
     <string name="args_used_by_backups">%1$s%% yedekler tarafından kullanıldı</string>
     <string name="grant_all">Hepsini yetkilendir</string>
     <string name="_continue">Devam et</string>
-    <string name="app_short_desc">Ücretsiz ve açık kaynaklı veri yedekleme uygulaması</string>
+    <string name="app_short_desc">Özgür ve açık kaynaklı veri yedekleme uygulaması</string>
     <string name="required">Gerekli</string>
     <string name="root_permission">Yetkili kullanıcı (Root) izni</string>
     <string name="root_permission_desc">Uygulama verilerini yedekleme ve geri yükleme</string>
@@ -539,4 +539,13 @@
     <string name="clear_filters">Filtreleri temizle</string>
     <string name="recent_backups">Son yedeklemeler</string>
     <string name="view_all">Hepsini göster</string>
+    <string name="snapshots">Anlık görüntüler</string>
+    <string name="snapshot_summary">%1$s · %2$s</string>
+    <string name="delete_snapshot">Anlık görüntüyü sil</string>
+    <string name="delete_snapshot_description">%1$s (%2$s) görüntüsünü sil</string>
+    <string name="confirm_delete_snapshot">Bu anlık görüntü artık kullanılabilir değil.</string>
+    <string name="delete_snapshot_failed">Anlık görüntü silinemedi. Repoya olan erişiminizi kontrol edip yeniden deneyin.</string>
+    <string name="restore_snapshot">Anlık görüntüyü yükle</string>
+    <string name="restore_snapshot_description">%1$s (%2$s) görüntüsünü yükle</string>
+    <string name="restore_snapshot_load_failed">Anlık görüntü yüklenemedi</string>
 </resources>

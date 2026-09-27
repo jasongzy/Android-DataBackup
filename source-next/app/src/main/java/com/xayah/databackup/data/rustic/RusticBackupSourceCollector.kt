@@ -33,6 +33,7 @@ class RusticBackupSourceCollector(
                 exists = mGateway::exists,
             )
         }
+        val usersMap = if (appPlans.isEmpty()) emptyMap() else mGateway.getUsersMap()
         val included = appPlans.flatMap { it.included }.toMutableList()
         val skipped = appPlans.flatMap { it.skipped }.toMutableList()
 
@@ -55,9 +56,17 @@ class RusticBackupSourceCollector(
                 RusticAppManifest(
                     packageName = plan.packageName,
                     userId = plan.userId,
+                    userName = usersMap[plan.userId] ?: plan.userId.toString(),
                     label = plan.info.label,
                     versionName = plan.info.versionName,
                     versionCode = plan.info.versionCode,
+                    flags = plan.info.flags,
+                    firstInstallTime = plan.info.firstInstallTime,
+                    lastUpdateTime = plan.info.lastUpdateTime,
+                    apkBytes = plan.storage.apkBytes,
+                    internalDataBytes = plan.storage.internalDataBytes,
+                    externalDataBytes = plan.storage.externalDataBytes,
+                    additionalDataBytes = plan.storage.additionalDataBytes,
                     apk = plan.option.apk,
                     internalData = plan.option.internalData,
                     externalData = plan.option.externalData,
@@ -88,9 +97,13 @@ class RusticBackupSourceCollector(
             mGateway.writeText(destination, stagedFile.content)
         }
 
-        // Add the staging directory so generated metadata and structured data are included in the snapshot.
-        val sourcePaths = (included.map { it.path } + stagingPath).distinct()
-        return RusticCollectedSources(sourcePaths, stagingPath, skipped.distinctBy { it.path })
+        // Ordinary sources keep their paths; generated metadata uses a fixed snapshot directory.
+        val sourcePaths = included.associate { it.path to it.path }
+        return RusticCollectedSources(
+            sourcePaths = sourcePaths + (stagingPath to PathHelper.getRusticSnapshotMetadataDir()),
+            includedCount = sourcePaths.size,
+            skippedSources = skipped.distinctBy { it.path },
+        )
     }
 
     /** Adds an existing non-blank path to [included], or records a missing path in [skipped]. */

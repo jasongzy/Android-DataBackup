@@ -1,9 +1,6 @@
 package com.xayah.databackup.feature.backup
 
 import android.text.format.Formatter
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,9 +58,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.xayah.databackup.R
+import com.xayah.databackup.data.rustic.RusticSnapshot
 import com.xayah.databackup.entity.BackupBackend
 import com.xayah.databackup.entity.BackupConfig
 import com.xayah.databackup.feature.BackupSetupRoute
+import com.xayah.databackup.feature.RestoreRoute
 import com.xayah.databackup.ui.component.DataBackupDialog
 import com.xayah.databackup.ui.component.DialogActionButton
 import com.xayah.databackup.ui.component.DialogDestructiveButton
@@ -94,6 +93,23 @@ fun BackupConfigScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     val backupConfig by viewModel.backupConfig.collectAsStateWithLifecycle(null)
     val snapshots by viewModel.snapshots.collectAsStateWithLifecycle()
+    val deletingSnapshot by viewModel.deletingSnapshot.collectAsStateWithLifecycle()
+    val snapshotDeleteFailed by viewModel.snapshotDeleteFailed.collectAsStateWithLifecycle()
+    var selectedSnapshot by remember(backupConfig?.uuid, backupConfig?.path, backupConfig?.backupBackend) {
+        mutableStateOf<RusticSnapshot?>(null)
+    }
+    selectedSnapshot?.let { snapshot ->
+        DeleteSnapshotDialog(
+            isDeleting = deletingSnapshot,
+            hasError = snapshotDeleteFailed,
+            onDismissRequest = { if (!deletingSnapshot) selectedSnapshot = null },
+            onConfirm = {
+                backupConfig?.let { config ->
+                    viewModel.deleteSnapshot(config, snapshot.id) { selectedSnapshot = null }
+                }
+            },
+        )
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(backupConfig?.uuid, backupConfig?.path, backupConfig?.backupBackend, lifecycleOwner) {
         backupConfig?.let { config ->
@@ -219,7 +235,14 @@ fun BackupConfigScreen(
                     }
 
                     if (config.backupBackend is BackupBackend.Rustic) {
-                        backupSnapshotsItems(snapshots)
+                        backupSnapshotsItems(
+                            state = snapshots,
+                            isDeleting = deletingSnapshot,
+                            onRestore = { navigator.navigateSafely(RestoreRoute(config.uuidString, it.id)) },
+                        ) {
+                            viewModel.clearSnapshotDeleteError()
+                            selectedSnapshot = it
+                        }
                     }
                 }
             }
@@ -255,7 +278,12 @@ private fun BackupConfigContent(
     }
 }
 
-private fun LazyListScope.backupSnapshotsItems(state: BackupSnapshotsState) {
+private fun LazyListScope.backupSnapshotsItems(
+    state: BackupSnapshotsState,
+    isDeleting: Boolean,
+    onRestore: (RusticSnapshot) -> Unit,
+    onDelete: (RusticSnapshot) -> Unit,
+) {
     val snapshots = state.snapshots.orEmpty()
     if (snapshots.isEmpty()) return
 
@@ -316,6 +344,36 @@ private fun LazyListScope.backupSnapshotsItems(state: BackupSnapshotsState) {
                     color = MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.Center,
                 )
+            },
+            slot = {
+                val restoreDescription = stringResource(R.string.restore_snapshot)
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+                    tooltip = { PlainTooltip { Text(restoreDescription) } },
+                    state = rememberTooltipState(),
+                ) {
+                    IconButton(onClick = { onRestore(snapshot) }, enabled = !isDeleting && !state.isLoading) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_archive_restore),
+                            contentDescription = stringResource(R.string.restore_snapshot_description, timestamp, snapshot.id.take(8)),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+                val description = stringResource(R.string.delete_snapshot)
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+                    tooltip = { PlainTooltip { Text(description) } },
+                    state = rememberTooltipState(),
+                ) {
+                    IconButton(onClick = { onDelete(snapshot) }, enabled = !isDeleting && !state.isLoading) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_trash),
+                            contentDescription = stringResource(R.string.delete_snapshot_description, timestamp, snapshot.id.take(8)),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
             },
             title = timestamp,
             subtitle = if (formattedSize != null) {
@@ -461,24 +519,15 @@ private fun DeleteDialog(
     var isDeleting by remember { mutableStateOf(false) }
     DataBackupDialog(
         title = stringResource(R.string.delete),
-        onDismissRequest = onDismissRequest,
-        icon = {
-            AnimatedVisibility(visible = isDeleting, enter = fadeIn(), exit = fadeOut()) {
-                LoadingIndicator(
-                    modifier = Modifier.size(28.dp),
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-            AnimatedVisibility(visible = isDeleting.not(), enter = fadeIn(), exit = fadeOut()) {
-                DialogIcon(imageVector = ImageVector.vectorResource(R.drawable.ic_trash))
-            }
-        },
+        onDismissRequest = { if (!isDeleting) onDismissRequest() },
+        icon = { DialogIcon(imageVector = ImageVector.vectorResource(R.drawable.ic_trash)) },
         iconContainerColor = MaterialTheme.colorScheme.errorContainer,
         iconContentColor = MaterialTheme.colorScheme.onErrorContainer,
         content = { Text(text = stringResource(R.string.confirm_delete)) },
         confirmButton = {
             DialogDestructiveButton(
                 text = stringResource(R.string.delete),
+                isLoading = isDeleting,
                 enabled = isDeleting.not(),
                 icon = ImageVector.vectorResource(R.drawable.ic_trash),
                 onClick = {
@@ -493,6 +542,42 @@ private fun DeleteDialog(
                 enabled = isDeleting.not(),
                 onClick = onDismissRequest,
             )
+        },
+    )
+}
+
+@Composable
+private fun DeleteSnapshotDialog(
+    isDeleting: Boolean,
+    hasError: Boolean,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    DataBackupDialog(
+        title = stringResource(R.string.delete_snapshot),
+        onDismissRequest = { if (!isDeleting) onDismissRequest() },
+        icon = { DialogIcon(imageVector = ImageVector.vectorResource(R.drawable.ic_trash)) },
+        iconContainerColor = MaterialTheme.colorScheme.errorContainer,
+        iconContentColor = MaterialTheme.colorScheme.onErrorContainer,
+        content = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.confirm_delete_snapshot))
+                if (hasError) {
+                    Text(stringResource(R.string.delete_snapshot_failed), color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            DialogDestructiveButton(
+                text = stringResource(R.string.delete),
+                isLoading = isDeleting,
+                enabled = !isDeleting,
+                icon = ImageVector.vectorResource(R.drawable.ic_trash),
+                onClick = onConfirm,
+            )
+        },
+        dismissButton = {
+            DialogDismissButton(text = stringResource(R.string.cancel), enabled = !isDeleting, onClick = onDismissRequest)
         },
     )
 }

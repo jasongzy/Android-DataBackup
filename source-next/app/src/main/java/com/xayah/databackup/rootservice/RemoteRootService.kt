@@ -2,11 +2,15 @@
 
 package com.xayah.databackup.rootservice
 
+import android.Manifest
+import android.app.ActivityManagerHidden
 import android.app.ActivityThread
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.ApplicationInfo
+import android.content.pm.ApplicationInfoHidden
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.PackageManagerHidden
@@ -33,6 +37,14 @@ import com.xayah.databackup.database.entity.Storage
 import com.xayah.databackup.parcelables.BytesParcelable
 import com.xayah.databackup.parcelables.FilePathParcelable
 import com.xayah.databackup.parcelables.StatFsParcelable
+import com.xayah.databackup.service.restore.InstallApkHelper
+import com.xayah.databackup.service.restore.RestoreApkHelper
+import com.xayah.databackup.service.restore.RestoreCallLogsHelper
+import com.xayah.databackup.service.restore.RestoreContactsHelper
+import com.xayah.databackup.service.restore.RestoreExternalDataHelper
+import com.xayah.databackup.service.restore.RestoreInternalDataHelper
+import com.xayah.databackup.service.restore.RestoreMessagesHelper
+import com.xayah.databackup.service.restore.RestoreNetworksHelper
 import com.xayah.databackup.util.LogHelper
 import com.xayah.databackup.util.NotificationHelper
 import com.xayah.databackup.util.NotificationHelper.NOTIFICATION_ID_APPS_UPDATE_WORKER
@@ -115,6 +127,8 @@ object RemoteRootService {
         private lateinit var mPackageManagerHidden: PackageManagerHidden
         private lateinit var mUserManager: UserManagerHidden
         private lateinit var mWifiManager: WifiManagerHidden
+        private lateinit var mActivityManager: ActivityManagerHidden
+        private val mLock = Any()
 
         fun onBind() {
             mSystemContext = ActivityThread.systemMain().systemContext
@@ -122,6 +136,7 @@ object RemoteRootService {
             mPackageManagerHidden = mPackageManager.castTo()
             mUserManager = UserManagerHidden.get(mSystemContext).castTo()
             mWifiManager = mSystemContext.getSystemService(Context.WIFI_SERVICE).castTo()
+            mActivityManager = mSystemContext.getSystemService(Context.ACTIVITY_SERVICE).castTo()
         }
 
         override fun testConnection() {}
@@ -319,7 +334,7 @@ object RemoteRootService {
         override fun createRusticSnapshot(
             repositoryPath: String,
             password: String,
-            sourcePaths: List<String>,
+            sourcePaths: Map<String, String>,
             tags: List<String>,
             callback: ICallback?
         ): String {
@@ -335,6 +350,12 @@ object RemoteRootService {
             parcel.writeString(Rustic.readSnapshotTextFiles(repositoryPath, password, snapshotId, paths))
         }
 
+        override fun deleteRusticSnapshot(repositoryPath: String, password: String, snapshotId: String): ParcelFileDescriptor {
+            return writeToParcel(context) { parcel ->
+                parcel.writeString(Rustic.deleteSnapshot(repositoryPath, password, snapshotId))
+            }
+        }
+
         override fun listRusticSnapshots(repositoryPath: String, password: String): ParcelFileDescriptor {
             return writeToParcel(context) { parcel ->
                 parcel.writeString(Rustic.listSnapshots(repositoryPath, password))
@@ -345,8 +366,144 @@ object RemoteRootService {
             Rustic.restoreSnapshot(repositoryPath, password, snapshotId, destinationPath)
         }
 
+        override fun restoreRusticAppApk(
+            repositoryPath: String,
+            password: String,
+            snapshotId: String,
+            packageName: String,
+            userId: Int,
+            apkPaths: List<String>,
+        ) = synchronized(mLock) {
+            require(packageName != context.packageName) { "Cannot restore DataBackup while it is running" }
+            require(mUserManager.users.any { it.id == userId }) { "Target user does not exist: $userId" }
+            val installer = InstallApkHelper(mSystemContext, userId)
+            RestoreApkHelper(context.cacheDir, installer).restore(
+                repositoryPath = repositoryPath,
+                password = password,
+                snapshotId = snapshotId,
+                packageName = packageName,
+                apkPaths = apkPaths,
+            )
+            check(mPackageManagerHidden.getPackageInfoAsUser(packageName, 0, userId).applicationInfo != null) {
+                "Package is not installed for user $userId: $packageName"
+            }
+        }
+
         override fun checkRusticRepository(repositoryPath: String, password: String) {
             Rustic.checkRepository(repositoryPath, password)
+        }
+
+        override fun restoreRusticNetworks(
+            repositoryPath: String,
+            password: String,
+            snapshotId: String,
+            networkIds: List<String>,
+        ): List<String> = synchronized(mLock) {
+            runCatching {
+                RestoreNetworksHelper(mWifiManager).restore(repositoryPath, password, snapshotId, networkIds)
+            }.getOrElse { e ->
+                LogHelper.e(TAG, "restoreRusticNetworks", "", e)
+                // JSON/parser exceptions may contain credentials and are not all supported by Binder.
+                throw IllegalStateException("Wi-Fi restore failed; some networks may already have been restored")
+            }
+        }
+
+        override fun restoreRusticMessages(
+            repositoryPath: String,
+            password: String,
+            snapshotId: String,
+            messageIds: List<String>,
+        ): List<String> = synchronized(mLock) {
+            runCatching {
+                val identity = clearCallingIdentity()
+                try {
+                    RestoreMessagesHelper(mSystemContext, context.cacheDir).restore(repositoryPath, password, snapshotId, messageIds)
+                } finally {
+                    restoreCallingIdentity(identity)
+                }
+            }.getOrElse { e ->
+                LogHelper.e(TAG, "restoreRusticMessages", "", e)
+                throw IllegalStateException("Messages restore failed; some messages may already be restored")
+            }
+        }
+
+        override fun restoreRusticAppExternalData(
+            repositoryPath: String,
+            password: String,
+            snapshotId: String,
+            packageName: String,
+            userId: Int,
+            sourceUserId: Int,
+            externalDataPaths: List<String>,
+        ) = synchronized(mLock) {
+            runCatching {
+                require(packageName != context.packageName) { "Cannot restore DataBackup while it is running" }
+                require(mUserManager.users.any { it.id == userId }) { "Target user does not exist: $userId" }
+                require(sourceUserId >= 0) { "Invalid source user" }
+                // Map backed-up external data paths to their storage kind (data, obb, media).
+                val sources = mapOf(
+                    "data" to PathHelper.getAppDataDir(sourceUserId, packageName),
+                    "obb" to PathHelper.getAppObbDir(sourceUserId, packageName),
+                    "media" to PathHelper.getAppMediaDir(sourceUserId, packageName),
+                ).filterValues { it in externalDataPaths }
+                require(externalDataPaths.isNotEmpty() && externalDataPaths.size == externalDataPaths.toSet().size && sources.values.toSet() == externalDataPaths.toSet()) {
+                    "External data paths do not match the source app and user"
+                }
+                val app = checkNotNull(mPackageManagerHidden.getPackageInfoAsUser(packageName, 0, userId).applicationInfo) {
+                    "Package is not installed for user $userId: $packageName"
+                }
+                check(app.flags and ApplicationInfo.FLAG_PERSISTENT == 0) { "Cannot safely stop persistent package: $packageName" }
+                check(mUserManager.isUserUnlocked(userId)) { "Target user external storage is locked: $userId" }
+                RestoreExternalDataHelper().restore(repositoryPath, password, snapshotId, app, sources) {
+                    mActivityManager.forceStopPackageAsUser(packageName, userId)
+                }
+            }.getOrElse { e ->
+                if (e !is Exception) throw e
+                throw IllegalStateException(e.message ?: "External data restore failed", e)
+            }
+        }
+
+        override fun restoreRusticAppInternalData(
+            repositoryPath: String,
+            password: String,
+            snapshotId: String,
+            packageName: String,
+            userId: Int,
+            sourceUserId: Int,
+            internalDataPaths: List<String>,
+        ) = synchronized(mLock) {
+            runCatching {
+                require(packageName != context.packageName) { "Cannot restore DataBackup while it is running" }
+                require(mUserManager.users.any { it.id == userId }) { "Target user does not exist: $userId" }
+                require(sourceUserId >= 0) { "Invalid source user" }
+                // Map backed-up internal data paths to their storage kind (true = CE, false = DE).
+                val sources = mapOf(
+                    true to PathHelper.getAppUserDir(sourceUserId, packageName),
+                    false to PathHelper.getAppUserDeDir(sourceUserId, packageName),
+                ).filterValues { it in internalDataPaths }
+                require(internalDataPaths.isNotEmpty() && sources.values.toSet() == internalDataPaths.toSet()) {
+                    "Internal data paths do not match the source app and user"
+                }
+                val app = checkNotNull(mPackageManagerHidden.getPackageInfoAsUser(packageName, 0, userId).applicationInfo) {
+                    "Package is not installed for user $userId: $packageName"
+                }
+                check(app.flags and ApplicationInfo.FLAG_PERSISTENT == 0) { "Cannot safely stop persistent package: $packageName" }
+                check(true !in sources || mUserManager.isUserUnlocked(userId)) { "Target user CE storage is locked: $userId" }
+                val applicationInfoHidden: ApplicationInfoHidden = app.castTo()
+                val seInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    checkNotNull(applicationInfoHidden.seInfo) + applicationInfoHidden.seInfoUser.orEmpty()
+                } else {
+                    checkNotNull(applicationInfoHidden.seinfo)
+                }
+                check(seInfo.isNotBlank()) { "Missing app SELinux information" }
+                RestoreInternalDataHelper().restore(repositoryPath, password, snapshotId, app, seInfo, sources) {
+                    mActivityManager.forceStopPackageAsUser(packageName, userId)
+                }
+            }.getOrElse { e ->
+                if (e !is Exception) throw e
+                // Wrap failures in a supported exception type so Binder can report them to the caller.
+                throw IllegalStateException(e.message ?: "Internal data restore failed", e)
+            }
         }
     }
 
@@ -574,7 +731,7 @@ object RemoteRootService {
     suspend fun createRusticSnapshot(
         repositoryPath: String,
         password: String,
-        sourcePaths: List<String>,
+        sourcePaths: Map<String, String>,
         tags: List<String> = emptyList(),
         callback: ICallback? = null,
     ): String {
@@ -587,6 +744,15 @@ object RemoteRootService {
             var result: String? = null
             readFromParcel(pfd) { result = it.readString() }
             checkNotNull(result) { "Snapshot metadata is unavailable" }
+        }
+    }
+
+    suspend fun deleteRusticSnapshot(repositoryPath: String, password: String, snapshotId: String): String {
+        val service = checkNotNull(getService()) { "Root service is unavailable" }
+        return service.deleteRusticSnapshot(repositoryPath, password, snapshotId).use { pfd ->
+            var snapshots: String? = null
+            readFromParcel(pfd) { parcel -> snapshots = parcel.readString() }
+            checkNotNull(snapshots) { "Root service returned no snapshot metadata" }
         }
     }
 
@@ -603,7 +769,183 @@ object RemoteRootService {
         getService()?.restoreRusticSnapshot(repositoryPath, password, snapshotId, destinationPath)
     }
 
+    suspend fun restoreRusticAppApk(
+        repositoryPath: String,
+        password: String,
+        snapshotId: String,
+        packageName: String,
+        userId: Int,
+        apkPaths: List<String>,
+    ) = withContext(Dispatchers.IO) {
+        val service = checkNotNull(getService()) { "Root service is unavailable" }
+        service.restoreRusticAppApk(repositoryPath, password, snapshotId, packageName, userId, apkPaths)
+    }
+
     suspend fun checkRusticRepository(repositoryPath: String, password: String) {
         getService()?.checkRusticRepository(repositoryPath, password)
+    }
+
+    /**
+     * Restores selected Wi-Fi records from a Rustic snapshot.
+     *
+     * Skips configuration variants with key-management types unknown to the current framework.
+     * Records with no compatible variant are skipped without changing their security types.
+     * Adds or updates matching networks and enables them without disabling other networks.
+     * Restores auto-join preferences where supported, but does not explicitly request a connection.
+     * Changes already applied are not rolled back if restoration fails.
+     *
+     * @param repositoryPath Path to the Rustic repository on the device.
+     * @param password Password used to access the repository.
+     * @param snapshotId Full 64-character hexadecimal snapshot ID.
+     * @param networkIds Non-empty list of restore inventory keys in the form `network:<index>`,
+     * where `index` is the zero-based record position in the snapshot, not a source-device network ID.
+     * @return Distinct inventory keys of skipped records in selection order. Empty if no records were
+     * skipped, or all selected keys if no records have a compatible configuration.
+     * @throws IllegalStateException If the root service is unavailable or restoration fails.
+     */
+    suspend fun restoreRusticNetworks(
+        repositoryPath: String,
+        password: String,
+        snapshotId: String,
+        networkIds: List<String>,
+    ): List<String> = withContext(Dispatchers.IO) {
+        val service = checkNotNull(getService()) { "Root service is unavailable" }
+        service.restoreRusticNetworks(repositoryPath, password, snapshotId, networkIds)
+    }
+
+    /**
+     * Restores selected contact records from a Rustic snapshot.
+     *
+     * Imports records as local contacts for the app's current user without overwriting existing contacts.
+     * Requires WRITE_CONTACTS permission. The root service reads the snapshot, and the app writes to Contacts Provider.
+     * Allocates new raw contact and data IDs; source IDs, account/sync metadata and group memberships are not imported.
+     * Skips deleted records and records with no remaining data rows after filtering group memberships and photos.
+     * Repeated selection keys are imported once per call, but repeated calls can create duplicate contacts.
+     * Each contact is inserted in one transaction. Earlier imports are not rolled back if restoration fails.
+     *
+     * @param repositoryPath Path to the Rustic repository on the device.
+     * @param password Password used to access the repository.
+     * @param snapshotId Full 64-character hexadecimal snapshot ID.
+     * @param contactIds Non-empty list of restore inventory keys in the form `contact:<index>`,
+     * where `index` is the zero-based record position in the snapshot, not a source-device contact ID.
+     * @return Distinct inventory keys of skipped records in selection order. Empty if no records were
+     * skipped, or all selected keys if no records contain restorable data.
+     * @throws IllegalArgumentException If the snapshot ID, selection or selected contact backup data is invalid.
+     * @throws IllegalStateException If WRITE_CONTACTS permission is missing, the root service is unavailable,
+     * or contact insertion fails.
+     */
+    suspend fun restoreRusticContacts(
+        repositoryPath: String,
+        password: String,
+        snapshotId: String,
+        contactIds: List<String>,
+    ): List<String> = withContext(Dispatchers.IO) {
+        require(snapshotId.matches(Regex("[0-9a-fA-F]{64}"))) { "A full snapshot ID is required" }
+        require(contactIds.isNotEmpty()) { "No contacts selected" }
+        check(App.application.checkSelfPermission(Manifest.permission.WRITE_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+            "Contacts restore requires WRITE_CONTACTS permission"
+        }
+        val path = PathHelper.getRusticSnapshotMetadataFilePath(PathHelper.getBackupContactsConfigFileRelativePath())
+        val serialized = readRusticSnapshotTextFiles(repositoryPath, password, snapshotId, listOf(path))
+        RestoreContactsHelper(App.application.contentResolver).restore(serialized, path, contactIds)
+    }
+
+    /**
+     * Restores selected call logs from a Rustic snapshot for the app's current user.
+     *
+     * Requires READ_CALL_LOG and WRITE_CALL_LOG. The root service reads the snapshot, and the app writes to CallLogProvider.
+     * Imports portable fields supported by the target Android version without source IDs or SIM/account associations.
+     * Skips duplicates, voicemail and unsupported call types. Restored calls are marked read.
+     * Earlier imports are not rolled back if restoration fails.
+     *
+     * @param repositoryPath Path to the Rustic repository on the device.
+     * @param password Password used to access the repository.
+     * @param snapshotId Full 64-character hexadecimal snapshot ID.
+     * @param callLogIds Non-empty list of inventory keys in the form `call:<index>`, where `index` is the
+     * zero-based record position in the snapshot, not a source-device call ID.
+     * @return Distinct inventory keys of skipped records in selection order. Empty if none were skipped.
+     * @throws IllegalArgumentException If the snapshot ID, selection or selected call log data is invalid.
+     * @throws IllegalStateException If permissions are missing, the root service is unavailable or restoration fails.
+     */
+    suspend fun restoreRusticCallLogs(
+        repositoryPath: String,
+        password: String,
+        snapshotId: String,
+        callLogIds: List<String>,
+    ): List<String> = withContext(Dispatchers.IO) {
+        require(snapshotId.matches(Regex("[0-9a-fA-F]{64}"))) { "A full snapshot ID is required" }
+        require(callLogIds.isNotEmpty()) { "No call logs selected" }
+        check(listOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.WRITE_CALL_LOG).all {
+            App.application.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+        }) { "Call logs restore requires READ_CALL_LOG and WRITE_CALL_LOG permissions" }
+        val path = PathHelper.getRusticSnapshotMetadataFilePath(PathHelper.getBackupCallLogsConfigFileRelativePath())
+        val serialized = readRusticSnapshotTextFiles(repositoryPath, password, snapshotId, listOf(path))
+        RestoreCallLogsHelper(App.application.contentResolver).restore(serialized, path, callLogIds)
+    }
+
+    /**
+     * Restores selected SMS/MMS records from a Rustic snapshot.
+     *
+     * The root service reads the snapshot and imports received/sent messages through Telephony Provider.
+     * Skips duplicates, unsupported message states and MMS records with missing attachments.
+     * Earlier imports are not rolled back if restoration fails.
+     *
+     * @param repositoryPath Path to the Rustic repository on the device.
+     * @param password Password used to access the repository.
+     * @param snapshotId Full 64-character hexadecimal snapshot ID.
+     * @param messageIds Non-empty list of restore inventory keys in the form `sms:<index>` or `mms:<index>`,
+     * where `index` is the zero-based record position in the snapshot, not a source-device message ID.
+     * @return Distinct inventory keys of skipped records in selection order. Empty if none were skipped.
+     * @throws IllegalArgumentException If the snapshot ID is invalid or the selection is empty.
+     * @throws IllegalStateException If the root service is unavailable or message restoration fails.
+     */
+    suspend fun restoreRusticMessages(
+        repositoryPath: String,
+        password: String,
+        snapshotId: String,
+        messageIds: List<String>,
+    ): List<String> = withContext(Dispatchers.IO) {
+        require(snapshotId.matches(Regex("[0-9a-fA-F]{64}"))) { "A full snapshot ID is required" }
+        require(messageIds.isNotEmpty()) { "No messages selected" }
+        val service = checkNotNull(getService()) { "Root service is unavailable" }
+        service.restoreRusticMessages(repositoryPath, password, snapshotId, messageIds)
+    }
+
+    /**
+     * Replaces selected CE/DE internal data directly in an installed app's system-created directories.
+     * sourceUserId and internalDataPaths come from the manifest's app userId and included internal data paths.
+     * userId identifies the destination user; source paths follow the same PathHelper rules as backup.
+     * Requires a full snapshot ID; CE storage must be unlocked when selected.
+     * Leaves the app stopped. Failure may leave partial data; there is no staging or rollback.
+     */
+    suspend fun restoreRusticAppInternalData(
+        repositoryPath: String,
+        password: String,
+        snapshotId: String,
+        packageName: String,
+        userId: Int,
+        sourceUserId: Int,
+        internalDataPaths: List<String>,
+    ) = withContext(Dispatchers.IO) {
+        val service = checkNotNull(getService()) { "Root service is unavailable" }
+        service.restoreRusticAppInternalData(repositoryPath, password, snapshotId, packageName, userId, sourceUserId, internalDataPaths)
+    }
+
+    /**
+     * Replaces selected primary-storage Android/data, Android/obb and Android/media contents.
+     * Requires an installed, non-persistent app and unlocked target user. Leaves the app stopped.
+     * Uses source-user paths from the snapshot; failures can leave partial data (no rollback).
+     */
+    suspend fun restoreRusticAppExternalData(
+        repositoryPath: String,
+        password: String,
+        snapshotId: String,
+        packageName: String,
+        userId: Int,
+        sourceUserId: Int,
+        externalDataPaths: List<String>,
+    ) = withContext(Dispatchers.IO) {
+        val service = checkNotNull(getService()) { "Root service is unavailable" }
+        service.restoreRusticAppExternalData(repositoryPath, password, snapshotId, packageName, userId, sourceUserId, externalDataPaths)
     }
 }

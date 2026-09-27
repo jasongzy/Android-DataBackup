@@ -4,9 +4,15 @@ import android.annotation.SuppressLint
 import com.xayah.databackup.App
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.io.File
 
 @SuppressLint("SdCardPath")
 object PathHelper {
+    const val CACHE_SUBDIR_FIFO = "fifo"
+    const val CACHE_SUBDIR_RESTORE_APK = "restore-apk"
+    const val CACHE_SUBDIR_RESTORE_MESSAGES = "restore-messages"
+    private const val CACHE_SUBDIR_RUSTIC = "rustic"
+
     const val TMP_PARCEL_PREFIX = "databackup-parcel-"
     const val TMP_FIFO_PREFIX = "databackup-fifo-"
     const val TMP_SUFFIX = ".tmp"
@@ -25,7 +31,6 @@ object PathHelper {
     private const val SUBDIR_MESSAGES = "messages"
     private const val SUBDIR_APP_PARTS = "app_parts"
     private const val SUBDIR_REPO = "repo"
-    private const val SUBDIR_RUSTIC = "rustic"
 
     private const val CONFIG_FILE_SUFFIX = ".config"
 
@@ -41,6 +46,7 @@ object PathHelper {
     private const val CALL_LOGS_FILE_NAME = "call_logs.json"
     private const val MESSAGES_SMS_FILE_NAME = "messages_sms.json"
     private const val MESSAGES_MMS_FILE_NAME = "messages_mms.json"
+    private const val RUSTIC_SNAPSHOT_METADATA_DIR = ".databackup"
     private const val RUSTIC_MANIFEST_FILE_NAME = "manifest.json"
     private const val RUSTIC_SNAPSHOTS_CACHE_FILE_NAME = ".snapshots"
 
@@ -75,8 +81,16 @@ object PathHelper {
     fun getBackupMessagesDir(parent: String): String = "$parent/$SUBDIR_MESSAGES"
     fun getBackupAppPartsDir(parent: String): String = "$parent/$SUBDIR_APP_PARTS"
     fun getBackupRepoDir(parent: String): String = "$parent/$SUBDIR_REPO"
+
+    /**
+     * Returns a cache subdirectory, creating it if needed. Defaults to the application's cache directory.
+     */
+    fun getCacheDir(child: String, cacheDir: File = App.application.cacheDir): File = File(cacheDir, child).apply {
+        check(mkdirs() || isDirectory) { "Failed to create cache directory: $this" }
+    }
+
     fun getRusticStagingDir(configUuid: String, createdAt: Long): String =
-        "${App.application.cacheDir.path}/$SUBDIR_RUSTIC/$configUuid/$createdAt"
+        "${getCacheDir(CACHE_SUBDIR_RUSTIC).path}/$configUuid/$createdAt"
 
     fun getBackupAppsApkFilePath(parent: String, packageName: String): String =
         "${getBackupAppsApkDir(parent, packageName)}/$APK_FILE_NAME"
@@ -102,6 +116,9 @@ object PathHelper {
     fun getBackupMessagesSmsConfigFileRelativePath(): String = "$SUBDIR_MESSAGES/$MESSAGES_SMS_FILE_NAME"
     fun getBackupMessagesMmsConfigFileRelativePath(): String = "$SUBDIR_MESSAGES/$MESSAGES_MMS_FILE_NAME"
     fun getRusticManifestFileRelativePath(): String = RUSTIC_MANIFEST_FILE_NAME
+    fun getRusticSnapshotMetadataDir(): String = RUSTIC_SNAPSHOT_METADATA_DIR
+    fun getRusticSnapshotMetadataFilePath(relativePath: String): String = "$RUSTIC_SNAPSHOT_METADATA_DIR/$relativePath"
+
     fun getRusticSnapshotsCacheFile(parent: String): String = "$parent/$RUSTIC_SNAPSHOTS_CACHE_FILE_NAME"
 
     fun getBackupNetworksConfigFilePath(parent: String): String =

@@ -4,13 +4,16 @@ import android.content.Context
 import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(AndroidJUnit4::class)
 class RusticInstrumentedTest {
@@ -40,6 +43,7 @@ class RusticInstrumentedTest {
         Rustic.initRepository(workspace.repositoryPath, PASSWORD)
 
         val snapshotId = createSnapshot()
+        assertTrue(snapshotId.matches(Regex("[0-9a-f]{64}")))
 
         logStep("Restoring snapshot $snapshotId to ${workspace.restorePath}")
         Rustic.restoreSnapshot(workspace.repositoryPath, PASSWORD, snapshotId, workspace.restorePath)
@@ -50,20 +54,68 @@ class RusticInstrumentedTest {
         val restoredFile = workspace.requireRestoredFile(SOURCE_FILE)
         logStep("Verifying restored file content: ${restoredFile.absolutePath}")
         assertEquals(SOURCE_CONTENT, restoredFile.readText())
+        assertEquals("metadata", File(workspace.restore, "$METADATA_DIRECTORY/manifest.json").readText())
+        assertEquals("mapped file", File(workspace.restore, "custom/renamed.txt").readText())
+        assertFalse(File(workspace.restore, workspace.sourcePath.removePrefix("/") + "/private.txt").exists())
+        assertFalse(File(workspace.restore, workspace.sourcePath.removePrefix("/") + "/cache/rustic/config/123").exists())
+    }
+
+    @Test
+    fun restoresSelectedFileAndDirectoryThroughJni() {
+        workspace.writeSourceFile(SOURCE_FILE, SOURCE_CONTENT)
+        Rustic.initRepository(workspace.repositoryPath, PASSWORD)
+        val snapshotId = createSnapshot()
+        val apk = File(workspace.restore, "staging/base.apk")
+        Rustic.restoreSnapshot(
+            workspace.repositoryPath, PASSWORD, "$snapshotId:custom/renamed.txt", apk.absolutePath,
+            Rustic.RestoreOptions(numericId = true, verifyExisting = true),
+        )
+        assertEquals("mapped file", apk.readText())
+        val metadata = File(workspace.restore, "metadata")
+        metadata.mkdirs()
+        File(metadata, "stale").writeText("remove me")
+        Rustic.restoreSnapshot(
+            workspace.repositoryPath, PASSWORD, "$snapshotId:$METADATA_DIRECTORY", metadata.absolutePath,
+            Rustic.RestoreOptions(delete = true, noOwnership = true, verifyExisting = true),
+        )
+        assertEquals("metadata", File(metadata, "manifest.json").readText())
+        assertEquals(setOf("staging", "metadata"), workspace.restore.list()!!.toSet())
+        assertEquals(setOf("manifest.json"), metadata.list()!!.toSet())
     }
 
     private fun createSnapshot(): String {
         logStep("Creating snapshot from source: ${workspace.sourcePath}")
+        val staging = File(workspace.source, "cache/rustic/config/123").apply { mkdirs() }
+        File(staging, "manifest.json").writeText("metadata")
+        val movedFile = File(workspace.source, "private.txt").apply { writeText("mapped file") }
+        val progress = RecordingProgress()
         val snapshotId = Rustic.createSnapshot(
             repositoryPath = workspace.repositoryPath,
             password = PASSWORD,
-            sourcePaths = listOf(workspace.sourcePath),
+            sourcePaths = mapOf(
+                workspace.sourcePath to workspace.sourcePath,
+                staging.absolutePath to METADATA_DIRECTORY,
+                movedFile.absolutePath to "custom/renamed.txt",
+            ),
             tags = listOf(SNAPSHOT_TAG),
+            callback = progress,
         )
 
         assertTrue("Snapshot ID should not be blank", snapshotId.isNotBlank())
+        assertTrue("JNI callback should receive backup progress", progress.count.get() > 0)
+        val path = "$METADATA_DIRECTORY/manifest.json"
+        val metadata = JSONObject(Rustic.readSnapshotTextFiles(workspace.repositoryPath, PASSWORD, snapshotId, listOf(path)))
+        assertEquals("metadata", metadata.getString(path))
         logStep("Created snapshot: $snapshotId")
         return snapshotId
+    }
+
+    private class RecordingProgress {
+        val count = AtomicInteger()
+
+        fun onProgress(bytesWritten: Long, speed: Long, progress: Float) {
+            count.incrementAndGet()
+        }
     }
 
     private fun logStep(message: String) {
@@ -124,6 +176,7 @@ class RusticInstrumentedTest {
             Rustic.initLogger()
         }
 
+        const val METADATA_DIRECTORY = ".databackup"
         const val TAG = "RusticInstrumentedTest"
         const val PASSWORD = "instrumented-password"
         const val SNAPSHOT_TAG = "instrumented"
