@@ -161,10 +161,7 @@ fun ProcessingCard(
                     enabled = enabled,
                     color = if (expanded) ThemedColorSchemeKeyTokens.SurfaceVariant.value.withState(enabled) else ThemedColorSchemeKeyTokens.SurfaceContainerLowest.value,
                     shape = ShapeDefaults.Medium,
-                    onClick = {
-                        if (state == OperationState.DONE)
-                            onActionBarClick()
-                    }
+                    onClick = onActionBarClick,
                 ) {
                     Row(modifier = Modifier.padding(SizeTokens.Level16), horizontalArrangement = Arrangement.spacedBy(SizeTokens.Level16), verticalAlignment = Alignment.CenterVertically) {
                         if (packageName != null)
@@ -186,28 +183,17 @@ fun ProcessingCard(
                             if (state != OperationState.IDLE) {
                                 LabelSmallText(text = "${successCount + failedCount}/${totalCount}", color = ThemedColorSchemeKeyTokens.OnSurfaceVariant.value.withState(enabled))
                             }
-                            AnimatedContent(targetState = state, label = AnimationTokens.AnimatedContentLabel) {
-                                when (it) {
-                                    OperationState.DONE -> {
-                                        Icon(
-                                            imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
-                                            contentDescription = null,
-                                            tint = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled)
-                                        )
-                                    }
-
-                                    OperationState.PROCESSING -> {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(SizeTokens.Level24),
-                                            strokeCap = StrokeCap.Round,
-                                        )
-                                    }
-
-                                    else -> {
-                                        Spacer(modifier = Modifier.width(SizeTokens.Level24))
-                                    }
-                                }
+                            if (state == OperationState.PROCESSING) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(SizeTokens.Level24),
+                                    strokeCap = StrokeCap.Round,
+                                )
                             }
+                            Icon(
+                                imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                contentDescription = stringResource(if (expanded) R.string.collapse_details else R.string.expand_details),
+                                tint = ThemedColorSchemeKeyTokens.OnSurface.value.withState(enabled)
+                            )
                         }
                     }
                 }

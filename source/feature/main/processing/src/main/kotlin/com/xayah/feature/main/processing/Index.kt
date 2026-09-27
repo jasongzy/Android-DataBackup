@@ -313,11 +313,10 @@ fun PageProcessing(
             Surface(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(SizeTokens.Level12), color = ThemedColorSchemeKeyTokens.SurfaceContainerLowest.value, shadowElevation = SizeTokens.Level1) {
                 val lazyListState = rememberLazyListState()
 
-                LaunchedEffect(task) {
-                    if (task != null) {
-                        runCatching {
-                            lazyListState.animateScrollToItem((task!!.processingIndex - 1))
-                        }
+                LaunchedEffect(task?.processingIndex, dataItems.size) {
+                    val currentIndex = (task?.processingIndex ?: 0) - 1
+                    if (currentIndex in dataItems.indices) {
+                        lazyListState.animateScrollToItem(currentIndex + 1)
                     }
                 }
 
@@ -330,7 +329,10 @@ fun PageProcessing(
                         Spacer(modifier = Modifier.size(SizeTokens.Level12))
                     }
                     items(count = dataItems.size) {
-                        var expanded by rememberSaveable(task, it) { mutableStateOf((task?.processingIndex?.minus(1) ?: -1) == it) }
+                        var expanded by rememberSaveable(task?.id, it) { mutableStateOf(false) }
+                        LaunchedEffect(task?.processingIndex, it) {
+                            if (task?.processingIndex == it + 1) expanded = true
+                        }
                         val item = dataItems.getOrNull(it)
                         if (item != null) {
                             ProcessingCard(
@@ -343,11 +345,7 @@ fun PageProcessing(
                                 expanded = expanded,
                                 items = item.items,
                                 processingIndex = item.processingIndex,
-                                onActionBarClick = {
-                                    if (uiState.state == OperationState.DONE) {
-                                        expanded = expanded.not()
-                                    }
-                                }
+                                onActionBarClick = { expanded = !expanded }
                             )
                         }
                     }

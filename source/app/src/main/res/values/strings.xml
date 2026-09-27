@@ -192,6 +192,8 @@
     <string name="keystore">Keystore</string>
     <string name="keystore_desc">This app uses Android Keystore provider, restoring it may cause unexpected errors</string>
     <string name="details">Details</string>
+    <string name="expand_details">Expand details</string>
+    <string name="collapse_details">Collapse details</string>
     <string name="back_up_to_local">Back up to local</string>
     <string name="preprocessing">Preprocessing</string>
     <string name="restore_from_local">Restore from local</string>

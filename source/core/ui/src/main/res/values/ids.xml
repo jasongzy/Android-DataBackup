@@ -28,6 +28,8 @@
     <item name="sort" type="string" />
     <item name="clear" type="string" />
     <item name="dismiss" type="string" />
+    <item name="expand_details" type="string" />
+    <item name="collapse_details" type="string" />
 
     <item name="jetbrains_mono_regular" type="font" />
     <item name="ic_rounded_check_circle" type="drawable" />
