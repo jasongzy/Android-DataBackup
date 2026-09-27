@@ -28,6 +28,7 @@
     <item name="verification_progress" type="string" />
     <item name="backups_ready_for_verification" type="string" />
     <item name="verification_finished" type="string" />
+    <item name="verification_valid_count" type="string" />
     <item name="verification_manifest_missing" type="string" />
     <item name="verification_manifest_invalid" type="string" />
     <item name="verification_metadata_mismatch" type="string" />
@@ -43,6 +44,7 @@
     <item name="cleanup_progress" type="string" />
     <item name="cleanup_failed" type="string" />
     <item name="cleanup_result" type="string" />
+    <item name="backups_deleted_count" type="string" />
     <item name="no_backups_to_verify" type="string" />
     <item name="clean_old_backups" type="string" />
     <item name="clean_old_backups_desc" type="string" />

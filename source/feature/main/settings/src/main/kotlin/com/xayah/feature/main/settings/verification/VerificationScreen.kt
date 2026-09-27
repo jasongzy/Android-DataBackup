@@ -220,11 +220,11 @@ private fun VerificationSummary(uiState: VerificationUiState) {
             uiState.isComplete -> {
                 LinearProgressIndicator(progress = { 1f }, modifier = Modifier.fillMaxWidth())
                 Text(
-                    text = stringResource(
-                        R.string.verification_summary,
-                        uiState.validCount,
-                        uiState.failedBackups.size,
-                    ),
+                    text = if (uiState.failedBackups.isEmpty()) {
+                        stringResource(R.string.verification_valid_count, uiState.validCount)
+                    } else {
+                        stringResource(R.string.verification_summary, uiState.validCount, uiState.failedBackups.size)
+                    },
                     style = MaterialTheme.typography.titleMedium,
                 )
                 if (uiState.cleanupFailedCount > 0) {

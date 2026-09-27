@@ -154,7 +154,8 @@ class MediaRepository @Inject constructor(
             }
         }
         mediaDao.upsert(customMediaList)
-        return "${context.getString(R.string.succeed)}: ${customMediaList.size}, ${context.getString(R.string.failed)}: $failedCount"
+        return "${context.getString(R.string.succeed)}: ${customMediaList.size}" +
+            if (failedCount > 0) ", ${context.getString(R.string.failed)}: $failedCount" else ""
     }
 
     suspend fun delete(m: MediaEntity) {

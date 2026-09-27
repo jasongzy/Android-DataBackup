@@ -63,11 +63,15 @@ class VerificationViewModel @Inject constructor(
                 withContext(Dispatchers.Main.immediate) {
                     Toast.makeText(
                         context,
-                        context.getString(
-                            R.string.verification_finished,
-                            report.results.count { it.status == BackupVerificationStatus.VALID },
-                            report.results.count { it.status != BackupVerificationStatus.VALID },
-                        ),
+                        if (report.results.all { it.status == BackupVerificationStatus.VALID }) {
+                            context.getString(R.string.verification_valid_count, report.results.size)
+                        } else {
+                            context.getString(
+                                R.string.verification_finished,
+                                report.results.count { it.status == BackupVerificationStatus.VALID },
+                                report.results.count { it.status != BackupVerificationStatus.VALID },
+                            )
+                        },
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
@@ -98,11 +102,11 @@ class VerificationViewModel @Inject constructor(
                 withContext(Dispatchers.Main.immediate) {
                     Toast.makeText(
                         context,
-                        context.getString(
-                            R.string.cleanup_result,
-                            report.deletedRevisionIds.size,
-                            report.failedCount,
-                        ),
+                        if (report.failedCount == 0) {
+                            context.getString(R.string.backups_deleted_count, report.deletedRevisionIds.size)
+                        } else {
+                            context.getString(R.string.cleanup_result, report.deletedRevisionIds.size, report.failedCount)
+                        },
                         Toast.LENGTH_SHORT,
                     ).show()
                 }

@@ -141,7 +141,7 @@ internal abstract class AbstractRestoreService : AbstractMediumService() {
             mContext,
             mNotificationBuilder,
             mContext.getString(R.string.restore_completed),
-            "${time}, ${mTaskEntity.successCount} ${mContext.getString(R.string.succeed)}, ${mTaskEntity.failureCount} ${mContext.getString(R.string.failed)}",
+            completionSummary(time),
             ongoing = false
         )
     }

@@ -107,11 +107,11 @@ class RetentionViewModel @Inject constructor(
                 withContext(Dispatchers.Main.immediate) {
                     Toast.makeText(
                         context,
-                        context.getString(
-                            R.string.old_backup_cleanup_result,
-                            deletedIds.size,
-                            candidates.size - deletedIds.size,
-                        ),
+                        if (candidates.size == deletedIds.size) {
+                            context.getString(R.string.backups_deleted_count, deletedIds.size)
+                        } else {
+                            context.getString(R.string.old_backup_cleanup_result, deletedIds.size, candidates.size - deletedIds.size)
+                        },
                         Toast.LENGTH_SHORT,
                     ).show()
                 }

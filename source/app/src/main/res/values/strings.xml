@@ -296,6 +296,7 @@
     <string name="verification_progress">Checking %1$d of %2$d</string>
     <string name="backups_ready_for_verification">%1$d backups available for verification</string>
     <string name="verification_finished">Verification complete: %1$d valid, %2$d possibly damaged</string>
+    <string name="verification_valid_count">Verified: %1$d</string>
     <string name="verification_manifest_missing">Manifest is missing</string>
     <string name="verification_manifest_invalid">Manifest cannot be read</string>
     <string name="verification_metadata_mismatch">Manifest metadata does not match this backup</string>
@@ -311,6 +312,7 @@
     <string name="cleanup_progress">Deleting %1$d of %2$d</string>
     <string name="cleanup_failed">%1$d backups could not be deleted</string>
     <string name="cleanup_result">Deleted %1$d backups; %2$d failed</string>
+    <string name="backups_deleted_count">Deleted %1$d backups</string>
     <string name="no_backups_to_verify">No local backups to verify</string>
     <string name="clean_old_backups">Clean up old backups</string>
     <string name="clean_old_backups_desc">Keep a chosen number of recent backups per app</string>

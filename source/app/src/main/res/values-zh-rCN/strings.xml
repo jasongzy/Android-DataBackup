@@ -288,6 +288,7 @@
     <string name="verification_progress">正在校验第 %1$d/%2$d 个备份</string>
     <string name="backups_ready_for_verification">共有 %1$d 个备份可校验</string>
     <string name="verification_finished">校验完成：%1$d 个正常，%2$d 个可能损坏</string>
+    <string name="verification_valid_count">校验通过：%1$d 个</string>
     <string name="verification_manifest_missing">缺少备份清单</string>
     <string name="verification_manifest_invalid">备份清单无法读取</string>
     <string name="verification_metadata_mismatch">清单元数据与该备份不一致</string>
@@ -303,6 +304,7 @@
     <string name="cleanup_progress">正在删除第 %1$d/%2$d 个备份</string>
     <string name="cleanup_failed">有 %1$d 个备份未能删除</string>
     <string name="cleanup_result">已删除 %1$d 个备份，%2$d 个失败</string>
+    <string name="backups_deleted_count">已删除 %1$d 个备份</string>
     <string name="no_backups_to_verify">没有可校验的本地备份</string>
     <string name="clean_old_backups">清理旧备份</string>
     <string name="clean_old_backups_desc">按数量保留每个应用的近期备份</string>

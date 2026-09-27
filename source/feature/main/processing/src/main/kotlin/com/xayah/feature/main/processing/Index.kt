@@ -247,13 +247,13 @@ fun PageProcessing(
                                     // Finished
                                     title = stringResource(id = finishedTitleId)
                                     subtitle = if (task != null) {
-                                        if (task!!.totalCount == task!!.successCount) {
-                                            remember { context.getString(finishedSubtitleId, task!!.totalCount) }
+                                        if (task!!.failureCount == 0) {
+                                            context.getString(finishedSubtitleId, task!!.successCount)
                                         } else {
-                                            remember { context.getString(finishedWithErrorsSubtitleId, task!!.successCount, task!!.failureCount) }
+                                            context.getString(finishedWithErrorsSubtitleId, task!!.successCount, task!!.failureCount)
                                         }
                                     } else {
-                                        remember { context.getString(finishedSubtitleId, dataItems.size) }
+                                        context.getString(finishedSubtitleId, dataItems.size)
                                     }
                                 }
 

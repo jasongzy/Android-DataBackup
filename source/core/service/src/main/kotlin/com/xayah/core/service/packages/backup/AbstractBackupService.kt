@@ -348,7 +348,7 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
             mContext,
             mNotificationBuilder,
             mContext.getString(R.string.backup_completed),
-            "${time}, ${mTaskEntity.successCount} ${mContext.getString(R.string.succeed)}, ${mTaskEntity.failureCount} ${mContext.getString(R.string.failed)}",
+            completionSummary(time),
             ongoing = false
         )
     }

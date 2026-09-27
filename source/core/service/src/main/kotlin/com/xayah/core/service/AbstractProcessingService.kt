@@ -53,6 +53,10 @@ internal abstract class AbstractProcessingService : Service() {
         msg
     }
 
+    protected fun completionSummary(time: String): String =
+        "$time, ${mTaskEntity.successCount} ${mContext.getString(R.string.succeed)}" +
+            if (mTaskEntity.failureCount > 0) ", ${mTaskEntity.failureCount} ${mContext.getString(R.string.failed)}" else ""
+
     protected suspend fun runCatchingOnService(block: suspend () -> Unit): Boolean = runCatching { block() }.onFailure { mRootService.onFailure(it) }.withLog().isSuccess
 
     protected suspend fun ProcessingInfoEntity.update(
