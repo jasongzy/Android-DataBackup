@@ -53,10 +53,10 @@ interface TaskDao {
     @Query("SELECT * FROM ProcessingInfoEntity WHERE taskId = :taskId")
     fun queryProcessingInfoFlow(taskId: Long): Flow<List<ProcessingInfoEntity>>
 
-    @Query("SELECT * FROM TaskDetailPackageEntity WHERE taskId = :taskId")
+    @Query("SELECT * FROM TaskDetailPackageEntity WHERE taskId = :taskId ORDER BY id")
     fun queryPackageFlow(taskId: Long): Flow<List<TaskDetailPackageEntity>>
 
-    @Query("SELECT * FROM TaskDetailMediaEntity WHERE taskId = :taskId")
+    @Query("SELECT * FROM TaskDetailMediaEntity WHERE taskId = :taskId ORDER BY id")
     fun queryMediaFlow(taskId: Long): Flow<List<TaskDetailMediaEntity>>
 
     @Query("DELETE FROM ProcessingInfoEntity WHERE taskId = :taskId")

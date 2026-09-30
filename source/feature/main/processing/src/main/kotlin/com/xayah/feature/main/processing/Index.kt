@@ -329,10 +329,9 @@ fun PageProcessing(
                         Spacer(modifier = Modifier.size(SizeTokens.Level12))
                     }
                     items(count = dataItems.size) {
-                        var expanded by rememberSaveable(task?.id, it) { mutableStateOf(false) }
-                        LaunchedEffect(task?.processingIndex, it) {
-                            if (task?.processingIndex == it + 1) expanded = true
-                        }
+                        var expandedOverride by rememberSaveable(task?.id, it) { mutableStateOf<Boolean?>(null) }
+                        val automaticallyExpanded = task?.processingIndex == it + 1
+                        val expanded = expandedOverride ?: automaticallyExpanded
                         val item = dataItems.getOrNull(it)
                         if (item != null) {
                             ProcessingCard(
@@ -345,7 +344,9 @@ fun PageProcessing(
                                 expanded = expanded,
                                 items = item.items,
                                 processingIndex = item.processingIndex,
-                                onActionBarClick = { expanded = !expanded }
+                                onActionBarClick = {
+                                    expandedOverride = (!expanded).takeUnless { it == automaticallyExpanded }
+                                }
                             )
                         }
                     }
