@@ -12,12 +12,13 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.adapter
 import com.xayah.databackup.database.entity.Contact
 import com.xayah.databackup.database.entity.FieldMap
+import com.xayah.databackup.entity.restore.RestoreProgressCallback
 import com.xayah.databackup.util.LogHelper
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
 /**
- * Restores contact records read from a Rustic snapshot through Contacts Provider without rolling back earlier imports.
+ * Restores contact records read from backup metadata through Contacts Provider without rolling back earlier imports.
  * The caller must provide the snapshot metadata and an app ContentResolver with WRITE_CONTACTS permission.
  * Inserts local contacts in the app's current user, with each raw contact and its data rows in one transaction.
  * Links data rows to newly allocated raw contact IDs without overwriting existing contacts.
@@ -26,9 +27,14 @@ import kotlinx.coroutines.ensureActive
  *
  * see [VCardEntry.java](https://cs.android.com/android/platform/superproject/+/android-17.0.0_r1:frameworks/opt/vcard/java/com/android/vcard/VCardEntry.java)
  */
-internal class RestoreContactsHelper(private val resolver: ContentResolver) {
+internal class RestoreContactsHelper(private val mResolver: ContentResolver) {
     @WorkerThread
-    suspend fun restore(serialized: String, path: String, contactIds: List<String>): List<String> {
+    suspend fun restore(
+        serialized: String,
+        path: String,
+        contactIds: List<String>,
+        callback: RestoreProgressCallback,
+    ): List<String> {
         // Validate every selected record before the first write. Do not expose contact JSON in errors.
         val contacts = runCatching {
             val files = requireNotNull(Moshi.Builder().build().adapter<Map<String, String>>().fromJson(serialized))
@@ -38,17 +44,19 @@ internal class RestoreContactsHelper(private val resolver: ContentResolver) {
             throw IllegalArgumentException("Invalid contacts backup or selection")
         }
         val skipped = mutableListOf<String>()
-        for ((id, contact) in contacts) {
+        for ((id, prepared) in contacts) {
             currentCoroutineContext().ensureActive()
-            if (contact == null) {
-                skipped.add(id)
-                continue
+            val result = restoreRecord(id, callback) {
+                val contact = prepared.getOrThrow()
+                if (contact == null) {
+                    true
+                } else {
+                    mResolver.applyBatch(ContactsContract.AUTHORITY, buildOperations(contact))
+                    false
+                }
             }
-            runCatching {
-                resolver.applyBatch(ContactsContract.AUTHORITY, buildOperations(contact))
-            }.onFailure {
-                LogHelper.e(TAG, "restore", "", it)
-                throw IllegalStateException("Contacts restore failed; some contacts may already have been restored")
+            if (result == true) {
+                skipped.add(id)
             }
         }
         return skipped
@@ -61,28 +69,30 @@ internal class RestoreContactsHelper(private val resolver: ContentResolver) {
         private val rawColumns = setOf(RawContacts.STARRED, RawContacts.CUSTOM_RINGTONE, RawContacts.SEND_TO_VOICEMAIL)
         private val dataColumns = (1..15).map { "data$it" }.toSet() + setOf(Data.MIMETYPE, Data.IS_PRIMARY, Data.IS_SUPER_PRIMARY)
 
-        private fun prepareContacts(content: String, contactIds: List<String>): Map<String, ContactRestoreData?> {
+        private fun prepareContacts(content: String, contactIds: List<String>): Map<String, Result<ContactRestoreData?>> {
             require(contactIds.isNotEmpty()) { "No contacts selected" }
             val moshi = Moshi.Builder().build()
             val records =
                 requireNotNull(moshi.adapter<List<Contact>>().fromJson(content)).mapIndexed { index, contact -> "contact:$index" to contact }.toMap()
             return contactIds.distinct().associateWith { id ->
-                val record = requireNotNull(records[id]) { "Unknown contact record" }
-                val raw = requireNotNull(moshi.adapter<FieldMap>().fromJson(requireNotNull(record.rawContact)))
-                if ((raw[RawContacts.DELETED] as? Number)?.toInt() == 1) {
-                    null
-                } else {
-                    val data = requireNotNull(moshi.adapter<List<FieldMap>>().fromJson(requireNotNull(record.data)))
-                        .mapNotNull { row ->
-                            val mimeType = row[Data.MIMETYPE] as? String
-                            require(!mimeType.isNullOrBlank()) { "Missing contact MIME type" }
-                            // Group IDs and display-photo file IDs refer to the source provider only.
-                            // Photos are absent because backup's cursor reader does not serialize blobs.
-                            if (mimeType == CommonDataKinds.GroupMembership.CONTENT_ITEM_TYPE ||
-                                mimeType == CommonDataKinds.Photo.CONTENT_ITEM_TYPE
-                            ) null else sanitize(row, dataColumns)
-                        }
-                    if (data.isEmpty()) null else ContactRestoreData(sanitize(raw, rawColumns), data)
+                runCatching {
+                    val record = requireNotNull(records[id]) { "Unknown contact record" }
+                    val raw = requireNotNull(moshi.adapter<FieldMap>().fromJson(requireNotNull(record.rawContact)))
+                    if ((raw[RawContacts.DELETED] as? Number)?.toInt() == 1) {
+                        null
+                    } else {
+                        val data = requireNotNull(moshi.adapter<List<FieldMap>>().fromJson(requireNotNull(record.data)))
+                            .mapNotNull { row ->
+                                val mimeType = row[Data.MIMETYPE] as? String
+                                require(!mimeType.isNullOrBlank()) { "Missing contact MIME type" }
+                                // Group IDs and display-photo file IDs refer to the source provider only.
+                                // Photos are absent because backup's cursor reader does not serialize blobs.
+                                if (mimeType == CommonDataKinds.GroupMembership.CONTENT_ITEM_TYPE ||
+                                    mimeType == CommonDataKinds.Photo.CONTENT_ITEM_TYPE
+                                ) null else sanitize(row, dataColumns)
+                            }
+                        if (data.isEmpty()) null else ContactRestoreData(sanitize(raw, rawColumns), data)
+                    }
                 }
             }
         }

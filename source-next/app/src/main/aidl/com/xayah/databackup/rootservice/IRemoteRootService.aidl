@@ -1,9 +1,11 @@
 package com.xayah.databackup.rootservice;
 
+import com.xayah.databackup.parcelables.ArchiveOperationResultParcelable;
 import com.xayah.databackup.parcelables.BytesParcelable;
 import com.xayah.databackup.parcelables.StatFsParcelable;
 import com.xayah.databackup.parcelables.FilePathParcelable;
 import com.xayah.databackup.rootservice.ICallback;
+import com.xayah.databackup.rootservice.IRestoreCallback;
 
 interface IRemoteRootService {
     void testConnection();
@@ -17,9 +19,8 @@ interface IRemoteRootService {
     ParcelFileDescriptor readText(String path);
     void writeText(String path, in ParcelFileDescriptor pfd);
     long calculateTreeSize(String path);
-    int callTarCli(String stdOut, String stdErr, in String[] argv);
     List<String> getPackageSourceDir(String packageName, int userId);
-    String compress(int level, String inputPath, String outputPath, ICallback callback);
+    ArchiveOperationResultParcelable packageAndCompressArchive(String outputPath, in String[] inputArgs, ICallback callback);
     boolean mkdirs(String path);
     boolean exists(String path);
     boolean deleteRecursively(String path);
@@ -38,6 +39,10 @@ interface IRemoteRootService {
     void restoreRusticAppApk(String repositoryPath, String password, String snapshotId, String packageName, int userId, in List<String> apkPaths);
     void restoreRusticAppInternalData(String repositoryPath, String password, String snapshotId, String packageName, int userId, int sourceUserId, in List<String> internalDataPaths);
     void restoreRusticAppExternalData(String repositoryPath, String password, String snapshotId, String packageName, int userId, int sourceUserId, in List<String> externalDataPaths);
-    List<String> restoreRusticNetworks(String repositoryPath, String password, String snapshotId, in List<String> networkIds);
-    List<String> restoreRusticMessages(String repositoryPath, String password, String snapshotId, in List<String> messageIds);
+    List<String> restoreRusticNetworks(String repositoryPath, String password, String snapshotId, in List<String> networkIds, IRestoreCallback callback);
+    List<String> restoreRusticMessages(String repositoryPath, String password, String snapshotId, in List<String> messageIds, IRestoreCallback callback);
+
+    void restoreArchiveApp(String archivePath, String packageName, int userId, in List<String> paths);
+    List<String> restoreArchiveNetworks(String archivePath, in List<String> networkIds, IRestoreCallback callback);
+    List<String> restoreArchiveMessages(String archivePath, in List<String> messageIds, IRestoreCallback callback);
 }

@@ -9,12 +9,12 @@ import android.os.UserHandleHidden
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
-import androidx.annotation.WorkerThread
 import androidx.annotation.RequiresApi
+import androidx.annotation.WorkerThread
+import com.xayah.databackup.util.PathHelper.EXTERNAL_OBB_DIR_NAME
 import com.xayah.libnative.NativeLib
 import com.xayah.libnative.NativeLib.SELINUX_ANDROID_RESTORECON_FORCE
 import com.xayah.libnative.NativeLib.SELINUX_ANDROID_RESTORECON_RECURSE
-import com.xayah.libnative.Rustic
 import java.io.File
 
 /**
@@ -32,8 +32,6 @@ import java.io.File
  */
 internal class RestoreExternalDataHelper {
     private companion object {
-        val SNAPSHOT_ID_PATTERN = Regex("[0-9a-fA-F]{64}")
-
         const val PROC_MOUNTS_PATH = "/proc/mounts"
         const val PROC_FILESYSTEMS_PATH = "/proc/filesystems"
         const val PROPERTY_SDCARDFS_ENABLED = "external_storage.sdcardfs.enabled"
@@ -55,7 +53,6 @@ internal class RestoreExternalDataHelper {
         const val EMULATED_DIRECTORY = "emulated"
         const val ANDROID_DIRECTORY = "Android"
         const val CACHE_DIRECTORY = "cache"
-        const val OBB_DIRECTORY = "obb"
 
         const val VOLD_SERVICE_NAME = "vold"
         const val XATTR_POSIX_ACL_DEFAULT = "system.posix_acl_default"
@@ -64,22 +61,21 @@ internal class RestoreExternalDataHelper {
     }
 
     private data class RestoreEntry(
-        val snapshotSelector: String,
+        val sourcePath: String,
         val targetDir: File,
         val backingDir: File,
         val storagePath: String,
     )
 
     @WorkerThread
-    fun restore(
+    suspend fun restore(
         repositoryPath: String,
-        password: String,
-        snapshotId: String,
         app: ApplicationInfo,
         sources: Map<String, String>,
+        validate: (String) -> Unit,
+        extract: suspend (String, File) -> Unit,
         stopApp: () -> Unit,
     ) {
-        require(snapshotId.matches(SNAPSHOT_ID_PATTERN)) { "A full snapshot ID is required" }
         val userId = UserHandleHidden.getUserId(app.uid)
         val runtimeVolume = File("$RUNTIME_STORAGE_ROOT/$userId")
         val mounts = File(PROC_MOUNTS_PATH).readLines().map { it.split(' ') }
@@ -112,14 +108,13 @@ internal class RestoreExternalDataHelper {
         val repository = File(repositoryPath).canonicalPath
         val plan = sources.map { (kind, source) ->
             val relative = "$ANDROID_DIRECTORY/$kind/${app.packageName}"
-            val backing = if (kind == OBB_DIRECTORY && sharedObb) {
-                File("$BACKING_STORAGE_ROOT/$OBB_DIRECTORY/${app.packageName}")
+            val backing = if (kind == EXTERNAL_OBB_DIR_NAME && sharedObb) {
+                File("$BACKING_STORAGE_ROOT/$EXTERNAL_OBB_DIR_NAME/${app.packageName}")
             } else File("$BACKING_STORAGE_ROOT/$userId/$relative")
             val mounted = File(runtimeVolume, relative)
             val target = if (useVold) backing else mounted
             // Authenticate and validate every selected tree before modifying any destination.
-            val snapshotSelector = "$snapshotId:$source"
-            Rustic.validateExternalSnapshot(repositoryPath, password, snapshotSelector)
+            validate(source)
             validateDestination(volume, target)
             if (!useVold) {
                 check(backing.canonicalPath == backing.absolutePath) { "Invalid external storage backing path: $backing" }
@@ -134,7 +129,7 @@ internal class RestoreExternalDataHelper {
                 val path = alias.canonicalPath
                 check(repository != path && !repository.startsWith("$path/")) { "Repository is inside the restore destination" }
             }
-            RestoreEntry(snapshotSelector, target, backing, "$EMULATED_STORAGE_ROOT/$userId/$relative/")
+            RestoreEntry(source, target, backing, "$EMULATED_STORAGE_ROOT/$userId/$relative/")
         }
         stopApp()
         plan.forEach { entry ->
@@ -148,7 +143,7 @@ internal class RestoreExternalDataHelper {
             walk(target, stat.st_dev) { }
             val result = runCatching {
                 children(target).forEach { delete(it, stat.st_dev) }
-                Rustic.restoreExternalSnapshot(repositoryPath, password, entry.snapshotSelector, target.path)
+                extract(entry.sourcePath, target)
             }
             // Repair metadata even if extraction fails, preserving the extraction error if both fail.
             var failure = result.exceptionOrNull()

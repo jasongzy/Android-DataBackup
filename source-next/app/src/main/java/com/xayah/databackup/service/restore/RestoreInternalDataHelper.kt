@@ -11,7 +11,6 @@ import com.xayah.hiddenapi.castTo
 import com.xayah.libnative.NativeLib
 import com.xayah.libnative.NativeLib.SELINUX_ANDROID_RESTORECON_FORCE
 import com.xayah.libnative.NativeLib.SELINUX_ANDROID_RESTORECON_RECURSE
-import com.xayah.libnative.Rustic
 import java.io.File
 
 /**
@@ -27,23 +26,21 @@ import java.io.File
  */
 internal class RestoreInternalDataHelper {
     private data class RestoreEntry(
-        val snapshotSelector: String,
+        val sourcePath: String,
         val targetDir: File,
         val isCe: Boolean,
         val sourceUid: Int,
     )
 
     @WorkerThread
-    fun restore(
-        repositoryPath: String,
-        password: String,
-        snapshotId: String,
+    suspend fun restore(
         app: ApplicationInfo,
         seInfo: String,
         sources: Map<Boolean, String>,
+        sourceUid: (String) -> Int,
+        extract: suspend (String, File) -> Unit,
         stopApp: () -> Unit,
     ) {
-        require(snapshotId.matches(Regex("[0-9a-fA-F]{64}"))) { "A full snapshot ID is required" }
         val plan = sources.map { (isCe, path) ->
             val targetPath = if (isCe) app.castTo<ApplicationInfoHidden>().credentialProtectedDataDir else app.deviceProtectedDataDir
             check(!targetPath.isNullOrBlank()) { "Package has no ${if (isCe) "CE" else "DE"} data directory" }
@@ -52,8 +49,7 @@ internal class RestoreInternalDataHelper {
             check(OsConstants.S_ISDIR(stat.st_mode) && stat.st_uid == app.uid) { "Unprepared app data directory: $target" }
             // Preserve the system-created data directory's encryption policy and inode.
             // Require it to exist instead of recreating it with mkdirs().
-            val snapshotSelector = "$snapshotId:$path"
-            RestoreEntry(snapshotSelector, target, isCe, Rustic.readSnapshotDirectoryUid(repositoryPath, password, snapshotSelector))
+            RestoreEntry(path, target, isCe, sourceUid(path))
         }
         stopApp()
         plan.forEach { entry ->
@@ -73,13 +69,7 @@ internal class RestoreInternalDataHelper {
                         delete(child, device)
                     }
                 }
-                Rustic.restoreSnapshot(
-                    repositoryPath,
-                    password,
-                    entry.snapshotSelector,
-                    target.path,
-                    Rustic.RestoreOptions(numericId = true, verifyExisting = true),
-                )
+                extract(entry.sourcePath, target)
             }
             // Repair ownership, permissions, and SELinux labels even if extraction fails.
             // Preserve the extraction error if metadata repair also fails.

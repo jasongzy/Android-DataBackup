@@ -1,7 +1,9 @@
 package com.xayah.databackup.service.restore
 
 import android.content.ClipDescription
+import android.os.Build
 import android.provider.Telephony
+import android.provider.TelephonyHidden.ReadRestriction
 import android.telephony.SubscriptionManager
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.adapter
@@ -9,7 +11,6 @@ import com.xayah.databackup.database.entity.FieldMap
 import com.xayah.databackup.database.entity.MessageConstant
 import com.xayah.databackup.database.entity.Mms
 import com.xayah.databackup.database.entity.Sms
-import com.xayah.databackup.service.restore.MessageRestorePreparer.prepare
 
 /**
  * Prepares backup messages for restoration without writing to providers or accessing attachments.
@@ -24,6 +25,7 @@ internal object MessageRestorePreparer {
         val sms: Map<String, SmsRecord>,
         val mms: Map<String, MmsRecord>,
         val skippedIds: Set<String>,
+        val failures: Map<String, Exception>,
     )
 
     private val mMoshi = Moshi.Builder().build()
@@ -33,11 +35,17 @@ internal object MessageRestorePreparer {
     private val mRowsAdapter = mMoshi.adapter<List<FieldMap>>()
     private val mMessageKeyPattern = Regex("(sms|mms):(0|[1-9][0-9]*)")
 
+    private val mReadRestrictionNumbers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+        setOf(ReadRestriction.RESTRICTED)
+    } else {
+        emptySet()
+    }
+
     private val mSmsStrings = setOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.SUBJECT, Telephony.Sms.SERVICE_CENTER)
     private val mSmsNumbers = setOf(
         Telephony.Sms.DATE, Telephony.Sms.DATE_SENT, Telephony.Sms.TYPE, Telephony.Sms.READ, Telephony.Sms.SEEN,
         Telephony.Sms.STATUS, Telephony.Sms.LOCKED, Telephony.Sms.PROTOCOL, Telephony.Sms.REPLY_PATH_PRESENT
-    )
+    ) + mReadRestrictionNumbers
     private val mMmsStrings = setOf(
         Telephony.Mms.SUBJECT, Telephony.Mms.CONTENT_TYPE, Telephony.Mms.CONTENT_LOCATION, Telephony.Mms.MESSAGE_CLASS,
         Telephony.Mms.MESSAGE_ID, Telephony.Mms.TRANSACTION_ID, Telephony.Mms.RESPONSE_TEXT, Telephony.Mms.RETRIEVE_TEXT
@@ -49,7 +57,7 @@ internal object MessageRestorePreparer {
         Telephony.Mms.REPORT_ALLOWED, Telephony.Mms.RESPONSE_STATUS, Telephony.Mms.STATUS, Telephony.Mms.RETRIEVE_STATUS,
         Telephony.Mms.RETRIEVE_TEXT_CHARSET, Telephony.Mms.READ_STATUS, Telephony.Mms.CONTENT_CLASS,
         Telephony.Mms.DELIVERY_REPORT, Telephony.Mms.DELIVERY_TIME
-    )
+    ) + mReadRestrictionNumbers
     private val mPartStrings = setOf(
         Telephony.Mms.Part.CONTENT_TYPE, Telephony.Mms.Part.NAME, Telephony.Mms.Part.FILENAME, Telephony.Mms.Part.CONTENT_DISPOSITION,
         Telephony.Mms.Part.CONTENT_ID, Telephony.Mms.Part.CONTENT_LOCATION, Telephony.Mms.Part.TEXT
@@ -59,7 +67,7 @@ internal object MessageRestorePreparer {
     val inlineTypes = setOf(ClipDescription.MIMETYPE_TEXT_PLAIN, ClipDescription.MIMETYPE_TEXT_HTML, MessageConstant.APP_SMIL)
 
     /**
-     * Validates selected records before any provider writes. Malformed selected data fails the entire preparation.
+     * Validates selected records before any provider writes. Malformed selected records are returned in [PreparedMessages.failures].
      * Unsent messages, notification/report PDUs and incomplete MMS parts are returned in [PreparedMessages.skippedIds].
      * Attachment paths are validated here; snapshot membership and file contents are checked by the restore helper.
      */
@@ -78,8 +86,9 @@ internal object MessageRestorePreparer {
         val preparedSms = linkedMapOf<String, SmsRecord>()
         val preparedMms = linkedMapOf<String, MmsRecord>()
         val skippedIds = linkedSetOf<String>()
+        val failures = linkedMapOf<String, Exception>()
         selectedIds.forEach { (id, index) ->
-            try {
+            runCatching {
                 if (id.startsWith("sms:")) {
                     val record = prepareSms(requireNotNull(sms.getOrNull(index)) { "Unknown SMS record" })
                     if (record == null) skippedIds.add(id) else preparedSms[id] = record
@@ -87,11 +96,12 @@ internal object MessageRestorePreparer {
                     val record = prepareMms(requireNotNull(mms.getOrNull(index)) { "Unknown MMS record" })
                     if (record == null) skippedIds.add(id) else preparedMms[id] = record
                 }
-            } catch (error: Exception) {
-                throw IllegalArgumentException("Invalid message $id: ${error.message}", error)
+            }.onFailure { error ->
+                if (error !is Exception) throw error
+                failures[id] = error
             }
         }
-        return PreparedMessages(preparedSms, preparedMms, skippedIds)
+        return PreparedMessages(preparedSms, preparedMms, skippedIds, failures)
     }
 
     private fun prepareSms(record: Sms): SmsRecord? {
@@ -180,6 +190,11 @@ internal object MessageRestorePreparer {
     }
 
     private fun applyDefaults(values: MutableMap<String, Any>) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+            require(values[ReadRestriction.RESTRICTED] == null || values[ReadRestriction.RESTRICTED] in setOf(0L, 1L)) {
+                "Invalid message read restriction"
+            }
+        }
         // SMS and MMS share these column names.
         values.putIfAbsent(Telephony.Sms.READ, 1L)
         values.putIfAbsent(Telephony.Sms.SEEN, 1L)

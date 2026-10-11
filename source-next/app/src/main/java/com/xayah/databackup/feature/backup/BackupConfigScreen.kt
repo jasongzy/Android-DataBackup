@@ -58,9 +58,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.xayah.databackup.R
-import com.xayah.databackup.data.rustic.RusticSnapshot
 import com.xayah.databackup.entity.BackupBackend
 import com.xayah.databackup.entity.BackupConfig
+import com.xayah.databackup.entity.rustic.RusticSnapshot
 import com.xayah.databackup.feature.BackupSetupRoute
 import com.xayah.databackup.feature.RestoreRoute
 import com.xayah.databackup.ui.component.DataBackupDialog
@@ -226,6 +226,7 @@ fun BackupConfigScreen(
                     item(key = "config") {
                         BackupConfigContent(
                             backupConfig = config,
+                            onRestore = { navigator.navigateSafely(RestoreRoute(config.uuidString, "")) },
                             onBackUpNow = {
                                 viewModel.selectBackup {
                                     navigator.navigateSafely(BackupSetupRoute)
@@ -256,6 +257,7 @@ fun BackupConfigScreen(
 private fun BackupConfigContent(
     backupConfig: BackupConfig,
     onBackUpNow: () -> Unit,
+    onRestore: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -274,6 +276,17 @@ private fun BackupConfigContent(
             )
             Spacer(Modifier.size(8.dp))
             Text(stringResource(R.string.back_up_now))
+        }
+        if (backupConfig.backupBackend is BackupBackend.Archive) {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                shape = BackupConfigContainerShape,
+                onClick = onRestore,
+            ) {
+                Icon(ImageVector.vectorResource(R.drawable.ic_archive_restore), contentDescription = null)
+                Spacer(Modifier.size(8.dp))
+                Text(stringResource(R.string.restore))
+            }
         }
     }
 }

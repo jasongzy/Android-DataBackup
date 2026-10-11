@@ -8,6 +8,7 @@ import androidx.annotation.WorkerThread
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.adapter
 import com.xayah.databackup.database.entity.FieldMap
+import com.xayah.databackup.entity.restore.RestoreProgressCallback
 import com.xayah.databackup.util.LogHelper
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -22,9 +23,14 @@ import kotlinx.coroutines.ensureActive
  * @see [CallLogBackupAgent.java](https://cs.android.com/android/platform/superproject/+/android-17.0.0_r1:packages/providers/CallLogProvider/src/com/android/calllogbackup/CallLogBackupAgent.java)
  * @see [CallLogProvider.java](https://cs.android.com/android/platform/superproject/+/android-7.0.0_r1:packages/providers/ContactsProvider/src/com/android/providers/contacts/CallLogProvider.java)
  */
-internal class RestoreCallLogsHelper(private val resolver: ContentResolver) {
+internal class RestoreCallLogsHelper(private val mResolver: ContentResolver) {
     @WorkerThread
-    suspend fun restore(serialized: String, path: String, callLogIds: List<String>): List<String> {
+    suspend fun restore(
+        serialized: String,
+        path: String,
+        callLogIds: List<String>,
+        callback: RestoreProgressCallback,
+    ): List<String> {
         // Validate every selected record before the first write. Do not expose call log JSON in errors.
         val callLogs = runCatching {
             val files = requireNotNull(Moshi.Builder().build().adapter<Map<String, String>>().fromJson(serialized))
@@ -34,22 +40,20 @@ internal class RestoreCallLogsHelper(private val resolver: ContentResolver) {
             throw IllegalArgumentException("Invalid call logs backup or selection")
         }
         val skipped = mutableListOf<String>()
-        for ((id, callLog) in callLogs) {
+        for ((id, prepared) in callLogs) {
             currentCoroutineContext().ensureActive()
-            if (callLog == null) {
-                skipped.add(id)
-                continue
-            }
-            runCatching {
-                if (callLogExists(callLog)) {
-                    skipped.add(id)
+            val result = restoreRecord(id, callback) {
+                val callLog = prepared.getOrThrow()
+                if (callLog == null || callLogExists(callLog)) {
+                    true
                 } else {
-                    val inserted = checkNotNull(resolver.insert(Calls.CONTENT_URI, contentValues(callLog))) { "Call log insertion failed" }
+                    val inserted = checkNotNull(mResolver.insert(Calls.CONTENT_URI, contentValues(callLog))) { "Call log insertion failed" }
                     check(ContentUris.parseId(inserted) > 0) { "Call log insertion was rejected" }
+                    false
                 }
-            }.onFailure {
-                LogHelper.e(TAG, "restore", "", it)
-                throw IllegalStateException("Call logs restore failed; some calls may already have been restored")
+            }
+            if (result == true) {
+                skipped.add(id)
             }
         }
         return skipped
@@ -60,7 +64,7 @@ internal class RestoreCallLogsHelper(private val resolver: ContentResolver) {
         // timestamp and number, including calls whose number is empty or withheld.
         val columns = listOf(Calls.DATE, Calls.NUMBER, Calls.TYPE, Calls.DURATION, Calls.NUMBER_PRESENTATION)
         return checkNotNull(
-            resolver.query(
+            mResolver.query(
                 Calls.CONTENT_URI, arrayOf(Calls._ID), columns.joinToString(" AND ") { "$it = ?" },
                 columns.map { fields.getValue(it).toString() }.toTypedArray(), null,
             )
