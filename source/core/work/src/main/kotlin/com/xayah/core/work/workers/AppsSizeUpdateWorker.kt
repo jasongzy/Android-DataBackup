@@ -11,6 +11,7 @@ import com.xayah.core.data.repository.AppsRepo
 import com.xayah.core.data.repository.INPUT_DATA_KEY_PROCESS_SESSION
 import com.xayah.core.datastore.di.DbDispatchers.Default
 import com.xayah.core.datastore.di.Dispatcher
+import com.xayah.core.util.NotificationProgressThrottle
 import com.xayah.core.util.NotificationUtil
 import com.xayah.core.work.R
 import com.xayah.core.work.WorkManagerInitializer
@@ -26,12 +27,13 @@ internal class AppsSizeUpdateWorker @AssistedInject constructor(
     @Dispatcher(Default) private val defaultDispatcher: CoroutineDispatcher,
     private val appsRepo: AppsRepo,
 ) : CoroutineWorker(appContext, workerParams) {
+    private val notificationUpdates = NotificationProgressThrottle()
     private val notificationBuilder by lazy { NotificationUtil.getProgressNotificationBuilder(appContext) }
 
     override suspend fun doWork(): Result = withContext(defaultDispatcher) {
         if (inputData.getString(INPUT_DATA_KEY_PROCESS_SESSION) != WorkManagerInitializer.processSessionId) return@withContext Result.success()
         appsRepo.updateLocalAppSizes { cur, max, content ->
-            if (cur % 10 == 0 || cur == max - 1) {
+            if (notificationUpdates.shouldUpdate(cur + 1, max)) {
                 setForeground(createForegroundInfo(content, max, cur + 1))
             }
         }

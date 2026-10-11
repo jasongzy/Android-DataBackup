@@ -13,6 +13,7 @@ import com.xayah.core.data.repository.FilesRepo
 import com.xayah.core.data.repository.INPUT_DATA_KEY_CLOUD_NAME
 import com.xayah.core.datastore.di.DbDispatchers.Default
 import com.xayah.core.datastore.di.Dispatcher
+import com.xayah.core.util.NotificationProgressThrottle
 import com.xayah.core.util.NotificationUtil
 import com.xayah.core.work.R
 import dagger.assisted.Assisted
@@ -27,6 +28,7 @@ internal class FilesLoadWorker @AssistedInject constructor(
     @Dispatcher(Default) private val defaultDispatcher: CoroutineDispatcher,
     private val filesRepo: FilesRepo,
 ) : CoroutineWorker(appContext, workerParams) {
+    private val notificationUpdates = NotificationProgressThrottle()
     private val notificationId = id.hashCode() or Int.MIN_VALUE
     private val mNotificationBuilder by lazy { NotificationUtil.getProgressNotificationBuilder(appContext) }
     private var mNotificationInfo: ForegroundInfo? = null
@@ -48,18 +50,18 @@ internal class FilesLoadWorker @AssistedInject constructor(
     override suspend fun doWork(): Result = withContext(defaultDispatcher) {
         val cloudName = inputData.getString(INPUT_DATA_KEY_CLOUD_NAME)
         filesRepo.load(cloudName) { cur, max, content ->
-            mNotificationInfo = NotificationUtil.createForegroundInfo(
-                appContext,
-                mNotificationBuilder,
-                ContextCompat.getString(appContext, R.string.loading_backups),
-                content,
-                max,
-                cur + 1,
-                notificationId = notificationId,
-            )
-            setForeground(
-                mNotificationInfo!!
-            )
+            if (notificationUpdates.shouldUpdate(cur + 1, max)) {
+                mNotificationInfo = NotificationUtil.createForegroundInfo(
+                    appContext,
+                    mNotificationBuilder,
+                    ContextCompat.getString(appContext, R.string.loading_backups),
+                    content,
+                    max,
+                    cur + 1,
+                    notificationId = notificationId,
+                )
+                setForeground(mNotificationInfo!!)
+            }
         }
         Result.success()
     }

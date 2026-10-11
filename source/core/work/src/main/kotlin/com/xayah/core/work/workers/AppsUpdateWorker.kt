@@ -16,6 +16,7 @@ import com.xayah.core.data.repository.SettingsDataRepo
 import com.xayah.core.datastore.di.DbDispatchers.Default
 import com.xayah.core.datastore.di.Dispatcher
 import com.xayah.core.util.DateUtil
+import com.xayah.core.util.NotificationProgressThrottle
 import com.xayah.core.util.NotificationUtil
 import com.xayah.core.work.R
 import dagger.assisted.Assisted
@@ -32,6 +33,7 @@ internal class AppsUpdateWorker @AssistedInject constructor(
     private val appsRepo: AppsRepo,
     private val settingsDataRepo: SettingsDataRepo,
 ) : CoroutineWorker(appContext, workerParams) {
+    private val notificationUpdates = NotificationProgressThrottle()
     private val mNotificationBuilder by lazy { NotificationUtil.getProgressNotificationBuilder(appContext) }
     private var mNotificationInfo: ForegroundInfo? = null
 
@@ -56,7 +58,7 @@ internal class AppsUpdateWorker @AssistedInject constructor(
         if (regular.not() || hasPassedOneDay) {
             settingsDataRepo.setAppsUpdateTime(curTime)
             appsRepo.fullUpdate { cur, max, content ->
-                if (cur % 10 == 0 || cur == max - 1) {
+                if (notificationUpdates.shouldUpdate(cur + 1, max)) {
                     val progress = publishProgress(cur + 1, max, APP_UPDATE_STAGE, APP_REFRESH_STAGE_COUNT)
                     mNotificationInfo = NotificationUtil.createForegroundInfo(
                         appContext,
