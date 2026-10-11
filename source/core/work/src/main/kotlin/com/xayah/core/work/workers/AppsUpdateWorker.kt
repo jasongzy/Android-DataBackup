@@ -1,6 +1,7 @@
 package com.xayah.core.work.workers
 
 import android.content.Context
+import androidx.core.content.ContextCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
@@ -39,7 +40,7 @@ internal class AppsUpdateWorker @AssistedInject constructor(
             mNotificationInfo = NotificationUtil.createForegroundInfo(
                 appContext,
                 mNotificationBuilder,
-                appContext.getString(R.string.updating_app_list),
+                ContextCompat.getString(appContext, R.string.updating_app_list),
                 ""
             )
         }
@@ -60,7 +61,7 @@ internal class AppsUpdateWorker @AssistedInject constructor(
                     mNotificationInfo = NotificationUtil.createForegroundInfo(
                         appContext,
                         mNotificationBuilder,
-                        appContext.getString(R.string.updating_app_list),
+                        ContextCompat.getString(appContext, R.string.updating_app_list),
                         content,
                         progress.max,
                         progress.current,

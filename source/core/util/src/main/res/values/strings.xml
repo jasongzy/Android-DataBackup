@@ -1,0 +1,10 @@
+<resources>
+    <string name="notification_channel_tasks">Backup and restore</string>
+    <string name="notification_channel_tasks_desc">Progress of backup and restore tasks</string>
+    <string name="notification_channel_updates">App information updates</string>
+    <string name="notification_channel_updates_desc">App scanning, backup indexing, and size calculation</string>
+    <string name="notification_channel_results">Task results</string>
+    <string name="notification_channel_results_desc">Backup and restore completion and failure summaries</string>
+    <string name="notification_progress_count">%1$d / %2$d</string>
+    <string name="notification_progress_percent">%1$d%%</string>
+</resources>

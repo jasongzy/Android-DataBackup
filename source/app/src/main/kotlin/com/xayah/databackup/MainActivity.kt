@@ -17,6 +17,7 @@ import com.xayah.core.ui.route.MainRoutes
 import com.xayah.core.ui.theme.DataBackupTheme
 import com.xayah.core.ui.util.LocalNavController
 import com.xayah.core.util.ActivityUtil
+import com.xayah.core.util.NotificationUtil
 import com.xayah.core.util.command.BaseUtil
 import com.xayah.core.util.navigateSingle
 import com.xayah.feature.main.cloud.PageCloud
@@ -61,6 +62,7 @@ class MainActivity : AppCompatActivity() {
     @ExperimentalMaterial3Api
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        NotificationUtil.createChannels(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         runBlocking {

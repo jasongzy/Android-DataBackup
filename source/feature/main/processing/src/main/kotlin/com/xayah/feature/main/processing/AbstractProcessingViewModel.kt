@@ -76,18 +76,13 @@ abstract class AbstractProcessingViewModel(
 
             is ProcessingUiIntent.Process -> {
                 emitState(state.copy(state = OperationState.PROCESSING))
-                if (state.storageType == StorageMode.Cloud) {
-                    // Cloud
-                    mCloudService.preprocessing()
-                    mCloudService.processing()
-                    mCloudService.postProcessing()
-                    mCloudService.destroyService()
-                } else {
-                    // Local
-                    mLocalService.preprocessing()
-                    mLocalService.processing()
-                    mLocalService.postProcessing()
-                    mLocalService.destroyService()
+                val service = if (state.storageType == StorageMode.Cloud) mCloudService else mLocalService
+                try {
+                    service.preprocessing()
+                    service.processing()
+                    service.postProcessing()
+                } finally {
+                    service.destroyService()
                 }
                 emitState(state.copy(state = OperationState.DONE))
             }

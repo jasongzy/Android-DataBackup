@@ -1,6 +1,7 @@
 package com.xayah.core.work.workers
 
 import android.content.Context
+import androidx.core.content.ContextCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.OneTimeWorkRequestBuilder
@@ -40,11 +41,11 @@ internal class AppsSizeUpdateWorker @AssistedInject constructor(
     private fun createForegroundInfo(content: String, max: Int, current: Int) = NotificationUtil.createForegroundInfo(
         appContext,
         notificationBuilder,
-        appContext.getString(R.string.calculating_app_total_size),
+        ContextCompat.getString(appContext, R.string.calculating_app_total_size),
         content,
         max,
         current,
-        notificationId = R.string.calculating_app_total_size,
+        notificationId = NotificationUtil.APP_SIZE_ID,
     )
 
     companion object {

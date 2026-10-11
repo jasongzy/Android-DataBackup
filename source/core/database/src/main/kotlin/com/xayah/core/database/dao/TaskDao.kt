@@ -56,6 +56,9 @@ interface TaskDao {
     @Query("SELECT * FROM TaskDetailPackageEntity WHERE taskId = :taskId ORDER BY id")
     fun queryPackageFlow(taskId: Long): Flow<List<TaskDetailPackageEntity>>
 
+    @Query("SELECT * FROM TaskDetailPackageEntity WHERE taskId = :taskId AND state = 'PROCESSING' ORDER BY id LIMIT 1")
+    fun queryProcessingPackageFlow(taskId: Long): Flow<TaskDetailPackageEntity?>
+
     @Query("SELECT * FROM TaskDetailMediaEntity WHERE taskId = :taskId ORDER BY id")
     fun queryMediaFlow(taskId: Long): Flow<List<TaskDetailMediaEntity>>
 

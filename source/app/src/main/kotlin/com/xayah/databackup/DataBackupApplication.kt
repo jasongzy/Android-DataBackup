@@ -3,10 +3,12 @@ package com.xayah.databackup
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.xayah.core.util.NotificationUtil
 import dagger.hilt.android.HiltAndroidApp
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.Security
 import javax.inject.Inject
+import android.content.res.Configuration as ResourceConfiguration
 
 @HiltAndroidApp
 class DataBackupApplication : Application(), Configuration.Provider {
@@ -18,6 +20,12 @@ class DataBackupApplication : Application(), Configuration.Provider {
         super.onCreate()
         application = this
         setupBouncyCastle()
+        NotificationUtil.createChannels(this)
+    }
+
+    override fun onConfigurationChanged(newConfig: ResourceConfiguration) {
+        super.onConfigurationChanged(newConfig)
+        NotificationUtil.createChannels(this)
     }
 
     // Ref: https://github.com/hyperledger/web3j/issues/915#issuecomment-483145928

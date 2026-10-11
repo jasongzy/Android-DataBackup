@@ -137,12 +137,6 @@ internal abstract class AbstractRestoreService : AbstractMediumService() {
     override suspend fun afterPostProcessing() {
         mContext.saveLastRestoreTime(mEndTimestamp)
         val time = DateUtil.getShortRelativeTimeSpanString(context = mContext, time1 = mStartTimestamp, time2 = mEndTimestamp)
-        NotificationUtil.notify(
-            mContext,
-            mNotificationBuilder,
-            mContext.getString(R.string.restore_completed),
-            completionSummary(time),
-            ongoing = false
-        )
+        completeNotification(mContext.getString(R.string.restore_completed), completionSummary(time))
     }
 }

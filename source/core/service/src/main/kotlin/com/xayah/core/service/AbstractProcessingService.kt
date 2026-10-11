@@ -9,6 +9,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.view.SurfaceControlHidden
+import androidx.core.content.ContextCompat
 import com.xayah.core.data.repository.TaskRepository
 import com.xayah.core.database.dao.TaskDao
 import com.xayah.core.datastore.ConstantUtil.DEFAULT_IDLE_TIMEOUT
@@ -28,19 +29,34 @@ import com.xayah.core.util.LogUtil
 import com.xayah.core.util.NotificationUtil
 import com.xayah.core.util.PathUtil
 import com.xayah.core.util.withLog
+import com.xayah.core.util.withMainContext
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 internal abstract class AbstractProcessingService : Service() {
     override fun onBind(intent: Intent): IBinder {
+        NotificationUtil.cancel(this, NotificationUtil.RESULT_ID)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(1, NotificationUtil.getForegroundNotification(applicationContext), FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            startForeground(NotificationUtil.PROCESSING_ID, NotificationUtil.getForegroundNotification(applicationContext), FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
-            startForeground(1, NotificationUtil.getForegroundNotification(applicationContext))
+            startForeground(NotificationUtil.PROCESSING_ID, NotificationUtil.getForegroundNotification(applicationContext))
         }
         return mBinder
+    }
+
+    override fun onDestroy() {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    protected suspend fun completeNotification(title: String, content: String) = withMainContext {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        NotificationUtil.notifyResult(mContext, title, content)
     }
 
     inner class OperationLocalBinder : Binder() {
@@ -121,11 +137,12 @@ internal abstract class AbstractProcessingService : Service() {
     protected open suspend fun beforePostProcessing() {}
     abstract suspend fun onPostProcessing(entity: ProcessingInfoEntity)
     protected open suspend fun afterPostProcessing() {}
+    protected open suspend fun observeProcessingProgress() {}
     abstract suspend fun onProcessing()
 
     private val mBinder = OperationLocalBinder()
     private val mMutex = Mutex()
-    protected val mContext: Context by lazy { applicationContext }
+    protected val mContext: Context by lazy { ContextCompat.getContextForLanguage(applicationContext) }
     protected abstract val mTAG: String
     protected abstract val mRootService: RemoteRootService
     protected abstract val mPathUtil: PathUtil
@@ -134,7 +151,7 @@ internal abstract class AbstractProcessingService : Service() {
     protected abstract val mTaskRepo: TaskRepository
     protected abstract val mTaskEntity: TaskEntity
 
-    protected val mNotificationBuilder by lazy { NotificationUtil.getProgressNotificationBuilder(mContext) }
+    protected val mNotificationBuilder by lazy { NotificationUtil.getProgressNotificationBuilder(mContext, NotificationUtil.Channel.BackupRestore) }
     private val mPreprocessingEntities: MutableList<ProcessingInfoEntity> = mutableListOf()
     private val mPostProcessingEntities: MutableList<ProcessingInfoEntity> = mutableListOf()
     private var mIsInitialized: Boolean = false
@@ -190,7 +207,14 @@ internal abstract class AbstractProcessingService : Service() {
     suspend fun processing() = withIOContext {
         mMutex.withLock {
             log { "Processing is starting." }
-            onProcessing()
+            coroutineScope {
+                val notificationJob = launch { observeProcessingProgress() }
+                try {
+                    onProcessing()
+                } finally {
+                    notificationJob.cancelAndJoin()
+                }
+            }
         }
     }
 
@@ -212,8 +236,8 @@ internal abstract class AbstractProcessingService : Service() {
             mRootService.setDisplayPowerMode(SurfaceControlHidden.POWER_MODE_NORMAL)
 
             mEndTimestamp = DateUtil.getTimestamp()
-            afterPostProcessing()
             mTaskEntity.update(endTimestamp = mEndTimestamp, isProcessing = false, processingIndex = mTaskEntity.processingIndex + 1)
+            afterPostProcessing()
         }
     }
 }

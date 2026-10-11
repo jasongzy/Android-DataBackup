@@ -149,7 +149,7 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
         val killAppOption = mContext.readKillAppOption().first()
         log { "Kill app option: $killAppOption" }
 
-        mPkgEntities.forEachIndexed { index, pkg ->
+        mPkgEntities.forEach { pkg ->
             val pausedPids = if (killAppOption == KillAppOption.OPTION_III) {
                 log { "Trying to pause ${pkg.packageEntity.packageName}." }
                 mRootService.pausePackage(pkg.packageEntity.packageName, pkg.packageEntity.userId) ?: run {
@@ -169,14 +169,6 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
                     }
                 }
             }) {
-                NotificationUtil.notify(
-                    mContext,
-                    mNotificationBuilder,
-                    mContext.getString(R.string.backing_up),
-                    pkg.packageEntity.packageInfo.label,
-                    mPkgEntities.size,
-                    index
-                )
                 log { "Current package: ${pkg.packageEntity}" }
 
                 pkg.update(state = OperationState.PROCESSING)
@@ -344,12 +336,6 @@ internal abstract class AbstractBackupService : AbstractPackagesService() {
     override suspend fun afterPostProcessing() {
         mContext.saveLastBackupTime(mEndTimestamp)
         val time = DateUtil.getShortRelativeTimeSpanString(context = mContext, time1 = mStartTimestamp, time2 = mEndTimestamp)
-        NotificationUtil.notify(
-            mContext,
-            mNotificationBuilder,
-            mContext.getString(R.string.backup_completed),
-            completionSummary(time),
-            ongoing = false
-        )
+        completeNotification(mContext.getString(R.string.backup_completed), completionSummary(time))
     }
 }

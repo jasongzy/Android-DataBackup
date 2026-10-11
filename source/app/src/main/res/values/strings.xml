@@ -56,7 +56,7 @@
     <string name="selected_apks">Selected APKs</string>
     <string name="selected_data">Selected data</string>
     <string name="idle">Idle</string>
-    <string name="backing_up">Backing up…</string>
+    <string name="backing_up">Backing up</string>
     <string name="failed_and_terminated">Failed and terminated</string>
     <string name="not_exist">Does not exist</string>
     <string name="not_exist_and_skip">Not exist and skip</string>

@@ -1,6 +1,7 @@
 package com.xayah.core.work.workers
 
 import android.content.Context
+import androidx.core.content.ContextCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
@@ -24,6 +25,7 @@ internal class FilesUpdateWorker @AssistedInject constructor(
     @Dispatcher(Default) private val defaultDispatcher: CoroutineDispatcher,
     private val filesRepo: FilesRepo,
 ) : CoroutineWorker(appContext, workerParams) {
+    private val notificationId = id.hashCode() or Int.MIN_VALUE
     private val mNotificationBuilder by lazy { NotificationUtil.getProgressNotificationBuilder(appContext) }
     private var mNotificationInfo: ForegroundInfo? = null
 
@@ -32,8 +34,9 @@ internal class FilesUpdateWorker @AssistedInject constructor(
             mNotificationInfo = NotificationUtil.createForegroundInfo(
                 appContext,
                 mNotificationBuilder,
-                appContext.getString(R.string.updating_file_list),
-                appContext.getString(R.string.wait_for_remaining_data_processing),
+                ContextCompat.getString(appContext, R.string.updating_file_list),
+                ContextCompat.getString(appContext, R.string.wait_for_remaining_data_processing),
+                notificationId = notificationId,
             )
         }
 
