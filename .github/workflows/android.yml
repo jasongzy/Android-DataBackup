@@ -2,17 +2,11 @@ name: Android
 
 on:
   push:
-    branches: [main]
     tags: ["*"]
-  pull_request:
-    branches: [main]
-    paths:
-      - source/**
-      - .github/workflows/android.yml
   workflow_dispatch:
 
 concurrency:
-  group: android-${{ github.ref }}
+  group: android-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -23,7 +17,8 @@ env:
   APP_DISPLAY_NAME: Iridium Backup
 
 jobs:
-  build:
+  debug:
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,14 +42,13 @@ jobs:
           :app:assembleUniversalFossDebug
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.APP_NAME }}-debug
           path: source/app/build/outputs/apk/universalFoss/debug/*.apk
+          archive: false
           if-no-files-found: error
           retention-days: 7
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
