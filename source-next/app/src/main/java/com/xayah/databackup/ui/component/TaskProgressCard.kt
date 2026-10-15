@@ -1,6 +1,7 @@
 package com.xayah.databackup.ui.component
 
 import androidx.annotation.FloatRange
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
@@ -31,31 +32,82 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
+/** Display values only; backup and restore retain ownership of their outcome and progress semantics. */
+internal data class TaskProgressCardState(
+    val icon: ImageVector,
+    val title: String,
+    val label: String,
+    val subtitle: String,
+    val progress: Float = 0f,
+    val isProcessing: Boolean = false,
+)
+
 @Composable
-fun ProcessItemHolder(
+internal fun TaskProgressCard(
+    category: TaskProgressCardState,
+    isTerminal: Boolean,
+    currentApp: TaskProgressCardState? = null,
+) {
+    val canShowCurrentApp = !isTerminal && currentApp != null
+    var isCurrentAppVisible by rememberSaveable(isTerminal, canShowCurrentApp) { mutableStateOf(false) }
+    val displayedItem = currentApp.takeIf { isCurrentAppVisible && canShowCurrentApp } ?: category
+    TaskProgressCardLayout(
+        modifier = Modifier.fillMaxWidth(),
+        progress = { displayedItem.progress.coerceIn(0f, 1f) },
+        isProgressVisible = !isTerminal && displayedItem.isProcessing,
+    ) {
+        TaskProgressCardContainer(
+            onClick = if (canShowCurrentApp) {
+                { isCurrentAppVisible = !isCurrentAppVisible }
+            } else {
+                null
+            },
+        ) {
+            AnimatedContent(
+                targetState = isCurrentAppVisible && canShowCurrentApp,
+                transitionSpec = fadeSlideContentTransitionSpec(),
+                label = "currentAppTransition",
+            ) { isShowingApp ->
+                val item = currentApp.takeIf { isShowingApp } ?: category
+                TaskProgressCardContent(
+                    icon = item.icon,
+                    title = item.title,
+                    label = item.label,
+                    subtitle = item.subtitle,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskProgressCardLayout(
     modifier: Modifier,
-    @FloatRange(0.0, 1.0) process: () -> Float,
-    showProgress: Boolean = true,
-    item: @Composable ColumnScope.() -> Unit,
+    @FloatRange(0.0, 1.0) progress: () -> Float,
+    isProgressVisible: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier = modifier.animateContentSize(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        item()
+        content()
         AnimatedVisibility(
-            visible = showProgress,
+            visible = isProgressVisible,
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically()
         ) {
             val animatedProgress: Float by animateFloatAsState(
-                targetValue = process.invoke(),
+                targetValue = progress(),
                 label = "progress",
                 animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessVeryLow)
             )
@@ -65,47 +117,22 @@ fun ProcessItemHolder(
 }
 
 @Composable
-fun ProcessItemCard(
-    icon: ImageVector,
-    title: String,
-    label: String,
-    subtitle: String,
-    subtitleShimmer: Boolean,
-    onClick: () -> Unit,
-    trailingContent: (@Composable () -> Unit)? = null,
-) {
-    ProcessItemCardContainer(onClick = onClick) {
-        ProcessItemCardContent(
-            icon = icon,
-            title = title,
-            label = label,
-            subtitle = subtitle,
-            subtitleShimmer = subtitleShimmer,
-            trailingContent = trailingContent,
-        )
+private fun TaskProgressCardContainer(onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+    val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    val shape = RoundedCornerShape(16.dp)
+    if (onClick == null) {
+        Card(modifier = Modifier.fillMaxWidth(), colors = colors, shape = shape, content = content)
+    } else {
+        Card(modifier = Modifier.fillMaxWidth(), colors = colors, shape = shape, onClick = onClick, content = content)
     }
 }
 
 @Composable
-fun ProcessItemCardContainer(onClick: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        shape = RoundedCornerShape(16.dp),
-        onClick = onClick
-    ) {
-        content()
-    }
-}
-
-@Composable
-fun ProcessItemCardContent(
+private fun TaskProgressCardContent(
     icon: ImageVector,
     title: String,
     label: String,
     subtitle: String,
-    subtitleShimmer: Boolean,
-    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -118,7 +145,7 @@ fun ProcessItemCardContent(
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.primary,
             imageVector = icon,
-            contentDescription = "Localized description"
+            contentDescription = null
         )
         Column(
             modifier = Modifier
@@ -138,7 +165,6 @@ fun ProcessItemCardContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    modifier = Modifier.shimmer(subtitleShimmer),
                     text = label,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
@@ -153,7 +179,6 @@ fun ProcessItemCardContent(
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                         Text(
-                            modifier = Modifier.shimmer(subtitleShimmer),
                             text = subtitle,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
@@ -164,6 +189,5 @@ fun ProcessItemCardContent(
                 }
             }
         }
-        trailingContent?.invoke()
     }
 }

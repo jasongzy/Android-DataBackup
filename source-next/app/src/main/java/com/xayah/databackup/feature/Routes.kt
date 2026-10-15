@@ -1,6 +1,9 @@
 package com.xayah.databackup.feature
 
 import androidx.navigation3.runtime.NavKey
+import com.xayah.databackup.data.TaskInfo
+import com.xayah.databackup.data.TaskType
+import com.xayah.databackup.entity.BackupBackendType
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -19,13 +22,10 @@ data object TranslatorsRoute : NavKey
 data object BackupSetupRoute : NavKey
 
 @Serializable
-data object BackupProcessRoute : NavKey
+data class BackupProcessRoute(val taskId: String = "") : NavKey
 
 @Serializable
-data object RusticBackupProcessRoute : NavKey
-
-@Serializable
-data object BackupProcessDetailsRoute : NavKey
+data class RusticBackupProcessRoute(val taskId: String = "") : NavKey
 
 @Serializable
 data class BackupConfigRoute(val index: Int) : NavKey {
@@ -56,7 +56,7 @@ data class RestoreRoute(val configUuid: String, val snapshotId: String) : NavKey
 data object RestoreSetupRoute : NavKey
 
 @Serializable
-data object RestoreProcessRoute : NavKey
+data class RestoreProcessRoute(val taskId: String = "") : NavKey
 
 @Serializable
 data object RestoreAppsRoute : NavKey
@@ -72,3 +72,11 @@ data object RestoreCallLogsRoute : NavKey
 
 @Serializable
 data object RestoreMessagesRoute : NavKey
+
+internal fun TaskInfo.toProcessRoute(): NavKey = when (type) {
+    TaskType.Restore -> RestoreProcessRoute(id)
+    TaskType.Backup -> when (backendType) {
+        BackupBackendType.Archive -> BackupProcessRoute(id)
+        BackupBackendType.Rustic -> RusticBackupProcessRoute(id)
+    }
+}

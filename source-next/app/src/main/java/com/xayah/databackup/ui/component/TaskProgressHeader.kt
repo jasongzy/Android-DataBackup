@@ -13,9 +13,6 @@ import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -24,10 +21,10 @@ import androidx.compose.ui.unit.dp
 import com.xayah.databackup.util.SymbolHelper
 
 @Composable
-fun BackupProgressHeader(
+internal fun TaskProgressHeader(
     progress: String,
     statusLabel: String,
-    showLoading: Boolean,
+    isLoading: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(modifier = modifier.padding(start = 16.dp, top = 40.dp, bottom = 12.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -41,10 +38,9 @@ fun BackupProgressHeader(
                     style = MaterialTheme.typography.displayLarge,
                     fontWeight = FontWeight.Bold,
                 )
-                val percent by remember { mutableStateOf(SymbolHelper.PERCENT.toString()) }
                 Text(
                     modifier = Modifier.alignByBaseline(),
-                    text = percent,
+                    text = SymbolHelper.PERCENT.toString(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleLarge,
@@ -67,7 +63,7 @@ fun BackupProgressHeader(
             }
         }
         Spacer(modifier = Modifier.weight(1f))
-        FadeVisibility(visible = showLoading) {
+        FadeVisibility(visible = isLoading) {
             ContainedLoadingIndicator(modifier = Modifier.size(64.dp))
         }
     }

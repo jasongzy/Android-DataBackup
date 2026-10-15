@@ -25,7 +25,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -38,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xayah.databackup.App
 import com.xayah.databackup.R
 import com.xayah.databackup.entity.BackupBackend
+import com.xayah.databackup.entity.BackupBackendType
 import com.xayah.databackup.entity.BackupConfig
 import com.xayah.databackup.feature.BackupAppsRoute
 import com.xayah.databackup.feature.BackupCallLogsRoute
@@ -46,6 +50,7 @@ import com.xayah.databackup.feature.BackupMessagesRoute
 import com.xayah.databackup.feature.BackupNetworksRoute
 import com.xayah.databackup.feature.BackupProcessRoute
 import com.xayah.databackup.feature.RusticBackupProcessRoute
+import com.xayah.databackup.feature.toProcessRoute
 import com.xayah.databackup.ui.component.ActionButtonState
 import com.xayah.databackup.ui.component.AutoScreenOffSwitch
 import com.xayah.databackup.ui.component.Preference
@@ -53,11 +58,12 @@ import com.xayah.databackup.ui.component.PreferenceGroup
 import com.xayah.databackup.ui.component.ResetBackupListSwitch
 import com.xayah.databackup.ui.component.SectionHeader
 import com.xayah.databackup.ui.component.SmallCheckActionButton
-import com.xayah.databackup.ui.component.surfaceTopAppBarColors
+import com.xayah.databackup.ui.component.TaskBusyDialog
 import com.xayah.databackup.ui.component.rememberCallLogPermissionsState
 import com.xayah.databackup.ui.component.rememberContactPermissionsState
 import com.xayah.databackup.ui.component.rememberMessagePermissionsState
 import com.xayah.databackup.ui.component.shimmer
+import com.xayah.databackup.ui.component.surfaceTopAppBarColors
 import com.xayah.databackup.ui.component.verticalFadingEdges
 import com.xayah.databackup.util.AppsOptionSelectedBackup
 import com.xayah.databackup.util.CallLogsOptionSelectedBackup
@@ -84,10 +90,29 @@ fun BackupSetupScreen(
     val selectedBackupSize by viewModel.selectedBackupSize.collectAsStateWithLifecycle()
     val isLoadingConfigs by viewModel.isLoadingConfigs.collectAsStateWithLifecycle()
     val selectedItems by viewModel.selectedItems.collectAsStateWithLifecycle(null)
+    val activeTask by viewModel.activeTask.collectAsStateWithLifecycle()
+    var isBusyDialogVisible by rememberSaveable { mutableStateOf(false) }
+    val startError by viewModel.startError.collectAsStateWithLifecycle()
     val nextBtnEnabled by viewModel.nextBtnEnabled.collectAsStateWithLifecycle()
 
     LaunchedEffect(context = Dispatchers.IO, null) {
         viewModel.initialize()
+    }
+
+    if (isBusyDialogVisible || (startError && activeTask != null)) {
+        activeTask?.let { task ->
+            TaskBusyDialog(
+                onDismiss = {
+                    isBusyDialogVisible = false
+                    viewModel.dismissStartError()
+                },
+                onOpenTask = {
+                    isBusyDialogVisible = false
+                    viewModel.dismissStartError()
+                    navigator.navigateSafely(task.toProcessRoute())
+                },
+            )
+        }
     }
 
     Scaffold(
@@ -156,17 +181,26 @@ fun BackupSetupScreen(
                     .padding(top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(modifier = Modifier.weight(1f))
+                if (startError) {
+                    Text(text = stringResource(R.string.backup_start_failed), color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
 
                 Button(
                     modifier = Modifier.wrapContentSize(),
                     enabled = nextBtnEnabled,
                     onClick = {
-                        viewModel.resetProcessRepo()
-                        if (viewModel.isCurrentBackupRustic()) {
-                            navigator.navigateSafely(RusticBackupProcessRoute)
+                        if (viewModel.activeTask.value != null) {
+                            isBusyDialogVisible = true
                         } else {
-                            navigator.navigateSafely(BackupProcessRoute)
+                            viewModel.startBackup { state ->
+                                val route = when (state.backendType) {
+                                    BackupBackendType.Archive -> BackupProcessRoute(state.id)
+                                    BackupBackendType.Rustic -> RusticBackupProcessRoute(state.id)
+                                }
+                                navigator.navigateSafely(route)
+                            }
                         }
                     }
                 ) {
